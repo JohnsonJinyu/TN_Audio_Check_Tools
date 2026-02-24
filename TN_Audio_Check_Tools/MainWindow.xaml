@@ -1,0 +1,66 @@
+﻿<Window
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TN_Audio_Check_Tools"
+        x:Class="TN_Audio_Check_Tools.MainWindow"
+        mc:Ignorable="d"
+        Title="TN_AUDIO_CHECK_TOOLS" Height="500" Width="900">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="2*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- File group A -->
+            <GroupBox Header="测试报告文件列表" Grid.Column="0">
+                <DockPanel>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
+                        <Button Content="添加文件..." Click="AddFilesA_Click" Margin="0,0,8,0" />
+                        <Button Content="移除选中" Click="RemoveSelectedA_Click" Margin="0,0,8,0" />
+                        <Button Content="清空" Click="ClearA_Click" />
+                    </StackPanel>
+                    <ListBox x:Name="ListA" Margin="4" SelectionMode="Extended" DisplayMemberPath="FileName"
+                             AllowDrop="True" PreviewDragOver="List_PreviewDragOver" Drop="ListA_Drop" />
+                </DockPanel>
+            </GroupBox>
+
+            <!-- spacer -->
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+
+            <!-- File group B -->
+            <GroupBox Header="File Group B" Grid.Column="2">
+                <DockPanel>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
+                        <Button Content="添加文件..." Click="AddFilesB_Click" Margin="0,0,8,0" />
+                        <Button Content="移除选中" Click="RemoveSelectedB_Click" Margin="0,0,8,0" />
+                        <Button Content="清空" Click="ClearB_Click" />
+                    </StackPanel>
+                    <ListBox x:Name="ListB" Margin="4" SelectionMode="Extended" DisplayMemberPath="FileName"
+                             AllowDrop="True" PreviewDragOver="List_PreviewDragOver" Drop="ListB_Drop" />
+                </DockPanel>
+            </GroupBox>
+        </Grid>
+
+        <!-- Results area -->
+        <GroupBox Header="Results" Grid.Row="1">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
+                    <Button Content="Process" Click="Process_Click" Margin="0,0,8,0" />
+                    <Button Content="Clear Results" Click="ClearResults_Click" />
+                </StackPanel>
+                <ListBox x:Name="ResultsList" Margin="4" />
+            </DockPanel>
+        </GroupBox>
+    </Grid>
+
+</Window>
