@@ -1,0 +1,179 @@
+{}
+    "FileName": "Motorola XT2513-1-3quest_delay impairments_DT_POLQA_TOSQA _for Handset mode.doc",
+    "Version": "1.0",
+    "Description": "提取测试报告中 AMR TOSQA MOS 和 POLQA MOS 测试数据",
+    "Fields": [
+      {
+        "FieldKey": "AMR_TOSQA_MOS_SND_23.85kbit/s",
+        "ExampleText": "MOS-LQO P.863 Single Sent. SND HAWB 23.85k\nMOS-LQO (Average) 3.94 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. SND HAWB 23\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "TOSQA 对应 MOS-LQO 指标，SND 23.85kbit/s 无 nom/max 区分"
+      },
+      {
+        "FieldKey": "AMR_TOSQA_MOS_SND_12.65kbit/s",
+        "ExampleText": "4.2.4.1 Speech Qual. TMOS SND AMR-WB HAWB 12.65k\nEst. TMOS Factor (Average): 3.24 Ok",
+        "MatchType": "Regex",
+        "Pattern": "4\\.2\\.4\\.1 Speech Qual\\. TMOS SND AMR-WB HAWB 12\\.65k[\\s\\S]*?Est\\. TMOS Factor \\\(Average\\\\):\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "NextLine",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "TOSQA 对应 TMOS 指标，SND 12.65kbit/s 无 nom/max 区分"
+      },
+      {
+        "FieldKey": "AMR_TOSQA_MOS_RCV_23.85kbit/s_nom",
+        "ExampleText": "4.2.4.2 Speech Quality TMOS RCV AMR-WB  HAWB nom 23.85k\nEst. TMOS Factor (Average): 3.37 Ok",
+        "MatchType": "Regex",
+        "Pattern": "Speech Quality TMOS RCV AMR-WB.*nom 23\\.85k[\\s\\S]*?Est\\. TMOS Factor \\\(Average\\\\):\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "NearHeader",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 23.85kbit/s nom 场景的 TMOS 平均值"
+      },
+      {
+        "FieldKey": "AMR_TOSQA_MOS_RCV_12.65kbit/s_nom",
+        "ExampleText": "4.2.4.2 Speech Quality TMOS RCV AMR-WB  HAWB nom 12.65k\nEst. TMOS Factor (Average): 3.32 Ok",
+        "MatchType": "Regex",
+        "Pattern": "Speech Quality TMOS RCV AMR-WB.*nom 12\\.65k[\\s\\S]*?Est\\. TMOS Factor \\\(Average\\\\):\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "NearHeader",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 12.65kbit/s nom 场景的 TMOS 平均值"
+      },
+      {
+        "FieldKey": "AMR_TOSQA_MOS_RCV_23.85kbit/s_max",
+        "ExampleText": "4.2.4.2 Speech Quality TMOS RCV AMR-WB  HAWB max 23.85k\nEst. TMOS Factor (Average): 3.46 Ok",
+        "MatchType": "Regex",
+        "Pattern": "Speech Quality TMOS RCV AMR-WB.*max 23\\.85k[\\s\\S]*?Est\\. TMOS Factor \\\(Average\\\\):\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "NearHeader",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 23.85kbit/s max 场景的 TMOS 平均值"
+      },
+      {
+        "FieldKey": "AMR_TOSQA_MOS_RCV_12.65kbit/s_max",
+        "ExampleText": "4.2.4.2 Speech Quality TMOS RCV AMR-WB  HAWB max 12.65k\nEst. TMOS Factor (Average): 3.23 Ok",
+        "MatchType": "Regex",
+        "Pattern": "Speech Quality TMOS RCV AMR-WB.*max 12\\.65k[\\s\\S]*?Est\\. TMOS Factor \\\(Average\\\\):\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "NearHeader",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 12.65kbit/s max 场景的 TMOS 平均值"
+      },
+      {
+        "FieldKey": "POLQA_MOS_SND_23.85kbit/s",
+        "ExampleText": "MOS-LQO P.863 Single Sent. SND HAWB 23.85k\nMOS-LQO (Average) 3.94 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. SND HAWB 23\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "POLQA 核心指标为 MOS-LQO，SND 23.85kbit/s 无 nom/max 区分"
+      },
+      {
+        "FieldKey": "POLQA_MOS_SND_12.65kbit/s",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB nom12.65k\nMOS-LQO (Average) 4.07 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. (SND|RCV) HAWB (nom|max)?12\\.65k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$3",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "复用 RCV 同速率 POLQA 提取逻辑，适配 SND 12.65kbit/s 场景"
+      },
+      {
+        "FieldKey": "POLQA_MOS_SND_8.85kbit/s",
+        "ExampleText": "MOS-LQO P.863 Single Sent. SND HAWB 8.85k\nMOS-LQO (Average) 3.81 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. SND HAWB 8\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "POLQA SND 8.85kbit/s 无 nom/max 区分"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_23.85kbit/s_nom",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB nom23.85k\nMOS-LQO (Average) 3.37 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB nom23\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 23.85kbit/s nom 场景的 POLQA 指标"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_12.65kbit/s_nom",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB nom12.65k\nMOS-LQO (Average) 4.07 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB nom12\\.65k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 12.65kbit/s nom 场景的 POLQA 指标"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_8.85kbit/s_nom",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB nom8.85k\nMOS-LQO (Average) 3.85 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB nom8\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 8.85kbit/s nom 场景的 POLQA 指标"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_23.85kbit/s_max",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB max23.85k\nMOS-LQO (Average) 3.46 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB max23\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 23.85kbit/s max 场景的 POLQA 指标"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_12.65kbit/s_max",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB max12.65k\nMOS-LQO (Average) 3.63 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB max12\\.65k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 12.65kbit/s max 场景的 POLQA 指标"
+      },
+      {
+        "FieldKey": "POLQA_MOS_RCV_8.85kbit/s_max",
+        "ExampleText": "MOS-LQO P.863 Single Sent. RCV HAWB max8.85k\nMOS-LQO (Average) 3.48 Ok",
+        "MatchType": "Regex",
+        "Pattern": "MOS-LQO P\\.863 Single Sent\\. RCV HAWB max8\\.85k[\\s\\S]*?MOS-LQO \\\ (Average)\\\\s+([0-9]+\\.[0-9]+)",
+        "Context": "SameParagraph",
+        "CaptureGroup": "$1",
+        "Normalize": "ToNumber",
+        "Priority": "高",
+        "Notes": "匹配 RCV 8.85kbit/s max 场景的 POLQA 指标"
+      }
+    ],
+    "GlobalConfig": {
+      "RegexOptions": "IgnoreCase, Multiline",
+      "DefaultNormalize": "Trim",
+      "ErrorLogPath": "ExtractError.log",
+      "OutputEncoding": "UTF-8"
+    }
+  }
+}
