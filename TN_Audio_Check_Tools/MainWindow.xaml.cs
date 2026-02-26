@@ -85,7 +85,7 @@ namespace TN_Audio_Check_Tools
                 if (e.PropertyName == nameof(ProcessingManager.StatusMessage))
                 {
                     StatusText.Text = ProcessingMgr.StatusMessage;
-                }
+        }
             };
             ProcessingMgr.Logs.CollectionChanged += (s, e) =>
             {
@@ -165,8 +165,8 @@ namespace TN_Audio_Check_Tools
                 {
                     FileGroupB.Clear();
                     FileGroupB.Add(new FileEntry(files[0]));
-                }
             }
+        }
         }
 
         private void AddFilesToCollection(IEnumerable<string> files, ObservableCollection<FileEntry> collection)
