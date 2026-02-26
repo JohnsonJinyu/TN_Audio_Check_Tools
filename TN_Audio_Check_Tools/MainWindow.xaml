@@ -60,30 +60,30 @@
 
                 <!-- 测试报告文件列表 (moved to top of right column) -->
                 <GroupBox Header="测试报告文件列表" Grid.Row="0">
-                    <DockPanel>
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
-                            <Button Content="添加文件..." Click="AddFilesA_Click" Margin="0,0,8,0" />
-                            <Button Content="移除选中" Click="RemoveSelectedA_Click" Margin="0,0,8,0" />
-                            <Button Content="清空" Click="ClearA_Click" />
-                        </StackPanel>
-                        <ListBox x:Name="ListA" Margin="4" SelectionMode="Extended" DisplayMemberPath="FileName"
-                                 AllowDrop="True" PreviewDragOver="List_PreviewDragOver" Drop="ListA_Drop" />
-                    </DockPanel>
-                </GroupBox>
+                <DockPanel>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
+                        <Button Content="添加文件..." Click="AddFilesA_Click" Margin="0,0,8,0" />
+                        <Button Content="移除选中" Click="RemoveSelectedA_Click" Margin="0,0,8,0" />
+                        <Button Content="清空" Click="ClearA_Click" />
+                    </StackPanel>
+                    <ListBox x:Name="ListA" Margin="4" SelectionMode="Extended" DisplayMemberPath="FileName"
+                             AllowDrop="True" PreviewDragOver="List_PreviewDragOver" Drop="ListA_Drop" />
+                </DockPanel>
+            </GroupBox>
 
                 <!-- 汇总表模板 (bottom, small area) -->
                 <GroupBox Header="汇总表模板" Grid.Row="1">
-                    <DockPanel>
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
+                <DockPanel>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="4">
                             <Button Content="选择模板..." Click="AddFilesB_Click" Margin="0,0,8,0" />
-                            <Button Content="移除选中" Click="RemoveSelectedB_Click" Margin="0,0,8,0" />
-                            <Button Content="清空" Click="ClearB_Click" />
-                        </StackPanel>
+                        <Button Content="移除选中" Click="RemoveSelectedB_Click" Margin="0,0,8,0" />
+                        <Button Content="清空" Click="ClearB_Click" />
+                    </StackPanel>
                         <ListBox x:Name="ListB" Margin="4" SelectionMode="Single" DisplayMemberPath="FileName"
                                  AllowDrop="True" PreviewDragOver="List_PreviewDragOver" Drop="ListB_Drop" MaxHeight="80" />
-                    </DockPanel>
-                </GroupBox>
-            </Grid>
+                </DockPanel>
+            </GroupBox>
+        </Grid>
         </Grid>
 
         <!-- Results area -->
@@ -96,9 +96,9 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" Grid.Column="0">
-                        <Button Content="Process" Click="Process_Click" Margin="0,0,8,0" />
-                        <Button Content="Clear Results" Click="ClearResults_Click" />
-                    </StackPanel>
+                    <Button Content="Process" Click="Process_Click" Margin="0,0,8,0" />
+                    <Button Content="Clear Results" Click="ClearResults_Click" />
+                </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Grid.Column="1" HorizontalAlignment="Right">
                         <Button Content="测试数据提取" Click="ProcessResults_Click" Margin="8,0,0,0" />

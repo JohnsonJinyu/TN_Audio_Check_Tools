@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Data;
 using TN_Audio_Check_Tools.Services;
 using OfficeOpenXml;
 
@@ -85,7 +86,7 @@ namespace TN_Audio_Check_Tools
                 if (e.PropertyName == nameof(ProcessingManager.StatusMessage))
                 {
                     StatusText.Text = ProcessingMgr.StatusMessage;
-                }
+        }
             };
             ProcessingMgr.Logs.CollectionChanged += (s, e) =>
             {
@@ -165,8 +166,8 @@ namespace TN_Audio_Check_Tools
                 {
                     FileGroupB.Clear();
                     FileGroupB.Add(new FileEntry(files[0]));
-                }
             }
+        }
         }
 
         private void AddFilesToCollection(IEnumerable<string> files, ObservableCollection<FileEntry> collection)
@@ -241,7 +242,6 @@ namespace TN_Audio_Check_Tools
             ProgressBar.Maximum = files.Count;
             ProgressBar.Value = 0;
 
-            var allRecords = new List<Dictionary<string, string>>();
             var convertedFiles = new List<string>();
 
             // ===== Phase 1: Convert .doc files to .docx =====
@@ -326,6 +326,8 @@ namespace TN_Audio_Check_Tools
             ProgressBar.Value = 0;
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            var allDataTables = new List<(string fileName, DataTable table)>();
+
             for (int i = 0; i < convertedFiles.Count; i++)
             {
                 var usedPath = convertedFiles[i];
@@ -335,28 +337,22 @@ namespace TN_Audio_Check_Tools
                 {
                     ProcessingMgr.UpdateItemProgress(i, originalFileName);
 
-                    var records = await Task.Run(() => TestDataExtractor.ExtractStatusOverviewRecords(usedPath));
-                    if (records != null && records.Count > 0)
+                    // 提取"Status Overview"表格为DataTable
+                    var statusTable = await Task.Run(() => TestDataExtractor.ExtractStatusOverviewTableAsDataTable(usedPath));
+
+                    if (statusTable != null && statusTable.Rows.Count > 0)
                     {
-                        foreach (var r in records) allRecords.Add(r);
-                        ProcessingMgr.AddLog($"[{i + 1}/{files.Count}] {originalFileName}: 表格提取 {records.Count} 条");
+                        allDataTables.Add((originalFileName, statusTable));
+                        ProcessingMgr.AddLog($"[{i + 1}/{files.Count}] {originalFileName}: 成功提取表格，共 {statusTable.Rows.Count} 行");
                     }
                     else
                     {
-                        var rec = await Task.Run(() => TestDataExtractor.ExtractKeyValuePairsFromDocx(usedPath));
-                        allRecords.Add(rec);
-                        ProcessingMgr.AddLog($"[{i + 1}/{files.Count}] {originalFileName}: 文本提取 {rec.Count} 项");
+                        ProcessingMgr.AddLog($"[{i + 1}/{files.Count}] {originalFileName}: 未找到或表格为空");
                     }
                 }
                 catch (Exception ex)
                 {
                     ProcessingMgr.AddLog($"[{i + 1}/{files.Count}] {originalFileName}: 提取失败 {ex.Message}");
-                    allRecords.Add(new Dictionary<string, string>
-                    {
-                        ["SourceFile"] = originalFileName,
-                        ["SourcePath"] = files[i],
-                        ["__ERROR__"] = ex.Message
-                    });
                 }
 
                 ProgressBar.Value = i + 1;
@@ -364,8 +360,89 @@ namespace TN_Audio_Check_Tools
             }
 
             ProcessingMgr.AddLog(string.Empty);
-            ProcessingMgr.AddLog($"总计：已收集 {allRecords.Count} 条记录");
+            ProcessingMgr.AddLog($"总计：已提取 {allDataTables.Count} 个表格");
+
+            // ===== Phase 3: Save to Excel =====
+            if (allDataTables.Count > 0)
+            {
+                ProcessingMgr.StartPhase(ProcessingPhase.Extracting, "第三阶段：保存结果");
+
+                var sfd = new SaveFileDialog() 
+                { 
+                    Filter = "Excel 工作簿|*.xlsx", 
+                    FileName = $"StatusOverview_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
+                };
+
+                if (sfd.ShowDialog() == true)
+                {
+                    try
+                    {
+                        await Task.Run(() => SaveDataTablesToExcel(sfd.FileName, allDataTables));
+                        ProcessingMgr.AddLog($"已保存到: {sfd.FileName}");
+                        StatusText.Text = "已保存为 Excel";
+                        MessageBox.Show(this, $"已成功保存 {allDataTables.Count} 个表格到:\n{sfd.FileName}", "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        ProcessingMgr.AddLog($"保存失败: {ex.Message}");
+                        MessageBox.Show(this, $"保存失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                else
+                {
+                    ProcessingMgr.AddLog("已取消保存");
+                }
+            }
+
             ProcessingMgr.Complete();
+        }
+
+        /// <summary>
+        /// 将多个DataTable保存到Excel文件
+        /// </summary>
+        private void SaveDataTablesToExcel(string filePath, List<(string fileName, DataTable table)> dataTables)
+        {
+            using var package = new ExcelPackage(new FileInfo(filePath));
+
+            // 删除默认工作表
+            while (package.Workbook.Worksheets.Count > 0)
+            {
+                package.Workbook.Worksheets.Delete(package.Workbook.Worksheets.First());
+            }
+
+            foreach (var (fileName, table) in dataTables)
+            {
+                // 创建工作表（去除文件扩展名，限制长度）
+                var sheetName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+                sheetName = sheetName.Length > 31 ? sheetName.Substring(0, 31) : sheetName;
+
+                var worksheet = package.Workbook.Worksheets.Add(sheetName);
+
+                // 写入列标题
+                for (int col = 0; col < table.Columns.Count; col++)
+                {
+                    worksheet.Cells[1, col + 1].Value = table.Columns[col].ColumnName;
+                    // 设置标题行为粗体
+                    worksheet.Cells[1, col + 1].Style.Font.Bold = true;
+                }
+
+                // 写入数据行
+                for (int row = 0; row < table.Rows.Count; row++)
+                {
+                    for (int col = 0; col < table.Columns.Count; col++)
+                    {
+                        worksheet.Cells[row + 2, col + 1].Value = table.Rows[row][col];
+                    }
+                }
+
+                // 自动调整列宽
+                for (int col = 1; col <= table.Columns.Count; col++)
+                {
+                    worksheet.Column(col).AutoFit();
+                }
+            }
+
+            package.Save();
         }
     }
 }
