@@ -63,7 +63,7 @@ namespace TN_Audio_Check_Tools
             }
             catch
             {
-                // ignore clipboard errors
+                // ignore clipboard errors  ff
             }
         }
 
