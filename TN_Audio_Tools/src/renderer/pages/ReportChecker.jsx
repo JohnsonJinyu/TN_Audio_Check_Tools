@@ -4,6 +4,17 @@ import { UploadOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design
 import '../styles/pages.css';
 
 const { Text, Paragraph } = Typography;
+const compactUploadDraggerStyle = { padding: '10px 14px', minHeight: '96px' };
+
+function getOutputFileName(outputPath) {
+  if (!outputPath) {
+    return '';
+  }
+
+  const normalizedPath = String(outputPath).replace(/\\/g, '/');
+  const segments = normalizedPath.split('/');
+  return segments[segments.length - 1] || outputPath;
+}
 
 function ReportChecker() {
   const [files, setFiles] = useState([]);
@@ -31,6 +42,7 @@ function ReportChecker() {
         status: 'pending',
         items: 0,
         outputPath: '',
+        outputName: '',
         error: '',
         unmatchedItems: []
       };
@@ -147,6 +159,7 @@ function ReportChecker() {
             error: result.error,
             items: 0,
             outputPath: '',
+            outputName: '',
             unmatchedItems: []
           };
         }
@@ -156,6 +169,7 @@ function ReportChecker() {
           status: 'success',
           items: result.matchedItems,
           outputPath: result.outputPath,
+          outputName: getOutputFileName(result.outputPath),
           unmatchedItems: result.unmatchedItems || [],
           error: ''
         };
@@ -178,12 +192,19 @@ function ReportChecker() {
       title: '文件名',
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <span>{text}</span>
+      width: 320,
+      ellipsis: true,
+      render: (text) => (
+        <Text className="report-checker-table-text" ellipsis={{ tooltip: text }}>
+          {text}
+        </Text>
+      )
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (status) => {
         const colors = {
           success: 'green',
@@ -198,13 +219,33 @@ function ReportChecker() {
       title: '检查项',
       dataIndex: 'items',
       key: 'items',
+      width: 96,
       render: (items) => <span>{items || 0}</span>
+    },
+    {
+      title: '输出文件名',
+      dataIndex: 'outputName',
+      key: 'outputName',
+      width: 420,
+      ellipsis: true,
+      render: (_, record) => {
+        if (!record.outputName) {
+          return <Text type="secondary">处理完成后显示</Text>;
+        }
+
+        return (
+          <Text className="report-checker-table-text" ellipsis={{ tooltip: record.outputName }}>
+            {record.outputName}
+          </Text>
+        );
+      }
     },
     {
       title: '操作',
       key: 'action',
+      width: 220,
       render: (_, record) => (
-        <Space>
+        <Space wrap={false}>
           <Button type="primary" size="small" onClick={() => showDetails(record)}>详情</Button>
           <Button size="small" disabled={!record.outputPath} onClick={() => openOutputFolder(record)}>打开目录</Button>
           <Button danger size="small" icon={<DeleteOutlined />} onClick={() => removeReport(record.id)}>删除</Button>
@@ -241,7 +282,7 @@ function ReportChecker() {
         }
       >
         <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
-          上传 .doc/.docx 测试报告和空白 checklist，系统将优先把 .doc 临时转换为 .docx 后解析，并在报告目录下生成带时间戳的新 Excel 文件。
+          上传真实 .doc/.docx 测试报告和 I 列为空的 checklist，系统会按 moto_rules_for_analysis.json5 提取报告数据并回填到 checklist，最终在报告目录下生成新的 Excel 文件。
         </p>
 
         {files.length === 0 ? (
@@ -250,10 +291,11 @@ function ReportChecker() {
             multiple
             accept=".doc,.docx"
             showUploadList={false}
-            style={{ padding: '24px' }}
+            className="report-checker-upload report-checker-upload-report"
+            style={{ padding: '16px 18px', minHeight: '108px' }}
           >
-            <UploadOutlined style={{ fontSize: '48px', color: '#bfbfbf', marginBottom: '16px' }} />
-            <p style={{ fontSize: '16px', color: '#262626', marginBottom: '8px' }}>
+            <UploadOutlined style={{ fontSize: '36px', color: '#bfbfbf', marginBottom: '10px' }} />
+            <p style={{ fontSize: '15px', color: '#262626', marginBottom: '6px' }}>
               拖拽报告文件到此处，或点击上方按钮上传
             </p>
             <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
@@ -262,47 +304,13 @@ function ReportChecker() {
           </Upload.Dragger>
         ) : (
           <Table
+            className="report-checker-table"
             columns={columns}
             dataSource={files}
             rowKey="id"
+            scroll={{ x: 1180 }}
             pagination={{ pageSize: 10 }}
           />
-        )}
-      </Card>
-
-      <Card
-        title="上传规则"
-        style={{ marginTop: '24px' }}
-        extra={
-          <Upload
-            customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
-            accept=".json,.json5"
-            showUploadList={false}
-          >
-            <Button type="primary" icon={<UploadOutlined />}>
-              上传规则
-            </Button>
-          </Upload>
-        }
-      >
-        <Upload.Dragger
-          customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
-          accept=".json,.json5"
-          showUploadList={false}
-          style={{ padding: '12px 16px', minHeight: '120px' }}
-        >
-          <UploadOutlined style={{ fontSize: '28px', color: '#bfbfbf', marginBottom: '8px' }} />
-          <p style={{ fontSize: '14px', color: '#262626', marginBottom: '4px' }}>
-            拖拽规则文件到此处，或点击上传
-          </p>
-          <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
-            支持格式: JSON / JSON5；不上传时默认使用内置规则
-          </p>
-        </Upload.Dragger>
-        {ruleFile && (
-          <p style={{ marginTop: '12px', color: '#595959' }}>
-            已选择: {ruleFile.name}
-          </p>
         )}
       </Card>
 
@@ -325,19 +333,70 @@ function ReportChecker() {
           customRequest={({ file, onSuccess }) => handleUpload(file, 'checklist', onSuccess)}
           accept=".xlsx,.xls"
           showUploadList={false}
-          style={{ padding: '12px 16px', minHeight: '120px' }}
+          className="report-checker-upload"
+          style={compactUploadDraggerStyle}
         >
-          <UploadOutlined style={{ fontSize: '28px', color: '#bfbfbf', marginBottom: '8px' }} />
-          <p style={{ fontSize: '14px', color: '#262626', marginBottom: '4px' }}>
-            拖拽 checklist 文件到此处，或点击上传
-          </p>
-          <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
-            支持格式: Excel (.xlsx, .xls)
-          </p>
+          {checklistFile ? (
+            <div style={{ padding: '8px 0' }}>
+              <Text strong style={{ display: 'block', fontSize: '16px', color: '#262626', marginBottom: '6px' }}>
+                已选择 checklist
+              </Text>
+              <Text style={{ fontSize: '14px', color: '#595959', wordBreak: 'break-all' }}>
+                {checklistFile.name}
+              </Text>
+            </div>
+          ) : (
+            <>
+              <UploadOutlined style={{ fontSize: '24px', color: '#bfbfbf', marginBottom: '6px' }} />
+              <p style={{ fontSize: '14px', color: '#262626', marginBottom: '3px' }}>
+                拖拽 checklist 文件到此处，或点击上传
+              </p>
+              <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+                支持格式: Excel (.xlsx, .xls)
+              </p>
+            </>
+          )}
         </Upload.Dragger>
         {checklistFile && (
           <p style={{ marginTop: '12px', color: '#595959' }}>
             已选择: {checklistFile.name}
+          </p>
+        )}
+      </Card>
+
+      <Card
+        title="上传规则"
+        style={{ marginTop: '24px' }}
+        extra={
+          <Upload
+            customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
+            accept=".json,.json5"
+            showUploadList={false}
+          >
+            <Button type="primary" icon={<UploadOutlined />}>
+              上传规则
+            </Button>
+          </Upload>
+        }
+      >
+        <Upload.Dragger
+          customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
+          accept=".json,.json5"
+          showUploadList={false}
+          className="report-checker-upload"
+          style={compactUploadDraggerStyle}
+        >
+          <UploadOutlined style={{ fontSize: '24px', color: '#bfbfbf', marginBottom: '6px' }} />
+          <p style={{ fontSize: '14px', color: '#262626', marginBottom: '3px' }}>
+            拖拽规则文件到此处，或点击上传
+          </p>
+          <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+            支持格式: JSON / JSON5；不上传时默认使用内置规则
+          </p>
+        </Upload.Dragger>
+        {ruleFile && (
+          <p style={{ marginTop: '12px', color: '#595959' }}>
+            已选择: {ruleFile.name}
           </p>
         )}
       </Card>
@@ -347,7 +406,7 @@ function ReportChecker() {
           <li>报告解析当前使用主进程后台执行，避免浏览器沙箱限制本地文件读写。</li>
           <li>默认读取内置 JSON5 规则，也可以手动上传其它规则文件覆盖。</li>
           <li>.doc 报告会优先在后台临时转为 .docx 后解析，解析完成后自动清理临时文件。</li>
-          <li>生成的 Excel 默认保存到测试报告原目录，文件名附带时间戳。</li>
+          <li>生成的 Excel 是在空白 checklist 基础上回填数据后的结果文件，默认保存到测试报告原目录。</li>
         </ul>
       </Card>
     </div>

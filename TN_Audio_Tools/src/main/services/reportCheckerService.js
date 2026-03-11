@@ -247,6 +247,14 @@ function hasAllKeywords(text, keywords, textNormalizeConfig) {
   return keywords.every((keyword) => normalizedText.includes(normalizeText(keyword, textNormalizeConfig)));
 }
 
+function getRowDescriptorText(rowContext) {
+  if (rowContext && Array.isArray(rowContext.cells) && rowContext.cells.length > 0) {
+    return rowContext.cells[0] || rowContext.text || '';
+  }
+
+  return String(rowContext?.text || '').split('|')[0].trim();
+}
+
 function hasRequiredSuffixes(text, suffixes, textNormalizeConfig) {
   if (!Array.isArray(suffixes) || suffixes.length === 0) {
     return true;
@@ -324,6 +332,51 @@ function extractNumberTokens(text) {
   return matches || [];
 }
 
+function isMeasurementObjectCell(text) {
+  const normalized = String(text || '').trim();
+  return /^[A-Za-z0-9]+(?:_[A-Za-z0-9+ --]+)+$/.test(normalized);
+}
+
+function isStatusCell(text) {
+  const normalized = normalizeText(text, {
+    removeNumberPrefix: true,
+    multiSpaceToSingle: true,
+    caseInsensitive: true,
+    trimSpecialChar: true
+  });
+
+  return ['ok', 'not ok', 'done', 'pass', 'fail'].includes(normalized);
+}
+
+function getLastMeaningfulNumericToken(text) {
+  const cleanedText = String(text || '')
+    .replace(/^[0-9.]+\s+/, '')
+    .replace(/[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+)+$/g, '')
+    .trim();
+
+  const tokens = extractNumberTokens(cleanedText);
+  return tokens.length > 0 ? tokens[tokens.length - 1].trim() : null;
+}
+
+function extractRowNumericCell(rowContext) {
+  if (!rowContext || !Array.isArray(rowContext.cells) || rowContext.cells.length === 0) {
+    return null;
+  }
+
+  const numericCell = rowContext.cells
+    .slice()
+    .reverse()
+    .find((cell) => {
+      if (!cell || isMeasurementObjectCell(cell) || isStatusCell(cell)) {
+        return false;
+      }
+
+      return extractNumberTokens(cell).length > 0;
+    });
+
+  return numericCell ? getLastMeaningfulNumericToken(numericCell) : null;
+}
+
 function parseNumericValue(text) {
   if (!text) {
     return null;
@@ -394,10 +447,19 @@ function extractSummaryValue(rowContext, textNormalizeConfig) {
     textNormalizeConfig
   );
 
-  const preferredSource = directCell || rowContext.cells.slice().reverse().find((cell) => extractNumberTokens(cell).length > 0) || rowContext.text;
-  const tokens = extractNumberTokens(preferredSource);
-  if (tokens.length > 0) {
-    return tokens[tokens.length - 1].trim();
+  const numericCellValue = extractRowNumericCell(rowContext);
+  if (numericCellValue) {
+    return numericCellValue;
+  }
+
+  const directCellValue = getLastMeaningfulNumericToken(directCell);
+  if (directCellValue) {
+    return directCellValue;
+  }
+
+  const fallbackValue = getLastMeaningfulNumericToken(rowContext.text);
+  if (fallbackValue) {
+    return fallbackValue;
   }
 
   const status = extractStatus(directCell || rowContext.text);
@@ -420,7 +482,7 @@ function extractFormulaValue(rowContext, item, textNormalizeConfig) {
   }
 
   if (!rawValue) {
-    rawValue = rowContext.cells.slice().reverse().find((cell) => extractNumberTokens(cell).length > 0) || rowContext.text;
+    rawValue = extractRowNumericCell(rowContext) || getLastMeaningfulNumericToken(rowContext.text);
   }
 
   const numericValue = parseNumericValue(rawValue);
@@ -447,39 +509,56 @@ function resolveAnchorValue(reportData, item, textNormalizeConfig) {
   }
 
   const normalizedAnchor = normalizeText(anchorText, textNormalizeConfig);
-  const lineIndex = reportData.lines.findIndex((line) => normalizeText(line, textNormalizeConfig).includes(normalizedAnchor));
-  if (lineIndex === -1) {
+  const anchorIndexes = reportData.lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => normalizeText(line, textNormalizeConfig).includes(normalizedAnchor));
+
+  if (anchorIndexes.length === 0) {
     return { matched: false, reason: '未找到锚点文本' };
   }
 
-  const windowLines = findLineWindow(reportData.lines, lineIndex, 10);
-  const joinedWindow = windowLines.join(' ');
-  const dbAtMatch = joinedWindow.match(/(-?\d+(?:\.\d+)?)\s*dB\s+at/i);
-  let value = dbAtMatch ? dbAtMatch[1] : null;
+  const rankedAnchors = anchorIndexes
+    .map(({ index }) => {
+      const windowLines = findLineWindow(reportData.lines, Math.max(0, index - 8), 18);
+      const joinedWindow = windowLines.join(' ');
+      const keywordScore = Array.isArray(item.coreKeywords)
+        ? item.coreKeywords.filter((keyword) => normalizeText(joinedWindow, textNormalizeConfig).includes(normalizeText(keyword, textNormalizeConfig))).length
+        : 0;
 
-  if (!value) {
-    const numericToken = extractNumberTokens(joinedWindow)[0];
-    value = numericToken ? numericToken.match(/-?\d+(?:\.\d+)?/)?.[0] : null;
-  }
+      return { index, windowLines, joinedWindow, keywordScore };
+    })
+    .sort((left, right) => right.keywordScore - left.keywordScore);
 
-  if (!value) {
-    return { matched: false, reason: '锚点附近未找到数值' };
-  }
+  for (const candidate of rankedAnchors) {
+    const dbAtMatch = candidate.joinedWindow.match(/(-?\d+(?:\.\d+)?)\s*dB\s+at/i);
+    let value = dbAtMatch ? dbAtMatch[1] : null;
 
-  const numericValue = Number.parseFloat(value);
-  const range = item.anchorConfig?.valueRange;
-  if (Array.isArray(range) && range.length === 2) {
-    if (numericValue < range[0] || numericValue > range[1]) {
-      return { matched: false, reason: '锚点数值超出配置范围' };
+    if (!value) {
+      const numericToken = getLastMeaningfulNumericToken(candidate.joinedWindow);
+      value = numericToken ? numericToken.match(/-?\d+(?:\.\d+)?/)?.[0] : null;
     }
+
+    if (!value) {
+      continue;
+    }
+
+    const numericValue = Number.parseFloat(value);
+    const range = item.anchorConfig?.valueRange;
+    if (Array.isArray(range) && range.length === 2) {
+      if (numericValue < range[0] || numericValue > range[1]) {
+        continue;
+      }
+    }
+
+    return {
+      matched: true,
+      value,
+      sourcePreview: makeSourcePreview(candidate.joinedWindow),
+      sourceType: 'anchor-window'
+    };
   }
 
-  return {
-    matched: true,
-    value,
-    sourcePreview: makeSourcePreview(joinedWindow),
-    sourceType: 'anchor-window'
-  };
+  return { matched: false, reason: '锚点附近未找到符合规则的数值' };
 }
 
 function resolveRegexValue(reportData, item, textNormalizeConfig) {
@@ -605,11 +684,13 @@ function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchCo
       return false;
     }
 
-    if (!hasRequiredSuffixes(rowContext.text, item.requiredSuffix, textNormalizeConfig)) {
+    const descriptorText = getRowDescriptorText(rowContext);
+
+    if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
       return false;
     }
 
-    if (hasForbiddenSuffix(rowContext.text, forbiddenSuffixes, textNormalizeConfig)) {
+    if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
       return false;
     }
 
@@ -620,7 +701,16 @@ function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchCo
     return null;
   }
 
-  return candidates.sort((left, right) => right.text.length - left.text.length)[0];
+  const getCandidateScore = (rowContext) => {
+    const structuredScore = Array.isArray(rowContext.cells) && rowContext.cells.length > 0 ? 1000 : 0;
+    const numericCellScore = Array.isArray(rowContext.cells)
+      ? rowContext.cells.filter((cell) => !isMeasurementObjectCell(cell) && extractNumberTokens(cell).length > 0).length * 100
+      : 0;
+    const headerScore = Array.isArray(rowContext.headers) && rowContext.headers.length > 0 ? 50 : 0;
+    return structuredScore + numericCellScore + headerScore + rowContext.text.length;
+  };
+
+  return candidates.sort((left, right) => getCandidateScore(right) - getCandidateScore(left))[0];
 }
 
 function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig) {
@@ -792,7 +882,7 @@ async function parseReport(reportPath) {
 
 function applyResultsToChecklist(checklistPath, reportPath, extractedItems) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
-  const sheetName = workbook.SheetNames[0];
+  const sheetName = resolveChecklistSheetName(workbook, reportPath);
   const worksheet = workbook.Sheets[sheetName];
 
   extractedItems.forEach((itemResult) => {
@@ -800,15 +890,72 @@ function applyResultsToChecklist(checklistPath, reportPath, extractedItems) {
       return;
     }
 
-    XLSX.utils.sheet_add_aoa(worksheet, [[itemResult.value]], { origin: itemResult.outputCell });
+    XLSX.utils.sheet_add_aoa(worksheet, [[toWorksheetValue(itemResult.value)]], { origin: itemResult.outputCell });
   });
 
-  const checklistName = path.parse(checklistPath).name;
   const reportName = path.parse(reportPath).name;
-  const outputPath = path.join(path.dirname(reportPath), `${checklistName}_${reportName}_${buildTimestamp()}.xlsx`);
+  const outputPath = path.join(path.dirname(reportPath), buildOutputFileName(reportName));
 
   XLSX.writeFile(workbook, outputPath, { bookType: 'xlsx' });
   return outputPath;
+}
+
+function toWorksheetValue(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmedValue)) {
+    const numericValue = Number.parseFloat(trimmedValue);
+    if (!Number.isNaN(numericValue)) {
+      return numericValue;
+    }
+  }
+
+  return value;
+}
+
+function normalizeSheetToken(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function resolveChecklistSheetName(workbook, reportPath) {
+  const reportName = path.parse(reportPath).name;
+  const reportTokens = reportName.split(/[_\s-]+/).map(normalizeSheetToken).filter(Boolean);
+
+  const preferredSheet = workbook.SheetNames.find((candidate) => {
+    const normalizedCandidate = normalizeSheetToken(candidate);
+    if (!normalizedCandidate || ['report', 'help', 'changelog'].includes(normalizedCandidate)) {
+      return false;
+    }
+
+    return reportTokens.some((token) => token && (token.includes(normalizedCandidate) || normalizedCandidate.includes(token)));
+  });
+
+  if (preferredSheet) {
+    return preferredSheet;
+  }
+
+  return workbook.SheetNames[0];
+}
+
+function buildOutputFileName(reportName) {
+  const normalizedReportName = String(reportName || '').trim();
+
+  if (!normalizedReportName) {
+    return `Voice_Tuning_Checklist_v5.0.2_${buildTimestamp()}_人工版本.xlsx`;
+  }
+
+  const segments = normalizedReportName.split('_').filter(Boolean);
+  if (segments.length >= 2) {
+    const [projectName, ...restSegments] = segments;
+    return `${projectName}_Voice_Tuning_Checklist_v5.0.2_${restSegments.join('_')}_人工版本.xlsx`;
+  }
+
+  return `${normalizedReportName}_Voice_Tuning_Checklist_v5.0.2_人工版本.xlsx`;
 }
 
 async function processSingleReport({ reportPath, checklistPath, rules }) {

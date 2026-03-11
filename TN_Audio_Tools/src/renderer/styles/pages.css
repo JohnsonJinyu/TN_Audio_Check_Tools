@@ -110,6 +110,31 @@
   background-color: #f9f9f9;
 }
 
+.report-checker-table .ant-table {
+  table-layout: fixed;
+}
+
+.report-checker-table .ant-table-cell {
+  vertical-align: middle;
+}
+
+.report-checker-table-text {
+  display: inline-block;
+  width: 100%;
+}
+
+.report-checker-upload.ant-upload-wrapper .ant-upload-drag {
+  min-height: 96px;
+}
+
+.report-checker-upload .ant-upload {
+  padding-block: 0;
+}
+
+.report-checker-upload-report.ant-upload-wrapper .ant-upload-drag {
+  min-height: 108px;
+}
+
 /* 按钮样式 */
 .ant-btn {
   border-radius: 6px;
