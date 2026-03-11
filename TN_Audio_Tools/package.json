@@ -5,7 +5,7 @@
   "main": "src/main/main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-dev\"",
+    "dev": "concurrently --kill-others --success=second \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-dev\"",
     "react-start": "react-scripts start",
     "react-build": "react-scripts build",
     "electron-dev": "electron .",

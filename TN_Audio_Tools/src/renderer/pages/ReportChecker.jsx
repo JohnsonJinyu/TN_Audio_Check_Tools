@@ -5,10 +5,34 @@ import '../styles/pages.css';
 
 function ReportChecker() {
   const [files, setFiles] = useState([]);
+  const [ruleFile, setRuleFile] = useState(null);
+  const [checklistFile, setChecklistFile] = useState(null);
 
-  const handleUpload = (file) => {
-    // 实现逻辑待定
-    console.log('Upload file:', file);
+  const handleUpload = (file, target, onSuccess) => {
+    if (target === 'report') {
+      const newItem = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: file.name,
+        status: 'pending',
+        items: 0
+      };
+      setFiles((prev) => [newItem, ...prev]);
+      message.success(`已添加报告: ${file.name}`);
+    }
+
+    if (target === 'rules') {
+      setRuleFile(file);
+      message.success(`已上传规则: ${file.name}`);
+    }
+
+    if (target === 'checklist') {
+      setChecklistFile(file);
+      message.success(`已上传 checklist: ${file.name}`);
+    }
+
+    if (onSuccess) {
+      setTimeout(() => onSuccess('ok'), 0);
+    }
   };
 
   const columns = [
@@ -55,9 +79,9 @@ function ReportChecker() {
         title="音频测试报告检查"
         extra={
           <Upload
-            customRequest={({ file }) => handleUpload(file)}
+            customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
             multiple
-            accept=".xlsx,.xls,.csv,.pdf"
+            accept=".doc,.docx"
           >
             <Button type="primary" icon={<UploadOutlined />}>
               上传报告
@@ -70,21 +94,21 @@ function ReportChecker() {
         </p>
 
         {files.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            backgroundColor: '#fafafa',
-            borderRadius: '6px',
-            border: '2px dashed #d9d9d9'
-          }}>
+          <Upload.Dragger
+            customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
+            multiple
+            accept=".doc,.docx"
+            showUploadList={false}
+            style={{ padding: '24px' }}
+          >
             <UploadOutlined style={{ fontSize: '48px', color: '#bfbfbf', marginBottom: '16px' }} />
             <p style={{ fontSize: '16px', color: '#262626', marginBottom: '8px' }}>
               拖拽报告文件到此处，或点击上方按钮上传
             </p>
             <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
-              支持格式: Excel (.xlsx, .xls), CSV, PDF
+              支持格式: Word (.doc, .docx)
             </p>
-          </div>
+          </Upload.Dragger>
         ) : (
           <Table
             columns={columns}
@@ -92,6 +116,76 @@ function ReportChecker() {
             rowKey="id"
             pagination={{ pageSize: 10 }}
           />
+        )}
+      </Card>
+
+      <Card
+        title="上传规则"
+        style={{ marginTop: '24px' }}
+        extra={
+          <Upload
+            customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
+            accept=".json,.xlsx,.xls,.csv"
+          >
+            <Button type="primary" icon={<UploadOutlined />}>
+              上传规则
+            </Button>
+          </Upload>
+        }
+      >
+        <Upload.Dragger
+          customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
+          accept=".json,.xlsx,.xls,.csv"
+          showUploadList={false}
+          style={{ padding: '12px 16px', minHeight: '120px' }}
+        >
+          <UploadOutlined style={{ fontSize: '28px', color: '#bfbfbf', marginBottom: '8px' }} />
+          <p style={{ fontSize: '14px', color: '#262626', marginBottom: '4px' }}>
+            拖拽规则文件到此处，或点击上传
+          </p>
+          <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+            支持格式: JSON, Excel, CSV
+          </p>
+        </Upload.Dragger>
+        {ruleFile && (
+          <p style={{ marginTop: '12px', color: '#595959' }}>
+            已选择: {ruleFile.name}
+          </p>
+        )}
+      </Card>
+
+      <Card
+        title="上传 checklist"
+        style={{ marginTop: '24px' }}
+        extra={
+          <Upload
+            customRequest={({ file, onSuccess }) => handleUpload(file, 'checklist', onSuccess)}
+            accept=".json,.xlsx,.xls,.csv"
+          >
+            <Button type="primary" icon={<UploadOutlined />}>
+              上传 checklist
+            </Button>
+          </Upload>
+        }
+      >
+        <Upload.Dragger
+          customRequest={({ file, onSuccess }) => handleUpload(file, 'checklist', onSuccess)}
+          accept=".json,.xlsx,.xls,.csv"
+          showUploadList={false}
+          style={{ padding: '12px 16px', minHeight: '120px' }}
+        >
+          <UploadOutlined style={{ fontSize: '28px', color: '#bfbfbf', marginBottom: '8px' }} />
+          <p style={{ fontSize: '14px', color: '#262626', marginBottom: '4px' }}>
+            拖拽 checklist 文件到此处，或点击上传
+          </p>
+          <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+            支持格式: JSON, Excel, CSV
+          </p>
+        </Upload.Dragger>
+        {checklistFile && (
+          <p style={{ marginTop: '12px', color: '#595959' }}>
+            已选择: {checklistFile.name}
+          </p>
         )}
       </Card>
 
