@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
+const { processReports } = require('./services/reportCheckerService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
@@ -24,6 +25,83 @@ function createWindow() {
   const startUrl = isDev
     ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../../build/index.html')}`;
+
+  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+    if (!isDev) {
+      return;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="zh-CN">
+        <head>
+          <meta charset="UTF-8" />
+          <title>开发服务未启动</title>
+          <style>
+            body {
+              margin: 0;
+              font-family: "Segoe UI", sans-serif;
+              background: linear-gradient(160deg, #f7f8fc 0%, #eef1f8 100%);
+              color: #1f2937;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+            }
+            .panel {
+              width: min(720px, calc(100vw - 48px));
+              background: #ffffff;
+              border: 1px solid #dbe3f0;
+              border-radius: 16px;
+              box-shadow: 0 18px 48px rgba(31, 41, 55, 0.12);
+              padding: 28px 32px;
+            }
+            h1 {
+              margin: 0 0 12px;
+              font-size: 24px;
+            }
+            p {
+              margin: 0 0 12px;
+              line-height: 1.6;
+            }
+            code {
+              background: #f3f4f6;
+              border-radius: 6px;
+              padding: 2px 6px;
+              font-family: Consolas, monospace;
+            }
+            ul {
+              margin: 16px 0;
+              padding-left: 20px;
+              line-height: 1.7;
+            }
+            .hint {
+              margin-top: 18px;
+              padding: 12px 14px;
+              background: #f9fafb;
+              border-left: 4px solid #2563eb;
+              border-radius: 8px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="panel">
+            <h1>React 开发服务没有启动</h1>
+            <p>Electron 当前尝试加载 <code>${validatedURL || startUrl}</code>，但没有连上，所以窗口显示为空白。</p>
+            <ul>
+              <li>完整启动开发环境：<code>npm start</code></li>
+              <li>如果 React 已经在跑，只需要启动桌面端：<code>npm run electron-dev</code></li>
+              <li>如果 3000 端口被旧进程占用，先清掉旧进程再重启</li>
+            </ul>
+            <p>错误信息：<code>${errorCode} / ${errorDescription}</code></p>
+            <div class="hint">现在这个白屏不是页面组件渲染报错，而是开发模式下没有成功连接到本地前端服务。</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  });
 
   mainWindow.loadURL(startUrl);
 
@@ -53,6 +131,13 @@ app.on('activate', () => {
 // IPC 处理程序示例
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('report-checker:process-reports', async (_, payload) => {
+  return processReports({
+    ...payload,
+    appPath: app.getAppPath()
+  });
 });
 
 // 创建菜单

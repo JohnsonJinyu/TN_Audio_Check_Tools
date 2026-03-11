@@ -5,7 +5,7 @@
   "main": "src/main/main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently --kill-others --success=second \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-dev\"",
+    "dev": "node scripts/dev-runner.js",
     "react-start": "react-scripts start",
     "react-build": "react-scripts build",
     "electron-dev": "electron .",
@@ -19,15 +19,19 @@
     "@ant-design/icons": "^5.2.6",
     "antd": "^5.11.2",
     "axios": "^1.6.2",
+    "cheerio": "^1.2.0",
     "classnames": "^2.3.2",
     "electron-is-dev": "^2.0.0",
     "electron-log": "^4.4.8",
     "electron-store": "^8.1.0",
     "json5": "^2.2.3",
     "lodash-es": "^4.17.21",
+    "mammoth": "^1.11.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "word-extractor": "^1.0.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
@@ -56,6 +60,7 @@
     "files": [
       "build/**/*",
       "src/main/**/*",
+      "src/renderer/modules/reportChecker/config/**/*",
       "node_modules/**/*"
     ],
     "directories": {

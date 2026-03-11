@@ -5,5 +5,8 @@ contextBridge.exposeInMainWorld('electron', {
     invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
     on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
     send: (channel, ...args) => ipcRenderer.send(channel, ...args)
+  },
+  reportChecker: {
+    processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload)
   }
 });
