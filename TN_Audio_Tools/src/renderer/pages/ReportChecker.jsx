@@ -61,6 +61,19 @@ function ReportChecker() {
     setFiles((prev) => prev.filter((item) => item.id !== reportId));
   };
 
+  const openOutputFolder = async (record) => {
+    if (!record.outputPath) {
+      message.warning('该报告还没有生成输出文件。');
+      return;
+    }
+
+    try {
+      await window.electron.reportChecker.showOutputInFolder(record.outputPath);
+    } catch (error) {
+      message.error(error?.message || '打开输出目录失败');
+    }
+  };
+
   const showDetails = (record) => {
     Modal.info({
       title: record.name,
@@ -193,6 +206,7 @@ function ReportChecker() {
       render: (_, record) => (
         <Space>
           <Button type="primary" size="small" onClick={() => showDetails(record)}>详情</Button>
+          <Button size="small" disabled={!record.outputPath} onClick={() => openOutputFolder(record)}>打开目录</Button>
           <Button danger size="small" icon={<DeleteOutlined />} onClick={() => removeReport(record.id)}>删除</Button>
         </Space>
       )

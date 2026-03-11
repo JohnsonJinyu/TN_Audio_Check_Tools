@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
 const { processReports } = require('./services/reportCheckerService');
@@ -138,6 +138,15 @@ ipcMain.handle('report-checker:process-reports', async (_, payload) => {
     ...payload,
     appPath: app.getAppPath()
   });
+});
+
+ipcMain.handle('report-checker:show-output-in-folder', async (_, filePath) => {
+  if (!filePath) {
+    throw new Error('缺少输出文件路径');
+  }
+
+  await shell.showItemInFolder(filePath);
+  return true;
 });
 
 // 创建菜单

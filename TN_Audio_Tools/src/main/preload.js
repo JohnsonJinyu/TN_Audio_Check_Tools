@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electron', {
     send: (channel, ...args) => ipcRenderer.send(channel, ...args)
   },
   reportChecker: {
-    processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload)
+    processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload),
+    showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath)
   }
 });
