@@ -1391,16 +1391,10 @@ function buildOutputFileName(reportName) {
   const timestamp = buildTimestamp();
 
   if (!normalizedReportName) {
-    return `Voice_Tuning_Checklist_v5.0.2_人工版本_${timestamp}.xlsx`;
+    return `checklist_${timestamp}.xlsx`;
   }
 
-  const segments = normalizedReportName.split('_').filter(Boolean);
-  if (segments.length >= 2) {
-    const [projectName, ...restSegments] = segments;
-    return `${projectName}_Voice_Tuning_Checklist_v5.0.2_${restSegments.join('_')}_人工版本_${timestamp}.xlsx`;
-  }
-
-  return `${normalizedReportName}_Voice_Tuning_Checklist_v5.0.2_人工版本_${timestamp}.xlsx`;
+  return `${normalizedReportName}_checklist_${timestamp}.xlsx`;
 }
 
 async function processSingleReport({ reportPath, checklistPath, rules }) {

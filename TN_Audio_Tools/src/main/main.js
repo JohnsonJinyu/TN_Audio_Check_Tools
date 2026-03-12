@@ -23,7 +23,7 @@ function createWindow() {
   });
 
   const startUrl = isDev
-    ? 'http://localhost:3000'
+    ? (process.env.ELECTRON_RENDERER_URL || 'http://localhost:3123')
     : `file://${path.join(__dirname, '../../build/index.html')}`;
 
   mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Button, Upload, Table, Space, Tag, Modal, message, Typography } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { recordReportCheckResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
 
 const { Text, Paragraph } = Typography;
@@ -145,6 +146,7 @@ function ReportChecker() {
       });
 
       const resultMap = new Map(response.results.map((item) => [item.reportPath, item]));
+      recordReportCheckResults(response.results);
 
       setFiles((prev) => prev.map((item) => {
         const result = resultMap.get(item.path);

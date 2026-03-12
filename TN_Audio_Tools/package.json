@@ -58,6 +58,9 @@
   "build": {
     "appId": "com.tnaudio.toolkit",
     "productName": "TN Audio Toolkit",
+    "extraMetadata": {
+      "main": "src/main/main.js"
+    },
     "files": [
       "build/**/*",
       "src/main/**/*",

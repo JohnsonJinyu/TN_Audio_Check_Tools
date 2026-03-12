@@ -1,22 +1,26 @@
-import React from 'react';
-import { Card, Row, Col, Statistic, Button, Space, Tag, Divider } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Card, Row, Col, Statistic, Button, Space, Tag, Divider, Modal, Table, Empty, message } from 'antd';
 import {
   FileTextOutlined,
   AudioOutlined,
   LineChartOutlined,
   SwapOutlined,
-  ArrowRightOutlined
+  ArrowRightOutlined,
+  FolderOpenOutlined
 } from '@ant-design/icons';
+import { readDashboardData } from '../modules/dashboard/storage';
 import '../styles/pages.css';
 
 function Dashboard({ onNavigate }) {
+  const [dashboardData, setDashboardData] = useState(readDashboardData);
+  const [historyVisible, setHistoryVisible] = useState(false);
   const tools = [
     {
       title: '音频报告检查',
       description: '检查和验证音频测试报告的完整性和有效性',
       icon: <FileTextOutlined />,
       color: '#ff7a45',
-      stats: '0 个报告',
+      stats: `${dashboardData.checkedReports} 个报告`,
       pageKey: 'report-checker'
     },
     {
@@ -51,6 +55,126 @@ function Dashboard({ onNavigate }) {
     }
   };
 
+  const openReportHistory = () => {
+    setDashboardData(readDashboardData());
+    setHistoryVisible(true);
+  };
+
+  const handleQuickStatClick = (stat) => {
+    if (stat.key === 'checkedReports') {
+      openReportHistory();
+      return;
+    }
+
+    handleNavigate(stat.pageKey);
+  };
+
+  const openHistoryOutputFolder = async (record) => {
+    if (!record.outputPath) {
+      message.warning('该历史记录没有输出文件可打开。');
+      return;
+    }
+
+    try {
+      await window.electron.reportChecker.showOutputInFolder(record.outputPath);
+    } catch (error) {
+      message.error(error?.message || '打开输出目录失败');
+    }
+  };
+
+  const quickStats = [
+    {
+      key: 'processedAudio',
+      title: '已处理音频',
+      value: dashboardData.processedAudio,
+      prefix: <AudioOutlined />,
+      color: '#1890ff',
+      pageKey: 'audio-player'
+    },
+    {
+      key: 'checkedReports',
+      title: '已检查报告',
+      value: dashboardData.checkedReports,
+      prefix: <FileTextOutlined />,
+      color: '#ff7a45',
+      pageKey: 'report-checker'
+    },
+    {
+      key: 'analysisSuccess',
+      title: '分析成功',
+      value: dashboardData.analysisSuccess,
+      prefix: <LineChartOutlined />,
+      color: '#722ed1',
+      pageKey: 'spectrum'
+    },
+    {
+      key: 'conversionsCompleted',
+      title: '转换完成',
+      value: dashboardData.conversionsCompleted,
+      prefix: <SwapOutlined />,
+      color: '#faad14',
+      pageKey: 'converter'
+    }
+  ];
+
+  const historyColumns = useMemo(() => ([
+    {
+      title: '报告文件',
+      dataIndex: 'reportName',
+      key: 'reportName',
+      ellipsis: true
+    },
+    {
+      title: '检查时间',
+      dataIndex: 'checkedAt',
+      key: 'checkedAt',
+      width: 180,
+      render: (value) => value ? new Date(value).toLocaleString() : '-'
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status) => {
+        const colorMap = {
+          success: 'green',
+          error: 'red'
+        };
+
+        return <Tag color={colorMap[status] || 'default'}>{status}</Tag>;
+      }
+    },
+    {
+      title: '命中项',
+      dataIndex: 'matchedItems',
+      key: 'matchedItems',
+      width: 90
+    },
+    {
+      title: '输出文件',
+      dataIndex: 'outputName',
+      key: 'outputName',
+      ellipsis: true,
+      render: (value) => value || '未生成'
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      render: (_, record) => (
+        <Button
+          size="small"
+          icon={<FolderOpenOutlined />}
+          disabled={!record.outputPath}
+          onClick={() => openHistoryOutputFolder(record)}
+        >
+          打开目录
+        </Button>
+      )
+    }
+  ]), []);
+
   return (
     <div className="page-container dashboard">
       <Row gutter={[24, 24]}>
@@ -71,46 +195,23 @@ function Dashboard({ onNavigate }) {
         </Col>
 
         {/* 快速统计 */}
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="已处理音频"
-              value={0}
-              prefix={<AudioOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="已检查报告"
-              value={0}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#ff7a45' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="分析成功"
-              value={0}
-              prefix={<LineChartOutlined />}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="转换完成"
-              value={0}
-              prefix={<SwapOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
+        {quickStats.map((stat) => (
+          <Col key={stat.title} xs={24} sm={12} md={6}>
+            <Card
+              className="dashboard-stat-card"
+              hoverable
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleQuickStatClick(stat)}
+            >
+              <Statistic
+                title={stat.title}
+                value={stat.value}
+                prefix={stat.prefix}
+                valueStyle={{ color: stat.color }}
+              />
+            </Card>
+          </Col>
+        ))}
 
         {/* 工具卡片 */}
         <Col xs={24}>
@@ -196,6 +297,37 @@ function Dashboard({ onNavigate }) {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title="已检查报告历史记录"
+        open={historyVisible}
+        onCancel={() => setHistoryVisible(false)}
+        width={900}
+        footer={[
+          <Button key="go-report-checker" onClick={() => {
+            setHistoryVisible(false);
+            handleNavigate('report-checker');
+          }}>
+            前往报告检查
+          </Button>,
+          <Button key="close-history" type="primary" onClick={() => setHistoryVisible(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        {dashboardData.reportHistory.length > 0 ? (
+          <Table
+            className="dashboard-history-table"
+            columns={historyColumns}
+            dataSource={dashboardData.reportHistory}
+            rowKey="id"
+            pagination={{ pageSize: 6 }}
+            scroll={{ x: 820 }}
+          />
+        ) : (
+          <Empty description="暂无检查历史记录" style={{ margin: '24px 0' }} />
+        )}
+      </Modal>
     </div>
   );
 }

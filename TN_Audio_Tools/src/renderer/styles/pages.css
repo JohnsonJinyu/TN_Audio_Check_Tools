@@ -30,6 +30,17 @@
   transform: translateY(-2px);
 }
 
+.dashboard-stat-card {
+  transition: all 0.25s ease;
+  border: 1px solid #edf0f7;
+}
+
+.dashboard-stat-card:hover {
+  border-color: #cfd8ff;
+  box-shadow: 0 10px 22px rgba(89, 104, 198, 0.12);
+  transform: translateY(-3px);
+}
+
 .tool-card {
   border-radius: 8px;
   transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);

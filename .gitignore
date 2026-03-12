@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/TN_Audio_Tools/dist-admin
+/TN_Audio_Tools/dist-portable
+/TN_Audio_Tools/docs/*_20*.xlsx
