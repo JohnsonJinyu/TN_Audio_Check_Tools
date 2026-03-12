@@ -284,6 +284,9 @@ function ReportChecker() {
         <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
           上传真实 .doc/.docx 测试报告和 I 列为空的 checklist，系统会按 moto_rules_for_analysis.json5 提取报告数据并回填到 checklist，最终在报告目录下生成新的 Excel 文件。
         </p>
+        <p style={{ marginTop: '-12px', marginBottom: '24px', color: '#8c8c8c' }}>
+          注意：.doc 报告会先做转换，通常比 .docx 慢；处理完成后可在表格里查看输出文件名，或点击“打开目录”直接定位结果。
+        </p>
 
         {files.length === 0 ? (
           <Upload.Dragger

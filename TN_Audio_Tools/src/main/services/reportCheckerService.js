@@ -28,16 +28,43 @@ const LIBRE_OFFICE_CANDIDATE_PATHS = [
   'C:/Program Files/LibreOffice/program/soffice.exe',
   'C:/Program Files (x86)/LibreOffice/program/soffice.exe'
 ];
+const CHILD_PROCESS_TIMEOUT_MS = 90000;
 
 function runProcess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
+    const { timeoutMs = 0, ...spawnOptions } = options;
     const child = spawn(command, args, {
       windowsHide: true,
-      ...options
+      ...spawnOptions
     });
 
     let stdout = '';
     let stderr = '';
+    let finished = false;
+
+    const timeoutHandle = timeoutMs > 0
+      ? setTimeout(() => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+          child.kill();
+          reject(new Error(`Command timed out after ${timeoutMs}ms: ${command}`));
+        }, timeoutMs)
+      : null;
+
+    const finalize = (handler) => {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+      handler();
+    };
 
     child.stdout?.on('data', (chunk) => {
       stdout += String(chunk);
@@ -47,14 +74,19 @@ function runProcess(command, args, options = {}) {
       stderr += String(chunk);
     });
 
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
+    child.on('error', (error) => {
+      finalize(() => reject(error));
+    });
 
-      reject(new Error(stderr || stdout || `Command failed: ${command}`));
+    child.on('close', (code) => {
+      finalize(() => {
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+
+        reject(new Error(stderr || stdout || `Command failed: ${command}`));
+      });
     });
   });
 }
@@ -112,7 +144,9 @@ async function convertDocWithLibreOffice(reportPath, outputDir) {
 
   for (const candidate of candidates) {
     try {
-      await runProcess(candidate, ['--headless', '--convert-to', 'docx', '--outdir', outputDir, reportPath]);
+      await runProcess(candidate, ['--headless', '--convert-to', 'docx', '--outdir', outputDir, reportPath], {
+        timeoutMs: CHILD_PROCESS_TIMEOUT_MS
+      });
       const convertedPath = path.join(outputDir, `${path.parse(reportPath).name}.docx`);
       if (await pathExists(convertedPath)) {
         return convertedPath;
@@ -145,7 +179,9 @@ async function convertDocWithCom(reportPath, outputDir, progId, formatCode) {
   ].join('; ');
 
   try {
-    await runProcess('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script]);
+    await runProcess('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+      timeoutMs: CHILD_PROCESS_TIMEOUT_MS
+    });
     return (await pathExists(convertedPath)) ? convertedPath : null;
   } catch {
     return null;
@@ -332,6 +368,72 @@ function extractNumberTokens(text) {
   return matches || [];
 }
 
+function getAmbientNoiseSceneCandidates(rowName) {
+  const aliasMap = {
+    pub: ['Pub', 'Pub Noise'],
+    road: ['Road', 'Outside Traffic Road'],
+    crossroad: ['Crossroad', 'Crossroads', 'Outside Traffic Crossroads'],
+    tstation: ['Train Station', 'TStation', 'Train'],
+    fullsizecar: ['Fullsize Car 130 km/h', 'Fullsize Car', 'FullsizeCar', 'Car'],
+    cafeteria: ['Cafeteria', 'Cafeteria Noise'],
+    mensa: ['Mensa'],
+    callcenter: ['Callcenter', 'Call Center', 'Work Noise Office Callcenter']
+  };
+
+  const normalized = String(rowName || '').replace(/\s+/g, '').toLowerCase();
+  return aliasMap[normalized] || getRowNameCandidates(rowName);
+}
+
+function sanitizeAmbientNoiseSceneLabel(value) {
+  return String(value || '')
+    .replace(/\t+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\bDone\b.*$/i, '')
+    .trim();
+}
+
+function getAmbientNoiseSceneKey(value) {
+  const normalized = String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.includes('crossroad')) {
+    return 'crossroad';
+  }
+
+  if (normalized.includes('trainstation') || normalized === 'tstation' || normalized === 'train') {
+    return 'tstation';
+  }
+
+  if (normalized.includes('fullsizecar') || normalized === 'car') {
+    return 'fullsizecar';
+  }
+
+  if (normalized.includes('callcenter')) {
+    return 'callcenter';
+  }
+
+  if (normalized.includes('cafeteria')) {
+    return 'cafeteria';
+  }
+
+  if (normalized.includes('mensa')) {
+    return 'mensa';
+  }
+
+  if (normalized.includes('pub')) {
+    return 'pub';
+  }
+
+  if (normalized === 'road' || normalized.includes('outsidetrafficroad')) {
+    return 'road';
+  }
+
+  return normalized;
+}
+
 function isMeasurementObjectCell(text) {
   const normalized = String(text || '').trim();
   return /^[A-Za-z0-9]+(?:_[A-Za-z0-9+ --]+)+$/.test(normalized);
@@ -413,6 +515,37 @@ function makeSourcePreview(text) {
   }
 
   return text.replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function extractAmbientNoiseAverageBlocks(rawText) {
+  if (!rawText) {
+    return [];
+  }
+
+  const averageBlockRegex = /G-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)[\s\S]{0,200}?N-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)[\s\S]{0,200}?S-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)/g;
+  const ambientSceneRegex = /9\.12\.1\s+Quality in ambient noise,\s*([^\n]+?)(?=\s{2,}|\n)/g;
+  const blocks = [];
+
+  for (const match of rawText.matchAll(averageBlockRegex)) {
+    const contextStart = Math.max(0, (match.index || 0) - 6000);
+    const contextWindow = rawText.slice(contextStart, match.index || 0);
+    const sceneMatches = Array.from(contextWindow.matchAll(ambientSceneRegex));
+    const sceneLabel = sanitizeAmbientNoiseSceneLabel(sceneMatches.at(-1)?.[1] || '');
+
+    if (!sceneLabel) {
+      continue;
+    }
+
+    blocks.push({
+      sceneLabel,
+      gmos: match[1],
+      nmos: match[2],
+      smos: match[3],
+      sourcePreview: makeSourcePreview(rawText.slice(match.index || 0, (match.index || 0) + 240))
+    });
+  }
+
+  return blocks;
 }
 
 function getHeaderBasedCell(rowContext, headerPatterns, textNormalizeConfig) {
@@ -605,10 +738,62 @@ function resolveRegexValue(reportData, item, textNormalizeConfig) {
   return { matched: false, reason: '未匹配到正则目标文本' };
 }
 
+function resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig) {
+  const blocks = Array.isArray(reportData.ambientNoiseBlocks) ? reportData.ambientNoiseBlocks : [];
+  const tableConfig = item.tableConfig;
+
+  if (blocks.length === 0 || !tableConfig?.rowNameMatch || !tableConfig?.targetColumnName) {
+    return null;
+  }
+
+  const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
+  if (!normalizedChecklistDesc.includes('ambient noise')) {
+    return null;
+  }
+
+  const normalizedMetric = normalizeText(tableConfig.targetColumnName, textNormalizeConfig);
+  const metricKey = normalizedMetric.includes('s-mos')
+    ? 'smos'
+    : normalizedMetric.includes('n-mos')
+      ? 'nmos'
+      : normalizedMetric.includes('g-mos')
+        ? 'gmos'
+        : null;
+
+  if (!metricKey) {
+    return null;
+  }
+
+  const candidateSceneKeys = getAmbientNoiseSceneCandidates(tableConfig.rowNameMatch)
+    .map((candidate) => getAmbientNoiseSceneKey(candidate))
+    .filter(Boolean);
+
+  const targetBlock = blocks.find((block) => {
+    const sceneKey = getAmbientNoiseSceneKey(block.sceneLabel);
+    return candidateSceneKeys.includes(sceneKey);
+  });
+
+  if (!targetBlock || !targetBlock[metricKey]) {
+    return null;
+  }
+
+  return {
+    matched: true,
+    value: targetBlock[metricKey],
+    sourcePreview: targetBlock.sourcePreview,
+    sourceType: 'ambient-average-block'
+  };
+}
+
 function resolveTableValue(reportData, item, textNormalizeConfig) {
   const tableConfig = item.tableConfig;
   if (!tableConfig) {
     return { matched: false, reason: '缺少 tableConfig 配置' };
+  }
+
+  const ambientNoiseValue = resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig);
+  if (ambientNoiseValue) {
+    return ambientNoiseValue;
   }
 
   const requiredHeaders = Array.isArray(tableConfig.tableHeaderMatch) ? tableConfig.tableHeaderMatch : [];
@@ -823,6 +1008,7 @@ function createSearchData(rawText, html) {
     rawText,
     html,
     lines,
+    ambientNoiseBlocks: extractAmbientNoiseAverageBlocks(rawText),
     tables,
     tableRows: [...tableRows, ...derivedRows]
   };
@@ -873,6 +1059,10 @@ async function parseReport(reportPath) {
       extracted.getEndnotes?.() || '',
       extracted.getTextboxes?.() || ''
     ].filter(Boolean).join('\n');
+
+    if (!rawText.trim()) {
+      throw new Error('.doc 报告转换超时或未读取到内容。请优先另存为 .docx 后重试，或关闭可能弹出的 Word/WPS 隐藏窗口。');
+    }
 
     return createSearchData(rawText, '');
   }
