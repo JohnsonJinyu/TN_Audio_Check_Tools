@@ -788,6 +788,86 @@
         "rowNameMatch": "Callcenter",
         "targetColumnName": "N-MOS"
       }
+    },
+    // 61. 发送端高斯白噪声鲁棒性 ECRP
+    {
+      "itemId": 61,
+      "checklistDesc": "SND Robustness with noise - ECRP",
+      "outputCell": "I67",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "ECRP"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // 62. 发送端高斯白噪声鲁棒性 20UP
+    {
+      "itemId": 62,
+      "checklistDesc": "SND Robustness with noise - 20UP",
+      "outputCell": "I68",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "20UP"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // 63. 发送端高斯白噪声鲁棒性 25DOWN
+    {
+      "itemId": 63,
+      "checklistDesc": "SND Robustness with noise - 25DOWN",
+      "outputCell": "I69",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "25DOWN"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // 64. 发送端高斯白噪声鲁棒性 10OUT
+    {
+      "itemId": 64,
+      "checklistDesc": "SND Robustness with noise - 10OUT",
+      "outputCell": "I70",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "10OUT"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // 65. POLQA 发送端 SWB 13.2K
+    {
+      "itemId": 65,
+      "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Sending",
+      "outputCell": "I72",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["P.863", "AC", "SND", "Handset", "SWB", "13.2K"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // 66. POLQA 接收端 SWB 13.2K MAX
+    {
+      "itemId": 66,
+      "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - max vol.",
+      "outputCell": "I73",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX"]
+    },
+    // 67. POLQA 接收端 SWB 13.2K NOM
+    {
+      "itemId": 67,
+      "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - nom vol.",
+      "outputCell": "I74",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["NOM"]
+    },
+    // 68. POLQA 接收端 SWB 13.2K MIN
+    {
+      "itemId": 68,
+      "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - min vol.",
+      "outputCell": "I75",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MIN"]
     }
   ]
 }

@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const mammoth = require('mammoth');
+const JSZip = require('jszip');
 const XLSX = require('xlsx');
 const JSON5 = require('json5');
 
@@ -944,14 +945,26 @@ function createSearchData(rawText, html) {
   let derivedRows = [];
 
   if (measurementObject) {
-    const rowPattern = new RegExp(`(9\\.\\d+(?:\\.\\d+)*[\\s\\S]*?${escapeRegExp(measurementObject)})`, 'g');
-    derivedRows = Array.from(flattenedText.matchAll(rowPattern)).map((match, index) => ({
-      tableIndex: -1,
-      rowIndex: index + 1,
-      headers: [],
-      cells: [],
-      text: match[1].replace(new RegExp(`${escapeRegExp(measurementObject)}$`), '').trim()
-    }));
+    const splitRows = flattenedText
+      .split(measurementObject)
+      .map((segment) => segment.trim())
+      .filter((segment) => {
+        return segment.length > 8
+          && /\b(?:ok|done|not ok)\b/i.test(segment)
+          && /-?\d+(?:\.\d+)?\s*$/.test(segment);
+      })
+      .map((text, index) => ({
+        tableIndex: -1,
+        rowIndex: index + 1,
+        headers: [],
+        cells: [],
+        text,
+        sourceKind: 'measurement-split'
+      }));
+
+    if (splitRows.length > 0) {
+      derivedRows = splitRows;
+    }
   }
 
   if (derivedRows.length === 0) {
@@ -967,7 +980,8 @@ function createSearchData(rawText, html) {
           rowIndex: index + 1,
           headers: [],
           cells: [],
-          text
+          text,
+          sourceKind: 'row-start'
         };
       })
       .filter((row) => row.text.length > 8);
@@ -1000,7 +1014,8 @@ function createSearchData(rawText, html) {
       rowIndex: rowOffset + 1,
       headers,
       cells,
-      text: cells.join(' | ')
+      text: cells.join(' | '),
+      sourceKind: 'html-table'
     }));
   });
 
@@ -1070,24 +1085,66 @@ async function parseReport(reportPath) {
   return parseDocxReport(reportPath);
 }
 
-function applyResultsToChecklist(checklistPath, reportPath, extractedItems) {
+async function applyResultsToChecklist(checklistPath, reportPath, extractedItems) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(workbook, reportPath);
   const worksheet = workbook.Sheets[sheetName];
+  const numericIColumnCells = [];
 
   extractedItems.forEach((itemResult) => {
     if (!itemResult.matched || !itemResult.value) {
       return;
     }
 
-    XLSX.utils.sheet_add_aoa(worksheet, [[toWorksheetValue(itemResult.value)]], { origin: itemResult.outputCell });
+    const isNumericCell = writeChecklistCell(worksheet, itemResult.outputCell, itemResult.value);
+    if (isNumericCell && /^I\d+$/i.test(itemResult.outputCell)) {
+      numericIColumnCells.push(itemResult.outputCell);
+    }
   });
 
   const reportName = path.parse(reportPath).name;
   const outputPath = path.join(path.dirname(reportPath), buildOutputFileName(reportName));
-
   XLSX.writeFile(workbook, outputPath, { bookType: 'xlsx' });
+
+  if (path.extname(checklistPath).toLowerCase() === '.xlsx') {
+    await patchChecklistSheetStyles(checklistPath, outputPath, sheetName, numericIColumnCells);
+  }
+
   return outputPath;
+}
+
+function writeChecklistCell(worksheet, cellAddress, rawValue) {
+  const worksheetValue = toWorksheetValue(rawValue);
+  const templateCell = worksheet[cellAddress] || {};
+  const style = {
+    ...(templateCell.s || {}),
+    alignment: {
+      ...((templateCell.s && templateCell.s.alignment) || {}),
+      horizontal: 'center',
+      vertical: 'center'
+    }
+  };
+
+  if (typeof worksheetValue === 'number' && Number.isFinite(worksheetValue)) {
+    worksheet[cellAddress] = {
+      ...(templateCell || {}),
+      t: 'n',
+      v: worksheetValue,
+      z: '0.00',
+      s: style
+    };
+    delete worksheet[cellAddress].w;
+    return true;
+  }
+
+  worksheet[cellAddress] = {
+    ...(templateCell || {}),
+    t: 's',
+    v: String(worksheetValue ?? ''),
+    s: style
+  };
+  delete worksheet[cellAddress].w;
+  return false;
 }
 
 function toWorksheetValue(value) {
@@ -1115,8 +1172,9 @@ function normalizeSheetToken(value) {
 function resolveChecklistSheetName(workbook, reportPath) {
   const reportName = path.parse(reportPath).name;
   const reportTokens = reportName.split(/[_\s-]+/).map(normalizeSheetToken).filter(Boolean);
+  const sheetNames = getWorkbookSheetNames(workbook);
 
-  const preferredSheet = workbook.SheetNames.find((candidate) => {
+  const preferredSheet = sheetNames.find((candidate) => {
     const normalizedCandidate = normalizeSheetToken(candidate);
     if (!normalizedCandidate || ['report', 'help', 'changelog'].includes(normalizedCandidate)) {
       return false;
@@ -1129,23 +1187,220 @@ function resolveChecklistSheetName(workbook, reportPath) {
     return preferredSheet;
   }
 
-  return workbook.SheetNames[0];
+  return sheetNames[0];
+}
+
+function getWorkbookSheetNames(workbook) {
+  if (Array.isArray(workbook?.SheetNames)) {
+    return workbook.SheetNames;
+  }
+
+  if (Array.isArray(workbook?.worksheets)) {
+    return workbook.worksheets.map((worksheet) => worksheet.name);
+  }
+
+  return [];
+}
+
+async function patchChecklistSheetStyles(templatePath, outputPath, sheetName, decimalCellAddresses = []) {
+  const [templateBuffer, outputBuffer] = await Promise.all([
+    fs.readFile(templatePath),
+    fs.readFile(outputPath)
+  ]);
+
+  const [templateZip, outputZip] = await Promise.all([
+    JSZip.loadAsync(templateBuffer),
+    JSZip.loadAsync(outputBuffer)
+  ]);
+
+  const worksheetPath = await resolveWorksheetPath(outputZip, sheetName);
+  if (!worksheetPath) {
+    return;
+  }
+
+  const templateWorksheetPath = await resolveWorksheetPath(templateZip, sheetName);
+  if (!templateWorksheetPath) {
+    return;
+  }
+
+  let outputSheetXml = await outputZip.file(worksheetPath).async('string');
+  const templateSheetXml = await templateZip.file(templateWorksheetPath).async('string');
+  const templateStylesXml = await templateZip.file('xl/styles.xml')?.async('string');
+  const styleMap = extractSheetStyleMap(templateSheetXml);
+  let patchedStylesXml = templateStylesXml || null;
+
+  styleMap.forEach((styleId, cellAddress) => {
+    if (styleId === undefined || styleId === null) {
+      return;
+    }
+
+    outputSheetXml = applyStyleIdToCell(outputSheetXml, cellAddress, styleId);
+  });
+
+  if (patchedStylesXml && decimalCellAddresses.length > 0) {
+    const { stylesXml, cellStyleMap } = createDecimalStyleOverrides(patchedStylesXml, styleMap, decimalCellAddresses);
+    patchedStylesXml = stylesXml;
+
+    cellStyleMap.forEach((styleId, cellAddress) => {
+      outputSheetXml = applyStyleIdToCell(outputSheetXml, cellAddress, styleId);
+    });
+  }
+
+  outputZip.file(worksheetPath, outputSheetXml);
+
+  if (patchedStylesXml) {
+    outputZip.file('xl/styles.xml', patchedStylesXml);
+  }
+
+  const patchedBuffer = await outputZip.generateAsync({ type: 'nodebuffer' });
+  await fs.writeFile(outputPath, patchedBuffer);
+}
+
+async function resolveWorksheetPath(zip, sheetName) {
+  const workbookXml = await zip.file('xl/workbook.xml')?.async('string');
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string');
+
+  if (!workbookXml || !relsXml) {
+    return null;
+  }
+
+  const escapedSheetName = escapeRegExp(sheetName);
+  const sheetMatch = new RegExp(`<sheet[^>]*name="${escapedSheetName}"[^>]*r:id="([^"]+)"`, 'i').exec(workbookXml);
+  if (!sheetMatch) {
+    return null;
+  }
+
+  const relationId = sheetMatch[1];
+  const relMatch = new RegExp(`<Relationship[^>]*Id="${escapeRegExp(relationId)}"[^>]*Target="([^"]+)"`, 'i').exec(relsXml);
+  if (!relMatch) {
+    return null;
+  }
+
+  return `xl/${relMatch[1].replace(/^\//, '')}`;
+}
+
+function extractSheetStyleMap(sheetXml) {
+  const styleMap = new Map();
+
+  const cellPattern = /<c\b[^>]*r="([^"]+)"[^>]*\bs="([^"]+)"[^>]*(?:\/?>)/gi;
+  let match;
+  while ((match = cellPattern.exec(sheetXml)) !== null) {
+    styleMap.set(match[1], match[2]);
+  }
+
+  return styleMap;
+}
+
+function applyStyleIdToCell(sheetXml, cellAddress, styleId) {
+  const pattern = new RegExp(`(<c\\b[^>]*r="${escapeRegExp(cellAddress)}"[^>]*)(/?>)`, 'i');
+  return sheetXml.replace(pattern, (match, prefix, suffix) => {
+    if (/\bs="[^"]+"/i.test(prefix)) {
+      return `${prefix.replace(/\bs="[^"]+"/i, `s="${styleId}"`)}${suffix}`;
+    }
+
+    return `${prefix} s="${styleId}"${suffix}`;
+  });
+}
+
+function createDecimalStyleOverrides(stylesXml, styleMap, cellAddresses) {
+  const styleIds = Array.from(new Set(
+    cellAddresses
+      .map((cellAddress) => styleMap.get(cellAddress))
+      .filter((styleId) => styleId !== undefined && styleId !== null)
+      .map((styleId) => Number(styleId))
+      .filter((styleId) => Number.isInteger(styleId) && styleId >= 0)
+  ));
+
+  if (styleIds.length === 0) {
+    return { stylesXml, cellStyleMap: new Map() };
+  }
+
+  const cellXfsMatch = /(<cellXfs\b[^>]*count=")([^"]+)("[^>]*>)([\s\S]*?)(<\/cellXfs>)/i.exec(stylesXml);
+  if (!cellXfsMatch) {
+    return { stylesXml, cellStyleMap: new Map() };
+  }
+
+  const xfList = cellXfsMatch[4].match(/<xf\b[\s\S]*?<\/xf>|<xf\b[^>]*\/>/gi) || [];
+  const overrideStyleMap = new Map();
+
+  styleIds.forEach((styleId) => {
+    const sourceXf = xfList[styleId];
+    if (!sourceXf) {
+      return;
+    }
+
+    const decimalXf = forceDecimalXf(sourceXf);
+    let overrideStyleId = xfList.findIndex((xf) => xf === decimalXf);
+    if (overrideStyleId === -1) {
+      xfList.push(decimalXf);
+      overrideStyleId = xfList.length - 1;
+    }
+
+    overrideStyleMap.set(String(styleId), String(overrideStyleId));
+  });
+
+  const updatedStylesXml = stylesXml.replace(
+    cellXfsMatch[0],
+    `${cellXfsMatch[1]}${xfList.length}${cellXfsMatch[3]}${xfList.join('')}${cellXfsMatch[5]}`
+  );
+
+  const cellStyleMap = new Map();
+  cellAddresses.forEach((cellAddress) => {
+    const sourceStyleId = styleMap.get(cellAddress);
+    const overrideStyleId = sourceStyleId !== undefined && sourceStyleId !== null
+      ? overrideStyleMap.get(String(sourceStyleId))
+      : null;
+
+    if (overrideStyleId) {
+      cellStyleMap.set(cellAddress, overrideStyleId);
+    }
+  });
+
+  return {
+    stylesXml: updatedStylesXml,
+    cellStyleMap
+  };
+}
+
+function forceDecimalXf(xfXml) {
+  const xfMatch = /^<xf\b([^>]*?)(\/?>[\s\S]*)$/i.exec(xfXml);
+  if (!xfMatch) {
+    return xfXml;
+  }
+
+  let attributes = xfMatch[1];
+  const suffix = xfMatch[2];
+
+  attributes = upsertXmlAttribute(attributes, 'numFmtId', '2');
+  attributes = upsertXmlAttribute(attributes, 'applyNumberFormat', '1');
+
+  return `<xf${attributes}${suffix}`;
+}
+
+function upsertXmlAttribute(attributeText, attributeName, attributeValue) {
+  const pattern = new RegExp(`\\b${escapeRegExp(attributeName)}="[^"]*"`, 'i');
+  if (pattern.test(attributeText)) {
+    return attributeText.replace(pattern, `${attributeName}="${attributeValue}"`);
+  }
+
+  return `${attributeText} ${attributeName}="${attributeValue}"`;
 }
 
 function buildOutputFileName(reportName) {
   const normalizedReportName = String(reportName || '').trim();
+  const timestamp = buildTimestamp();
 
   if (!normalizedReportName) {
-    return `Voice_Tuning_Checklist_v5.0.2_${buildTimestamp()}_人工版本.xlsx`;
+    return `Voice_Tuning_Checklist_v5.0.2_人工版本_${timestamp}.xlsx`;
   }
 
   const segments = normalizedReportName.split('_').filter(Boolean);
   if (segments.length >= 2) {
     const [projectName, ...restSegments] = segments;
-    return `${projectName}_Voice_Tuning_Checklist_v5.0.2_${restSegments.join('_')}_人工版本.xlsx`;
+    return `${projectName}_Voice_Tuning_Checklist_v5.0.2_${restSegments.join('_')}_人工版本_${timestamp}.xlsx`;
   }
 
-  return `${normalizedReportName}_Voice_Tuning_Checklist_v5.0.2_人工版本.xlsx`;
+  return `${normalizedReportName}_Voice_Tuning_Checklist_v5.0.2_人工版本_${timestamp}.xlsx`;
 }
 
 async function processSingleReport({ reportPath, checklistPath, rules }) {
@@ -1177,7 +1432,7 @@ async function processSingleReport({ reportPath, checklistPath, rules }) {
     };
   });
 
-  const outputPath = applyResultsToChecklist(checklistPath, reportPath, extractedItems);
+  const outputPath = await applyResultsToChecklist(checklistPath, reportPath, extractedItems);
   const matchedItems = extractedItems.filter((item) => item.matched).length;
   const unmatchedItems = extractedItems.filter((item) => !item.matched).map((item) => ({
     itemId: item.itemId,

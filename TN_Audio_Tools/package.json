@@ -25,6 +25,7 @@
     "electron-log": "^4.4.8",
     "electron-store": "^8.1.0",
     "json5": "^2.2.3",
+    "jszip": "^3.10.1",
     "lodash-es": "^4.17.21",
     "mammoth": "^1.11.0",
     "react": "^18.2.0",
