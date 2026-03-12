@@ -82,7 +82,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max vol.",
       "outputCell": "I7",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -92,7 +92,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-1 vol.",
       "outputCell": "I8",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-1"]
     },
@@ -102,7 +102,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-2 vol.",
       "outputCell": "I9",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-2"]
     },
@@ -112,7 +112,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-3 vol.",
       "outputCell": "I10",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-3"]
     },
@@ -122,7 +122,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-4 (nom) vol.",
       "outputCell": "I11",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-4", "NOM"]
     },
@@ -132,7 +132,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-5 vol.",
       "outputCell": "I12",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-5"]
     },
@@ -142,7 +142,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-6 vol.",
       "outputCell": "I13",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-6"]
     },
@@ -152,7 +152,7 @@
       "checklistDesc": "Overall loss/loudness ratings - Receiving (RLR) - max-7 (min) vol.",
       "outputCell": "I14",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "Speech", "HASB"],
+      "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX-7", "MIN"]
     },
@@ -183,10 +183,12 @@
       "outputCell": "I17",
       "extractType": "formula_calc",
       "coreKeywords": ["AVG", "Single", "Freq", "Dist", "SND", "HASB"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "SND", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "formula": {
         "standardValue": -74,
+        "baseItemId": 11,
         "targetField": "marginValue"
       }
     },
@@ -217,10 +219,12 @@
       "outputCell": "I20",
       "extractType": "formula_calc",
       "coreKeywords": ["Average", "Single", "Frequency", "Disturbances", "RCV", "HASB"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "RCV", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "formula": {
         "standardValue": -60,
+        "baseItemId": 14,
         "targetField": "marginValue"
       }
     },
@@ -231,6 +235,7 @@
       "outputCell": "I21",
       "extractType": "detail_anchor_extract",
       "coreKeywords": ["Sensitivity", "frequency", "SND", "MAND", "1/12oct", "HASB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "Sending", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "anchorConfig": {
@@ -246,6 +251,7 @@
       "outputCell": "I22",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/12oct", "HASB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -256,6 +262,7 @@
       "outputCell": "I23",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/12oct", "HASB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -266,6 +273,7 @@
       "outputCell": "I24",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/3oct", "HASB"],
+      "exactRowKeywords": ["1/3oct"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -276,6 +284,7 @@
       "outputCell": "I25",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/3oct", "HASB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     },
@@ -315,7 +324,7 @@
       "checklistDesc": "Sidetone characteristics - Delay",
       "outputCell": "I29",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sidetone", "delay", "Volume", "NOM", "HASB"],
+      "coreKeywords": ["Sidetone", "delay", "NOM", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -325,7 +334,7 @@
       "checklistDesc": "Stability loss - max vol.",
       "outputCell": "I30",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Stability", "loss", "check", "100 Hz- 16000 Hz", "HASB"],
+      "coreKeywords": ["Stability", "loss", "check", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -335,9 +344,9 @@
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - max vol.",
       "outputCell": "I31",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "Speech", "HASB"],
+      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX", "VOL"]
+      "requiredSuffix": ["MAX"]
     },
     // 27. 回声损耗NOM音量
     {
@@ -345,9 +354,9 @@
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - mon. vol.",
       "outputCell": "I32",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "Speech", "HASB"],
+      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["NOM", "VOL"]
+      "requiredSuffix": ["NOM"]
     },
     // 28. 回声损耗MIN音量
     {
@@ -355,9 +364,9 @@
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - min vol.",
       "outputCell": "I33",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "Speech", "HASB"],
+      "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MIN", "VOL"]
+      "requiredSuffix": ["MIN"]
     },
     // 29. 发送失真1020Hz
     {
@@ -376,6 +385,7 @@
       "outputCell": "I35",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "SND", "-4.7", "dBPa", "activation", "Average", "HASB"],
+      "exactRowKeywords": ["Distortion", "-4.7", "dBPa"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -385,7 +395,7 @@
       "checklistDesc": "Distortion - RCV 1020Hz - max. vol.",
       "outputCell": "I36",
       "extractType": "status_judge",
-      "coreKeywords": ["Distortion", "Level", "RCV", "1020", "Hz", "activation", "Average", "HASB"],
+      "coreKeywords": ["Distortion", "RCV", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -395,7 +405,7 @@
       "checklistDesc": "Distortion - RCV 1020Hz - nom vol.",
       "outputCell": "I37",
       "extractType": "status_judge",
-      "coreKeywords": ["Distortion", "Level", "RCV", "1020", "Hz", "activation", "Average", "HASB"],
+      "coreKeywords": ["Distortion", "RCV", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -405,7 +415,7 @@
       "checklistDesc": "Distortion - RCV -16dBm0 - max vol.",
       "outputCell": "I38",
       "extractType": "status_judge",
-      "coreKeywords": ["Distortion", "Freq", "RCV", "-16", "dBm0", "activation", "Average", "HASB"],
+      "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -415,7 +425,7 @@
       "checklistDesc": "Distortion - RCV -16dBm0 - nom vol.",
       "outputCell": "I39",
       "extractType": "status_judge",
-      "coreKeywords": ["Distortion", "Freq", "RCV", "-16", "dBm0", "activation", "Average", "HASB"],
+      "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -425,7 +435,7 @@
       "checklistDesc": "Delay - Round-trip - TS+TR",
       "outputCell": "I40",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Check", "DUT", "Delay", "SND", "+", "RCV", "HASB"],
+      "coreKeywords": ["Delay", "Check", "DUT", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -436,10 +446,11 @@
       "outputCell": "I41",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["short", "1o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "^DT Class A1 (\\d+\\.\\d+) %",
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -451,10 +462,11 @@
       "outputCell": "I42",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["short", "1o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "^DT Class A1\\+A2 (\\d+\\.\\d+) %",
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -466,10 +478,11 @@
       "outputCell": "I43",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["short", "1o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "^ST Class A1\\+A2 (\\d+\\.\\d+) %",
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -481,10 +494,11 @@
       "outputCell": "I44",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["long", "2o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "^DT Class A1 (\\d+\\.\\d+) %",
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -496,10 +510,11 @@
       "outputCell": "I45",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["long", "2o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "^DT Class A1\\+A2 (\\d+\\.\\d+) %",
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -511,10 +526,11 @@
       "outputCell": "I46",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["long", "2o2"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "^ST Class A1\\+A2 (\\d+\\.\\d+) %",
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -546,6 +562,7 @@
       "outputCell": "I49",
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "G-MOS", "Speech", "HASB"],
+      "fallbackKeywords": ["Average", "G-MOS", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -836,6 +853,7 @@
       "outputCell": "I72",
       "extractType": "summary_table_match",
       "coreKeywords": ["P.863", "AC", "SND", "Handset", "SWB", "13.2K"],
+      "fallbackKeywords": ["MOS-LQO", "P.863", "SND", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -846,6 +864,7 @@
       "outputCell": "I73",
       "extractType": "summary_table_match",
       "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -856,6 +875,7 @@
       "outputCell": "I74",
       "extractType": "summary_table_match",
       "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -866,6 +886,7 @@
       "outputCell": "I75",
       "extractType": "summary_table_match",
       "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
+      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     }

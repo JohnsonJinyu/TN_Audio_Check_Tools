@@ -240,6 +240,18 @@ function normalizeText(value, textNormalizeConfig = {}) {
 
   let normalized = value.replace(/\r/g, ' ').replace(/\n/g, ' ');
 
+  normalized = normalized
+    .replace(/\bha(?:nb|wb|sb|swb)\b/gi, ' HABAND ')
+    .replace(/\bmxx-(\d+)/gi, ' MAX-$1 ')
+    .replace(/\breceiv(?:e|ing|eing)\b/gi, ' RCV ')
+    .replace(/\bsending\b/gi, ' SND ')
+    .replace(/\bfrequency\b/gi, ' FREQ ')
+    .replace(/\bcharact(?:er)?\.?\b/gi, ' CHAR ')
+    .replace(/\baverage\b/gi, ' AVG ')
+    .replace(/\bnominal\b/gi, ' NOM ')
+    .replace(/\bvolume\b/gi, ' VOL ')
+    .replace(/\bmandatory\b/gi, ' MAND ');
+
   if (textNormalizeConfig.removeNumberPrefix) {
     normalized = normalized.replace(/^\s*\d+(?:\.\d+)*\s*/, '');
   }
@@ -284,12 +296,34 @@ function hasAllKeywords(text, keywords, textNormalizeConfig) {
   return keywords.every((keyword) => normalizedText.includes(normalizeText(keyword, textNormalizeConfig)));
 }
 
+function itemMatchesKeywords(reportData, item, text, textNormalizeConfig, allowFallback = false) {
+  if (hasAllKeywords(text, item.coreKeywords, textNormalizeConfig)) {
+    return true;
+  }
+
+  const isLegacyTextOnlyReport = !Array.isArray(reportData?.tables) || reportData.tables.length === 0;
+  if (!isLegacyTextOnlyReport && !allowFallback) {
+    return false;
+  }
+
+  return hasAllKeywords(text, item.fallbackKeywords, textNormalizeConfig);
+}
+
 function getRowDescriptorText(rowContext) {
   if (rowContext && Array.isArray(rowContext.cells) && rowContext.cells.length > 0) {
+    if (rowContext.cells.length === 1) {
+      const singleCellText = rowContext.cells[0] || rowContext.text || '';
+      const statusSplit = singleCellText.split(/\b(?:not\s+ok|ok|done)\b/i)[0]?.trim();
+      return statusSplit || singleCellText;
+    }
+
     return rowContext.cells[0] || rowContext.text || '';
   }
 
-  return String(rowContext?.text || '').split('|')[0].trim();
+  const rawText = String(rowContext?.text || '');
+  const pipeSplitText = rawText.split('|')[0].trim();
+  const statusSplitText = pipeSplitText.split(/\b(?:not\s+ok|ok|done)\b/i)[0]?.trim();
+  return statusSplitText || pipeSplitText;
 }
 
 function hasRequiredSuffixes(text, suffixes, textNormalizeConfig) {
@@ -307,11 +341,23 @@ function hasRequiredSuffixes(text, suffixes, textNormalizeConfig) {
     }
 
     if (normalizedSuffix === 'min') {
-      return /(^|[^a-z0-9])min([^a-z0-9]|$)/i.test(normalizedText) && !/min-\d/i.test(normalizedText);
+      return /(^|[^a-z0-9])min([^a-z0-9]|$)/i.test(normalizedText)
+        && !/min-\d/i.test(normalizedText)
+        && !/min\.?\s+dist/i.test(normalizedText)
+        && !/minimal/i.test(normalizedText);
     }
 
     return normalizedText.includes(normalizedSuffix);
   });
+}
+
+function hasExactRowKeywords(text, exactKeywords, textNormalizeConfig) {
+  if (!Array.isArray(exactKeywords) || exactKeywords.length === 0) {
+    return true;
+  }
+
+  const normalizedText = normalizeText(text, textNormalizeConfig);
+  return exactKeywords.every((keyword) => normalizedText.includes(normalizeText(keyword, textNormalizeConfig)));
 }
 
 function hasForbiddenSuffix(text, suffixes, textNormalizeConfig) {
@@ -321,6 +367,16 @@ function hasForbiddenSuffix(text, suffixes, textNormalizeConfig) {
 
   const normalizedText = normalizeText(text, textNormalizeConfig);
   return suffixes.some((suffix) => normalizedText.includes(normalizeText(suffix, textNormalizeConfig)));
+}
+
+function getCandidateScore(rowContext) {
+  const structuredScore = Array.isArray(rowContext.cells) && rowContext.cells.length > 0 ? 1000 : 0;
+  const numericCellScore = Array.isArray(rowContext.cells)
+    ? rowContext.cells.filter((cell) => !isMeasurementObjectCell(cell) && extractNumberTokens(cell).length > 0).length * 100
+    : 0;
+  const headerScore = Array.isArray(rowContext.headers) && rowContext.headers.length > 0 ? 50 : 0;
+  const statusScore = extractStatus(rowContext.text) ? 500 : 0;
+  return structuredScore + numericCellScore + headerScore + statusScore + rowContext.text.length;
 }
 
 function extractStatus(text) {
@@ -523,30 +579,51 @@ function extractAmbientNoiseAverageBlocks(rawText) {
     return [];
   }
 
-  const averageBlockRegex = /G-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)[\s\S]{0,200}?N-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)[\s\S]{0,200}?S-MOS \(Average, TS 103 281 \(Model A\)\):\s*([0-9.]+)/g;
-  const ambientSceneRegex = /9\.12\.1\s+Quality in ambient noise,\s*([^\n]+?)(?=\s{2,}|\n)/g;
-  const blocks = [];
+  const lines = rawText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const blockMap = new Map();
+  let currentSceneKey = null;
 
-  for (const match of rawText.matchAll(averageBlockRegex)) {
-    const contextStart = Math.max(0, (match.index || 0) - 6000);
-    const contextWindow = rawText.slice(contextStart, match.index || 0);
-    const sceneMatches = Array.from(contextWindow.matchAll(ambientSceneRegex));
-    const sceneLabel = sanitizeAmbientNoiseSceneLabel(sceneMatches.at(-1)?.[1] || '');
+  for (const line of lines) {
+    const sceneMatch = /(?:7|9)\.12\.1\s+Quality in ambient noise,\s*([^\t\n\r]+?)(?:\t|\s{2,}|$)/i.exec(line);
+    if (sceneMatch) {
+      const sceneLabel = sanitizeAmbientNoiseSceneLabel(sceneMatch[1] || '');
+      const sceneKey = getAmbientNoiseSceneKey(sceneLabel);
 
-    if (!sceneLabel) {
+      if (sceneKey) {
+        currentSceneKey = sceneKey;
+        if (!blockMap.has(sceneKey)) {
+          blockMap.set(sceneKey, {
+            sceneLabel,
+            gmos: null,
+            nmos: null,
+            smos: null,
+            sourcePreview: ''
+          });
+        }
+      }
+    }
+
+    if (!currentSceneKey || !blockMap.has(currentSceneKey)) {
       continue;
     }
 
-    blocks.push({
-      sceneLabel,
-      gmos: match[1],
-      nmos: match[2],
-      smos: match[3],
-      sourcePreview: makeSourcePreview(rawText.slice(match.index || 0, (match.index || 0) + 240))
+    const block = blockMap.get(currentSceneKey);
+    const metricPatterns = [
+      ['gmos', /G-MOS \(Average(?:,\s*TS\s*103\s*(?:106|281)(?:\s*\(Model A\))?)?\)[:\t ]+([0-9.]+)/i],
+      ['nmos', /^(?!Corrected\b).*N-MOS \(Average(?:,\s*TS\s*103\s*(?:106|281)(?:\s*\(Model A\))?)?\)[:\t ]+([0-9.]+)/i],
+      ['smos', /S-MOS \(Average(?:,\s*TS\s*103\s*(?:106|281)(?:\s*\(Model A\))?)?\)[:\t ]+([0-9.]+)/i]
+    ];
+
+    metricPatterns.forEach(([metricKey, pattern]) => {
+      const value = pattern.exec(line)?.[1] || null;
+      if (value) {
+        block[metricKey] = value;
+        block.sourcePreview = makeSourcePreview(`${block.sourcePreview} ${line}`);
+      }
     });
   }
 
-  return blocks;
+  return Array.from(blockMap.values()).filter((block) => block.gmos || block.nmos || block.smos);
 }
 
 function getHeaderBasedCell(rowContext, headerPatterns, textNormalizeConfig) {
@@ -604,7 +681,7 @@ function extractSummaryValue(rowContext, textNormalizeConfig) {
   return directCell || rowContext.cells[rowContext.cells.length - 1] || null;
 }
 
-function extractFormulaValue(rowContext, item, textNormalizeConfig) {
+function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId) {
   if (!rowContext || !item.formula) {
     return null;
   }
@@ -624,6 +701,17 @@ function extractFormulaValue(rowContext, item, textNormalizeConfig) {
     return null;
   }
 
+  const shouldUseBaseItemValue = rowContext?.sourceKind && rowContext.sourceKind !== 'html-table';
+
+  if (shouldUseBaseItemValue && item.formula.baseItemId && extractedResultsByItemId instanceof Map) {
+    const baseResult = extractedResultsByItemId.get(Number(item.formula.baseItemId));
+    const baseNumericValue = parseNumericValue(baseResult?.value);
+
+    if (baseNumericValue !== null) {
+      return formatComputedNumber(baseNumericValue - numericValue);
+    }
+  }
+
   return formatComputedNumber(Number(item.formula.standardValue) - numericValue);
 }
 
@@ -636,7 +724,7 @@ function findLineWindow(lines, startIndex, size = 8) {
   return lines.slice(safeIndex, Math.min(lines.length, safeIndex + size));
 }
 
-function resolveAnchorValue(reportData, item, textNormalizeConfig) {
+function resolveAnchorValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId) {
   const anchorText = item.anchorConfig?.anchorText;
   if (!anchorText) {
     return { matched: false, reason: '缺少 anchorText 配置' };
@@ -655,8 +743,11 @@ function resolveAnchorValue(reportData, item, textNormalizeConfig) {
     .map(({ index }) => {
       const windowLines = findLineWindow(reportData.lines, Math.max(0, index - 8), 18);
       const joinedWindow = windowLines.join(' ');
-      const keywordScore = Array.isArray(item.coreKeywords)
-        ? item.coreKeywords.filter((keyword) => normalizeText(joinedWindow, textNormalizeConfig).includes(normalizeText(keyword, textNormalizeConfig))).length
+      const activeKeywords = itemMatchesKeywords(reportData, item, joinedWindow, textNormalizeConfig, true)
+        ? (hasAllKeywords(joinedWindow, item.coreKeywords, textNormalizeConfig) ? item.coreKeywords : item.fallbackKeywords)
+        : [];
+      const keywordScore = Array.isArray(activeKeywords)
+        ? activeKeywords.filter((keyword) => normalizeText(joinedWindow, textNormalizeConfig).includes(normalizeText(keyword, textNormalizeConfig))).length
         : 0;
 
       return { index, windowLines, joinedWindow, keywordScore };
@@ -664,6 +755,10 @@ function resolveAnchorValue(reportData, item, textNormalizeConfig) {
     .sort((left, right) => right.keywordScore - left.keywordScore);
 
   for (const candidate of rankedAnchors) {
+    if (!itemMatchesKeywords(reportData, item, candidate.joinedWindow, textNormalizeConfig, true)) {
+      continue;
+    }
+
     const dbAtMatch = candidate.joinedWindow.match(/(-?\d+(?:\.\d+)?)\s*dB\s+at/i);
     let value = dbAtMatch ? dbAtMatch[1] : null;
 
@@ -692,21 +787,86 @@ function resolveAnchorValue(reportData, item, textNormalizeConfig) {
     };
   }
 
+  const fallbackRow = resolveRowBasedValue(reportData, {
+    ...item,
+    extractType: 'summary_table_match'
+  }, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
+
+  if (fallbackRow?.matched) {
+    return {
+      ...fallbackRow,
+      sourceType: 'anchor-fallback-row'
+    };
+  }
+
   return { matched: false, reason: '锚点附近未找到符合规则的数值' };
 }
 
-function resolveRegexValue(reportData, item, textNormalizeConfig) {
+function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchConfig) {
   if (!item.regexConfig?.matchRegex) {
     return { matched: false, reason: '缺少正则配置' };
   }
 
   const regex = new RegExp(item.regexConfig.matchRegex, 'i');
+  const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig);
+  const range = item.regexConfig.valueRange;
+  const candidates = [];
+
+  for (const rowContext of reportData.tableRows) {
+    if (!itemMatchesKeywords(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')) {
+      continue;
+    }
+
+    const descriptorText = getRowDescriptorText(rowContext);
+    if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
+      continue;
+    }
+
+    if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
+      continue;
+    }
+
+    if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
+      continue;
+    }
+
+    const match = rowContext.text.match(regex);
+    if (!match) {
+      continue;
+    }
+
+    const groupIndex = Number(item.regexConfig.valueGroupIndex || 1);
+    const value = match[groupIndex] || match[0];
+    const numericValue = parseNumericValue(value);
+
+    if (Array.isArray(range) && range.length === 2 && numericValue !== null) {
+      if (numericValue < range[0] || numericValue > range[1]) {
+        continue;
+      }
+    }
+
+    candidates.push({
+      matched: true,
+      value: rowContext.text.includes('%') && numericValue !== null ? String(numericValue / 100) : value,
+      sourcePreview: makeSourcePreview(rowContext.text),
+      sourceType: 'regex-row',
+      score: 2000 + getCandidateScore(rowContext)
+    });
+  }
 
   for (let lineIndex = 0; lineIndex < reportData.lines.length; lineIndex += 1) {
     const contextWindow = findLineWindow(reportData.lines, Math.max(0, lineIndex - 2), 12);
     const joinedWindow = contextWindow.join('\n');
 
-    if (!hasAllKeywords(joinedWindow, item.coreKeywords, textNormalizeConfig)) {
+    if (!itemMatchesKeywords(reportData, item, joinedWindow, textNormalizeConfig, true)) {
+      continue;
+    }
+
+    if (!hasRequiredSuffixes(joinedWindow, item.requiredSuffix, textNormalizeConfig)) {
+      continue;
+    }
+
+    if (hasForbiddenSuffix(joinedWindow, forbiddenSuffixes, textNormalizeConfig)) {
       continue;
     }
 
@@ -716,10 +876,11 @@ function resolveRegexValue(reportData, item, textNormalizeConfig) {
         continue;
       }
 
+      const candidateIndex = contextWindow.indexOf(candidateLine);
+
       const groupIndex = Number(item.regexConfig.valueGroupIndex || 1);
       const value = match[groupIndex] || match[0];
       const numericValue = parseNumericValue(value);
-      const range = item.regexConfig.valueRange;
 
       if (Array.isArray(range) && range.length === 2 && numericValue !== null) {
         if (numericValue < range[0] || numericValue > range[1]) {
@@ -727,13 +888,40 @@ function resolveRegexValue(reportData, item, textNormalizeConfig) {
         }
       }
 
-      return {
+      const requiredSuffixes = Array.isArray(item.requiredSuffix) ? item.requiredSuffix : [];
+      const lineHasRequiredSuffix = hasRequiredSuffixes(candidateLine, requiredSuffixes, textNormalizeConfig);
+      const sameLineKeywordScore = itemMatchesKeywords(reportData, item, candidateLine, textNormalizeConfig, true) ? 500 : 0;
+      const nearestSuffixDistance = requiredSuffixes.length === 0
+        ? 0
+        : contextWindow.reduce((bestDistance, line, windowIndex) => {
+          if (windowIndex > candidateIndex) {
+            return bestDistance;
+          }
+
+          if (!hasRequiredSuffixes(line, requiredSuffixes, textNormalizeConfig)) {
+            return bestDistance;
+          }
+
+          const distance = candidateIndex - windowIndex;
+          return Math.min(bestDistance, distance);
+        }, Number.POSITIVE_INFINITY);
+
+      const proximityScore = Number.isFinite(nearestSuffixDistance)
+        ? Math.max(0, 200 - nearestSuffixDistance * 60)
+        : 0;
+
+      candidates.push({
         matched: true,
         value: candidateLine.includes('%') && numericValue !== null ? String(numericValue / 100) : value,
         sourcePreview: makeSourcePreview(candidateLine),
-        sourceType: 'regex-line'
-      };
+        sourceType: 'regex-line',
+        score: (lineHasRequiredSuffix ? 1000 : 0) + sameLineKeywordScore + proximityScore + candidateLine.length
+      });
     }
+  }
+
+  if (candidates.length > 0) {
+    return candidates.sort((left, right) => right.score - left.score)[0];
   }
 
   return { matched: false, reason: '未匹配到正则目标文本' };
@@ -866,7 +1054,7 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
 function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig) {
   const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig);
   const candidates = reportData.tableRows.filter((rowContext) => {
-    if (!hasAllKeywords(rowContext.text, item.coreKeywords, textNormalizeConfig)) {
+    if (!itemMatchesKeywords(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')) {
       return false;
     }
 
@@ -880,6 +1068,10 @@ function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchCo
       return false;
     }
 
+    if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
+      return false;
+    }
+
     return true;
   });
 
@@ -887,20 +1079,42 @@ function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchCo
     return null;
   }
 
-  const getCandidateScore = (rowContext) => {
-    const structuredScore = Array.isArray(rowContext.cells) && rowContext.cells.length > 0 ? 1000 : 0;
-    const numericCellScore = Array.isArray(rowContext.cells)
-      ? rowContext.cells.filter((cell) => !isMeasurementObjectCell(cell) && extractNumberTokens(cell).length > 0).length * 100
-      : 0;
-    const headerScore = Array.isArray(rowContext.headers) && rowContext.headers.length > 0 ? 50 : 0;
-    return structuredScore + numericCellScore + headerScore + rowContext.text.length;
-  };
-
   return candidates.sort((left, right) => getCandidateScore(right) - getCandidateScore(left))[0];
 }
 
-function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig) {
-  const rowContext = selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig);
+function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId) {
+  let rowContext = selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig);
+
+  if (item.extractType === 'status_judge') {
+    const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig);
+    const explicitStatusRows = reportData.tableRows.filter((candidate) => {
+      if (!itemMatchesKeywords(reportData, item, candidate.text, textNormalizeConfig, candidate.sourceKind !== 'html-table')) {
+        return false;
+      }
+
+      const descriptorText = getRowDescriptorText(candidate);
+      if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
+        return false;
+      }
+
+      if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
+        return false;
+      }
+
+      if (!hasExactRowKeywords(candidate.text, item.exactRowKeywords, textNormalizeConfig)) {
+        return false;
+      }
+
+      return Boolean(extractStatus(candidate.text));
+    });
+
+    const explicitStatusRow = explicitStatusRows.sort((left, right) => getCandidateScore(right) - getCandidateScore(left))[0];
+
+    if (explicitStatusRow) {
+      rowContext = explicitStatusRow;
+    }
+  }
+
   if (!rowContext) {
     return { matched: false, reason: '未找到匹配的表格行' };
   }
@@ -913,7 +1127,7 @@ function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatch
   }
 
   if (item.extractType === 'formula_calc') {
-    const value = extractFormulaValue(rowContext, item, textNormalizeConfig);
+    const value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
     return value
       ? { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row-formula' }
       : { matched: false, reason: '匹配到行但公式计算失败' };
@@ -942,6 +1156,29 @@ function createSearchData(rawText, html) {
     .trim();
 
   const measurementObject = extractMeasurementObject(rawText);
+  const lineRows = lines
+    .map((line, index) => {
+      const cells = line.split(/\t+/).map((cell) => cell.trim()).filter(Boolean);
+
+      return {
+        tableIndex: -1,
+        rowIndex: index + 1,
+        headers: [],
+        cells,
+        text: line,
+        sourceKind: 'raw-line'
+      };
+    })
+    .filter((row) => {
+      if (row.text.length <= 8) {
+        return false;
+      }
+
+      const hasExplicitStatus = Boolean(extractStatus(row.text)) || row.cells.some((cell) => isStatusCell(cell));
+      const hasStructuredCells = row.cells.length >= 4;
+
+      return hasExplicitStatus && hasStructuredCells;
+    });
   let derivedRows = [];
 
   if (measurementObject) {
@@ -1025,7 +1262,7 @@ function createSearchData(rawText, html) {
     lines,
     ambientNoiseBlocks: extractAmbientNoiseAverageBlocks(rawText),
     tables,
-    tableRows: [...tableRows, ...derivedRows]
+    tableRows: [...tableRows, ...lineRows, ...derivedRows]
   };
 }
 
@@ -1402,28 +1639,32 @@ async function processSingleReport({ reportPath, checklistPath, rules }) {
   const textNormalizeConfig = rules.globalMatchConfig?.textNormalize || {};
   const globalMatchConfig = rules.globalMatchConfig || {};
 
+  const extractedResultsByItemId = new Map();
   const extractedItems = rules.extractItemList.map((item) => {
     let extractionResult;
 
     if (['summary_table_match', 'formula_calc', 'status_judge'].includes(item.extractType)) {
-      extractionResult = resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig);
+      extractionResult = resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
     } else if (item.extractType === 'detail_anchor_extract') {
-      extractionResult = resolveAnchorValue(reportData, item, textNormalizeConfig);
+      extractionResult = resolveAnchorValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
     } else if (item.extractType === 'table_struct_extract') {
       extractionResult = resolveTableValue(reportData, item, textNormalizeConfig);
     } else if (item.extractType === 'regex_extract') {
-      extractionResult = resolveRegexValue(reportData, item, textNormalizeConfig);
+      extractionResult = resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchConfig);
     } else {
       extractionResult = { matched: false, reason: `暂不支持的提取类型: ${item.extractType}` };
     }
 
-    return {
+    const itemResult = {
       itemId: item.itemId,
       checklistDesc: item.checklistDesc,
       outputCell: item.outputCell,
       extractType: item.extractType,
       ...extractionResult
     };
+
+    extractedResultsByItemId.set(item.itemId, itemResult);
+    return itemResult;
   });
 
   const outputPath = await applyResultsToChecklist(checklistPath, reportPath, extractedItems);
