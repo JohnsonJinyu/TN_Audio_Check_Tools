@@ -94,7 +94,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: 72px;
+  line-height: normal;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -102,6 +103,15 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.header-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .trigger-btn {
@@ -122,13 +132,19 @@ body {
 
 .header-title {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0;
-  color: var(--text-color);
-  background: linear-gradient(90deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #34417a;
+  line-height: 1.2;
+}
+
+.header-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-right {
@@ -233,6 +249,10 @@ body {
 @media (max-width: 768px) {
   .header-title {
     font-size: 16px;
+  }
+
+  .header-description {
+    font-size: 11px;
   }
 
   .ant-layout-content {

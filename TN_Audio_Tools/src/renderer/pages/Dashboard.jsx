@@ -9,37 +9,47 @@ import {
 } from '@ant-design/icons';
 import '../styles/pages.css';
 
-function Dashboard() {
+function Dashboard({ onNavigate }) {
   const tools = [
     {
       title: '音频报告检查',
       description: '检查和验证音频测试报告的完整性和有效性',
       icon: <FileTextOutlined />,
       color: '#ff7a45',
-      stats: '0 个报告'
+      stats: '0 个报告',
+      pageKey: 'report-checker'
     },
     {
       title: '音频播放器',
       description: '播放各种格式的音频文件，并进行基础分析',
       icon: <AudioOutlined />,
       color: '#13c2c2',
-      stats: '支持多种格式'
+      stats: '支持多种格式',
+      pageKey: 'audio-player'
     },
     {
       title: '频谱分析',
       description: '实时分析音频的频谱特性，提供可视化展示',
       icon: <LineChartOutlined />,
       color: '#722ed1',
-      stats: '实时分析'
+      stats: '实时分析',
+      pageKey: 'spectrum'
     },
     {
       title: '音频转换',
       description: '转换音频格式，调整采样率和码率',
       icon: <SwapOutlined />,
       color: '#faad14',
-      stats: '多格式支持'
+      stats: '多格式支持',
+      pageKey: 'converter'
     }
   ];
+
+  const handleNavigate = (pageKey) => {
+    if (typeof onNavigate === 'function' && pageKey) {
+      onNavigate(pageKey);
+    }
+  };
 
   return (
     <div className="page-container dashboard">
@@ -115,6 +125,7 @@ function Dashboard() {
               className="tool-card"
               hoverable
               style={{ height: '100%', cursor: 'pointer' }}
+              onClick={() => handleNavigate(tool.pageKey)}
             >
               <div 
                 className="tool-icon"
@@ -145,6 +156,10 @@ function Dashboard() {
                   type="primary" 
                   size="small"
                   style={{ width: '100%' }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleNavigate(tool.pageKey);
+                  }}
                 >
                   进入 <ArrowRightOutlined />
                 </Button>

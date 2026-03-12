@@ -256,29 +256,34 @@ function ReportChecker() {
 
   return (
     <div className="page-container">
+      <div className="report-checker-toolbar">
+        <Button
+          type="primary"
+          icon={<CheckCircleOutlined />}
+          loading={processing}
+          onClick={processReports}
+          className="report-checker-primary-action"
+        >
+          开始检查并生成 Excel
+        </Button>
+      </div>
+
       <Card 
-        title="音频测试报告检查"
+        className="report-checker-card report-checker-main-card"
+        title="上传测试报告"
         extra={
-          <Space>
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              loading={processing}
-              onClick={processReports}
-            >
-              开始检查并生成 Excel
-            </Button>
+          <div className="report-checker-actions">
             <Upload
               customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
               multiple
               accept=".doc,.docx"
               showUploadList={false}
             >
-              <Button icon={<UploadOutlined />}>
+              <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
                 上传报告
               </Button>
             </Upload>
-          </Space>
+          </div>
         }
       >
         <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
@@ -318,6 +323,7 @@ function ReportChecker() {
       </Card>
 
       <Card
+        className="report-checker-card report-checker-section-card"
         title="上传 checklist"
         style={{ marginTop: '24px' }}
         extra={
@@ -326,7 +332,7 @@ function ReportChecker() {
             accept=".xlsx,.xls"
             showUploadList={false}
           >
-            <Button type="primary" icon={<UploadOutlined />}>
+            <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
               上传 checklist
             </Button>
           </Upload>
@@ -368,6 +374,7 @@ function ReportChecker() {
       </Card>
 
       <Card
+        className="report-checker-card report-checker-section-card"
         title="上传规则"
         style={{ marginTop: '24px' }}
         extra={
@@ -376,7 +383,7 @@ function ReportChecker() {
             accept=".json,.json5"
             showUploadList={false}
           >
-            <Button type="primary" icon={<UploadOutlined />}>
+            <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
               上传规则
             </Button>
           </Upload>

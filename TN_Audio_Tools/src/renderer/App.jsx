@@ -24,6 +24,39 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
 
+  const pageMeta = {
+    dashboard: {
+      title: '仪表盘',
+      description: '快速进入各个音频工具模块。'
+    },
+    'report-checker': {
+      title: '音频测试报告检查',
+      description: '上传报告、checklist 与规则文件后，统一执行检查并生成 Excel 结果。'
+    },
+    'audio-player': {
+      title: '音频播放',
+      description: '播放音频文件并进行基础分析。'
+    },
+    spectrum: {
+      title: '频谱分析',
+      description: '实时查看音频频谱与波形特性。'
+    },
+    converter: {
+      title: '音频转换',
+      description: '转换音频格式并调整采样参数。'
+    },
+    batch: {
+      title: '批量处理',
+      description: '集中执行批量转换和处理任务。'
+    },
+    settings: {
+      title: '设置',
+      description: '配置应用偏好与处理选项。'
+    }
+  };
+
+  const currentPageMeta = pageMeta[currentPage] || pageMeta.dashboard;
+
   const menuItems = [
     {
       key: 'dashboard',
@@ -78,7 +111,7 @@ function App() {
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentPage} />;
       case 'report-checker':
         return <ReportChecker />;
       case 'audio-player':
@@ -137,7 +170,10 @@ function App() {
             >
               {collapsed ? '▶' : '◀'}
             </button>
-            <h1 className="header-title">TN Audio Toolkit</h1>
+            <div className="header-meta">
+              <h1 className="header-title">{currentPageMeta.title}</h1>
+              <p className="header-description">{currentPageMeta.description}</p>
+            </div>
           </div>
           <div className="header-right">
             <span className="version">v1.0.0</span>
