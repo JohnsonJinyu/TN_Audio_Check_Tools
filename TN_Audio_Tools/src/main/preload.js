@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electron', {
   },
   reportChecker: {
     processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload),
-    showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath)
+    showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath),
+    exportRules: (rulePath) => ipcRenderer.invoke('report-checker:export-rules', rulePath)
   }
 });

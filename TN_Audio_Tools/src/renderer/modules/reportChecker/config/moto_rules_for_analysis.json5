@@ -846,47 +846,51 @@
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
-    // 65. POLQA 发送端 SWB 13.2K
+    // 65. POLQA 发送端单句 MOS-LQO
     {
       "itemId": 65,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Sending",
       "outputCell": "I72",
       "extractType": "summary_table_match",
-      "coreKeywords": ["P.863", "AC", "SND", "Handset", "SWB", "13.2K"],
-      "fallbackKeywords": ["MOS-LQO", "P.863", "SND", "informative"],
+      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "SND"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "SND"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "SND"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
-    // 66. POLQA 接收端 SWB 13.2K MAX
+    // 66. POLQA 接收端单句 MOS-LQO MAX
     {
       "itemId": 66,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - max vol.",
       "outputCell": "I73",
       "extractType": "summary_table_match",
-      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
-      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
-    // 67. POLQA 接收端 SWB 13.2K NOM
+    // 67. POLQA 接收端单句 MOS-LQO NOM
     {
       "itemId": 67,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - nom vol.",
       "outputCell": "I74",
       "extractType": "summary_table_match",
-      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
-      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
-    // 68. POLQA 接收端 SWB 13.2K MIN
+    // 68. POLQA 接收端单句 MOS-LQO MIN
     {
       "itemId": 68,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - min vol.",
       "outputCell": "I75",
       "extractType": "summary_table_match",
-      "coreKeywords": ["P.863", "AC", "RCV", "Handset", "SWB", "13.2k"],
-      "fallbackKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     }

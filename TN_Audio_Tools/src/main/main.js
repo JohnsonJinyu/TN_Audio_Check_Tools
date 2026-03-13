@@ -1,7 +1,8 @@
-const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
+const fs = require('fs/promises');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
-const { processReports } = require('./services/reportCheckerService');
+const { processReports, DEFAULT_RULES_RELATIVE_PATH } = require('./services/reportCheckerService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
@@ -147,6 +148,35 @@ ipcMain.handle('report-checker:show-output-in-folder', async (_, filePath) => {
 
   await shell.showItemInFolder(filePath);
   return true;
+});
+
+ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {
+  const sourcePath = customRulePath || path.join(app.getAppPath(), DEFAULT_RULES_RELATIVE_PATH);
+  await fs.access(sourcePath);
+
+  const defaultName = path.basename(sourcePath);
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: '导出规则文件',
+    defaultPath: defaultName,
+    filters: [
+      { name: '规则文件', extensions: ['json5', 'json'] },
+      { name: '所有文件', extensions: ['*'] }
+    ]
+  });
+
+  if (canceled || !filePath) {
+    return { canceled: true };
+  }
+
+  const outputPath = path.extname(filePath)
+    ? filePath
+    : `${filePath}${path.extname(defaultName) || '.json5'}`;
+
+  await fs.copyFile(sourcePath, outputPath);
+  return {
+    canceled: false,
+    filePath: outputPath
+  };
 });
 
 // 创建菜单

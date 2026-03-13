@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Button, Upload, Table, Space, Tag, Modal, message, Typography } from 'antd';
-import { UploadOutlined, DeleteOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordReportCheckResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
 
@@ -22,6 +22,7 @@ function ReportChecker() {
   const [ruleFile, setRuleFile] = useState(null);
   const [checklistFile, setChecklistFile] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [exportingRules, setExportingRules] = useState(false);
 
   const handleUpload = (file, target, onSuccess) => {
     if (!file.path) {
@@ -186,6 +187,23 @@ function ReportChecker() {
       message.error(errorMessage);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const exportRules = async () => {
+    setExportingRules(true);
+
+    try {
+      const result = await window.electron.reportChecker.exportRules(ruleFile?.path || null);
+      if (result?.canceled) {
+        return;
+      }
+
+      message.success(`规则已导出到: ${result.filePath}`);
+    } catch (error) {
+      message.error(error?.message || '导出规则失败');
+    } finally {
+      setExportingRules(false);
     }
   };
 
@@ -380,15 +398,25 @@ function ReportChecker() {
         title="上传规则"
         style={{ marginTop: '24px' }}
         extra={
-          <Upload
-            customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
-            accept=".json,.json5"
-            showUploadList={false}
-          >
-            <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
-              上传规则
+          <Space>
+            <Button
+              icon={<ExportOutlined />}
+              className="report-checker-upload-action report-checker-section-action"
+              loading={exportingRules}
+              onClick={exportRules}
+            >
+              导出规则
             </Button>
-          </Upload>
+            <Upload
+              customRequest={({ file, onSuccess }) => handleUpload(file, 'rules', onSuccess)}
+              accept=".json,.json5"
+              showUploadList={false}
+            >
+              <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
+                上传规则
+              </Button>
+            </Upload>
+          </Space>
         }
       >
         <Upload.Dragger
@@ -417,6 +445,7 @@ function ReportChecker() {
         <ul style={{ paddingLeft: '20px' }}>
           <li>报告解析当前使用主进程后台执行，避免浏览器沙箱限制本地文件读写。</li>
           <li>默认读取内置 JSON5 规则，也可以手动上传其它规则文件覆盖。</li>
+          <li>“导出规则”会导出当前使用的规则文件；若未上传自定义规则，则导出内置默认规则。</li>
           <li>.doc 报告会优先在后台临时转为 .docx 后解析，解析完成后自动清理临时文件。</li>
           <li>生成的 Excel 是在空白 checklist 基础上回填数据后的结果文件，默认保存到测试报告原目录。</li>
         </ul>

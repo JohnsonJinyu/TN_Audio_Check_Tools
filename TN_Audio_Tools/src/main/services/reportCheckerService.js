@@ -30,6 +30,13 @@ const LIBRE_OFFICE_CANDIDATE_PATHS = [
   'C:/Program Files (x86)/LibreOffice/program/soffice.exe'
 ];
 const CHILD_PROCESS_TIMEOUT_MS = 90000;
+const PERCENT_OUTPUT_CELLS = new Set(['I41', 'I42', 'I43', 'I44', 'I45', 'I46']);
+const CHECKLIST_BORDER_RANGE = {
+  startCol: 'A',
+  endCol: 'K',
+  startRow: 3,
+  endRow: 75
+};
 
 function runProcess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -507,6 +514,19 @@ function isStatusCell(text) {
   return ['ok', 'not ok', 'done', 'pass', 'fail'].includes(normalized);
 }
 
+function isLikelyReportMetadataCell(text) {
+  const normalized = String(text || '').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (/^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+){2,}$/.test(normalized)) {
+    return true;
+  }
+
+  return /\.(?:doc|docx|xls|xlsx)$/i.test(normalized);
+}
+
 function getLastMeaningfulNumericToken(text) {
   const cleanedText = String(text || '')
     .replace(/^[0-9.]+\s+/, '')
@@ -526,7 +546,7 @@ function extractRowNumericCell(rowContext) {
     .slice()
     .reverse()
     .find((cell) => {
-      if (!cell || isMeasurementObjectCell(cell) || isStatusCell(cell)) {
+      if (!cell || isMeasurementObjectCell(cell) || isStatusCell(cell) || isLikelyReportMetadataCell(cell)) {
         return false;
       }
 
@@ -1327,6 +1347,15 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   const sheetName = resolveChecklistSheetName(workbook, reportPath);
   const worksheet = workbook.Sheets[sheetName];
   const numericIColumnCells = [];
+  const percentIColumnCells = [];
+  const preservedMerges = collectWorksheetMerges(worksheet, {
+    columns: ['A', 'B', 'C'],
+    startRow: 6,
+    endRow: CHECKLIST_BORDER_RANGE.endRow
+  });
+
+  splitWorksheetMergesInRange(worksheet, CHECKLIST_BORDER_RANGE);
+  ensureWorksheetRangeCells(worksheet, CHECKLIST_BORDER_RANGE);
 
   extractedItems.forEach((itemResult) => {
     if (!itemResult.matched || !itemResult.value) {
@@ -1335,7 +1364,11 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
 
     const isNumericCell = writeChecklistCell(worksheet, itemResult.outputCell, itemResult.value);
     if (isNumericCell && /^I\d+$/i.test(itemResult.outputCell)) {
-      numericIColumnCells.push(itemResult.outputCell);
+      if (PERCENT_OUTPUT_CELLS.has(itemResult.outputCell.toUpperCase())) {
+        percentIColumnCells.push(itemResult.outputCell);
+      } else {
+        numericIColumnCells.push(itemResult.outputCell);
+      }
     }
   });
 
@@ -1344,10 +1377,83 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   XLSX.writeFile(workbook, outputPath, { bookType: 'xlsx' });
 
   if (path.extname(checklistPath).toLowerCase() === '.xlsx') {
-    await patchChecklistSheetStyles(checklistPath, outputPath, sheetName, numericIColumnCells);
+    await patchChecklistSheetStyles(checklistPath, outputPath, sheetName, {
+      decimalCellAddresses: numericIColumnCells,
+      percentCellAddresses: percentIColumnCells,
+      borderedRange: CHECKLIST_BORDER_RANGE
+    });
+
+    await patchChecklistSheetMerges(outputPath, sheetName, preservedMerges);
   }
 
   return outputPath;
+}
+
+function collectWorksheetMerges(worksheet, mergeConfig) {
+  if (!Array.isArray(worksheet['!merges']) || worksheet['!merges'].length === 0) {
+    return [];
+  }
+
+  const allowedColumns = new Set((mergeConfig.columns || []).map((column) => XLSX.utils.decode_col(column)));
+  const startRow = (mergeConfig.startRow || 1) - 1;
+  const endRow = (mergeConfig.endRow || Number.MAX_SAFE_INTEGER) - 1;
+
+  return worksheet['!merges']
+    .filter((mergeRange) => {
+      const isSingleColumn = mergeRange.s.c === mergeRange.e.c;
+      const inAllowedColumn = allowedColumns.has(mergeRange.s.c);
+      const inTargetRows = mergeRange.s.r >= startRow && mergeRange.e.r <= endRow;
+      const isVerticalMerge = mergeRange.e.r > mergeRange.s.r;
+
+      return isSingleColumn && inAllowedColumn && inTargetRows && isVerticalMerge;
+    })
+    .map((mergeRange) => ({
+      s: { ...mergeRange.s },
+      e: { ...mergeRange.e }
+    }));
+}
+
+function splitWorksheetMergesInRange(worksheet, rangeConfig) {
+  if (!Array.isArray(worksheet['!merges']) || worksheet['!merges'].length === 0) {
+    return;
+  }
+
+  const targetStartCol = XLSX.utils.decode_col(rangeConfig.startCol);
+  const targetEndCol = XLSX.utils.decode_col(rangeConfig.endCol);
+  const targetStartRow = rangeConfig.startRow - 1;
+  const targetEndRow = rangeConfig.endRow - 1;
+
+  worksheet['!merges'] = worksheet['!merges'].filter((mergeRange) => {
+    const intersects = !(
+      mergeRange.e.c < targetStartCol
+      || mergeRange.s.c > targetEndCol
+      || mergeRange.e.r < targetStartRow
+      || mergeRange.s.r > targetEndRow
+    );
+
+    return !intersects;
+  });
+
+  if (worksheet['!merges'].length === 0) {
+    delete worksheet['!merges'];
+  }
+}
+
+function ensureWorksheetRangeCells(worksheet, rangeConfig) {
+  const startColIndex = XLSX.utils.decode_col(rangeConfig.startCol);
+  const endColIndex = XLSX.utils.decode_col(rangeConfig.endCol);
+
+  for (let row = rangeConfig.startRow; row <= rangeConfig.endRow; row += 1) {
+    for (let colIndex = startColIndex; colIndex <= endColIndex; colIndex += 1) {
+      const cellAddress = XLSX.utils.encode_cell({ c: colIndex, r: row - 1 });
+      if (!worksheet[cellAddress]) {
+        worksheet[cellAddress] = {
+          t: 's',
+          v: ''
+        };
+      }
+    }
+  }
 }
 
 function writeChecklistCell(worksheet, cellAddress, rawValue) {
@@ -1411,6 +1517,32 @@ function resolveChecklistSheetName(workbook, reportPath) {
   const reportTokens = reportName.split(/[_\s-]+/).map(normalizeSheetToken).filter(Boolean);
   const sheetNames = getWorkbookSheetNames(workbook);
 
+  const preferredModeSheet = [
+    {
+      sheetName: 'Handset',
+      reportTokens: new Set(['ha', 'handset'])
+    },
+    {
+      sheetName: 'Handsfree',
+      reportTokens: new Set(['hf', 'handsfree'])
+    },
+    {
+      sheetName: 'Headset',
+      reportTokens: new Set(['hs', 'headset'])
+    }
+  ].find((candidate) => {
+    const hasSheet = sheetNames.some((sheetName) => normalizeSheetToken(sheetName) === normalizeSheetToken(candidate.sheetName));
+    if (!hasSheet) {
+      return false;
+    }
+
+    return reportTokens.some((token) => candidate.reportTokens.has(token));
+  });
+
+  if (preferredModeSheet) {
+    return preferredModeSheet.sheetName;
+  }
+
   const preferredSheet = sheetNames.find((candidate) => {
     const normalizedCandidate = normalizeSheetToken(candidate);
     if (!normalizedCandidate || ['report', 'help', 'changelog'].includes(normalizedCandidate)) {
@@ -1422,6 +1554,11 @@ function resolveChecklistSheetName(workbook, reportPath) {
 
   if (preferredSheet) {
     return preferredSheet;
+  }
+
+  const handsetFallbackSheet = sheetNames.find((candidate) => normalizeSheetToken(candidate) === 'handset');
+  if (handsetFallbackSheet) {
+    return handsetFallbackSheet;
   }
 
   return sheetNames[0];
@@ -1439,7 +1576,7 @@ function getWorkbookSheetNames(workbook) {
   return [];
 }
 
-async function patchChecklistSheetStyles(templatePath, outputPath, sheetName, decimalCellAddresses = []) {
+async function patchChecklistSheetStyles(templatePath, outputPath, sheetName, styleOptions = {}) {
   const [templateBuffer, outputBuffer] = await Promise.all([
     fs.readFile(templatePath),
     fs.readFile(outputPath)
@@ -1465,23 +1602,34 @@ async function patchChecklistSheetStyles(templatePath, outputPath, sheetName, de
   const templateStylesXml = await templateZip.file('xl/styles.xml')?.async('string');
   const styleMap = extractSheetStyleMap(templateSheetXml);
   let patchedStylesXml = templateStylesXml || null;
+  const cellStyleMap = new Map(styleMap);
+  let borderAssignments = [];
 
-  styleMap.forEach((styleId, cellAddress) => {
+  if (patchedStylesXml && Array.isArray(styleOptions.decimalCellAddresses) && styleOptions.decimalCellAddresses.length > 0) {
+    patchedStylesXml = createNumberFormatStyleOverrides(patchedStylesXml, cellStyleMap, styleOptions.decimalCellAddresses, '2');
+  }
+
+  if (patchedStylesXml && Array.isArray(styleOptions.percentCellAddresses) && styleOptions.percentCellAddresses.length > 0) {
+    patchedStylesXml = createNumberFormatStyleOverrides(patchedStylesXml, cellStyleMap, styleOptions.percentCellAddresses, '10');
+  }
+
+  if (patchedStylesXml && styleOptions.borderedRange) {
+    borderAssignments = buildBorderAssignments(styleOptions.borderedRange);
+    patchedStylesXml = createBorderStyleOverrides(patchedStylesXml, cellStyleMap, borderAssignments);
+  }
+
+  outputSheetXml = ensureSheetCellsExist(outputSheetXml, [
+    ...cellStyleMap.keys(),
+    ...borderAssignments.map((item) => item.cellAddress)
+  ]);
+
+  cellStyleMap.forEach((styleId, cellAddress) => {
     if (styleId === undefined || styleId === null) {
       return;
     }
 
     outputSheetXml = applyStyleIdToCell(outputSheetXml, cellAddress, styleId);
   });
-
-  if (patchedStylesXml && decimalCellAddresses.length > 0) {
-    const { stylesXml, cellStyleMap } = createDecimalStyleOverrides(patchedStylesXml, styleMap, decimalCellAddresses);
-    patchedStylesXml = stylesXml;
-
-    cellStyleMap.forEach((styleId, cellAddress) => {
-      outputSheetXml = applyStyleIdToCell(outputSheetXml, cellAddress, styleId);
-    });
-  }
 
   outputZip.file(worksheetPath, outputSheetXml);
 
@@ -1516,6 +1664,42 @@ async function resolveWorksheetPath(zip, sheetName) {
   return `xl/${relMatch[1].replace(/^\//, '')}`;
 }
 
+async function patchChecklistSheetMerges(outputPath, sheetName, mergeRanges) {
+  if (!Array.isArray(mergeRanges) || mergeRanges.length === 0) {
+    return;
+  }
+
+  const outputBuffer = await fs.readFile(outputPath);
+  const outputZip = await JSZip.loadAsync(outputBuffer);
+  const worksheetPath = await resolveWorksheetPath(outputZip, sheetName);
+  if (!worksheetPath) {
+    return;
+  }
+
+  let outputSheetXml = await outputZip.file(worksheetPath).async('string');
+  const existingRefs = Array.from(outputSheetXml.matchAll(/<mergeCell\s+ref="([^"]+)"\s*\/>/gi)).map((match) => match[1]);
+  const deferredRefs = mergeRanges.map((mergeRange) => XLSX.utils.encode_range(mergeRange));
+  const mergeRefs = Array.from(new Set([...existingRefs, ...deferredRefs]));
+
+  if (mergeRefs.length === 0) {
+    return;
+  }
+
+  const mergeCellsXml = `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((ref) => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`;
+
+  if (/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/i.test(outputSheetXml)) {
+    outputSheetXml = outputSheetXml.replace(/<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/i, mergeCellsXml);
+  } else if (/<\/sheetData>/i.test(outputSheetXml)) {
+    outputSheetXml = outputSheetXml.replace(/<\/sheetData>/i, `</sheetData>${mergeCellsXml}`);
+  } else {
+    return;
+  }
+
+  outputZip.file(worksheetPath, outputSheetXml);
+  const patchedBuffer = await outputZip.generateAsync({ type: 'nodebuffer' });
+  await fs.writeFile(outputPath, patchedBuffer);
+}
+
 function extractSheetStyleMap(sheetXml) {
   const styleMap = new Map();
 
@@ -1529,35 +1713,135 @@ function extractSheetStyleMap(sheetXml) {
 }
 
 function applyStyleIdToCell(sheetXml, cellAddress, styleId) {
-  const pattern = new RegExp(`(<c\\b[^>]*r="${escapeRegExp(cellAddress)}"[^>]*)(/?>)`, 'i');
-  return sheetXml.replace(pattern, (match, prefix, suffix) => {
-    if (/\bs="[^"]+"/i.test(prefix)) {
-      return `${prefix.replace(/\bs="[^"]+"/i, `s="${styleId}"`)}${suffix}`;
-    }
-
-    return `${prefix} s="${styleId}"${suffix}`;
+  const pattern = new RegExp(`<c\\b[^>]*r="${escapeRegExp(cellAddress)}"[^>]*\/?>`, 'i');
+  return sheetXml.replace(pattern, (match) => {
+    const normalizedMatch = match.replace(/\bs="[^"]+"/i, '').replace(/\s*\/?>$/, '');
+    const suffix = /\/\s*>$/.test(match) || /\/>$/.test(match) ? '/>' : '>';
+    return `${normalizedMatch} s="${styleId}"${suffix}`;
   });
 }
 
-function createDecimalStyleOverrides(stylesXml, styleMap, cellAddresses) {
+function ensureSheetCellsExist(sheetXml, cellAddresses) {
+  if (!Array.isArray(cellAddresses) || cellAddresses.length === 0) {
+    return sheetXml;
+  }
+
+  const sheetDataMatch = /<sheetData>([\s\S]*?)<\/sheetData>/i.exec(sheetXml);
+  if (!sheetDataMatch) {
+    return sheetXml;
+  }
+
+  const rowMap = new Map();
+  const rowPattern = /<row\b[^>]*r="(\d+)"[^>]*>[\s\S]*?<\/row>/gi;
+  let rowMatch;
+
+  while ((rowMatch = rowPattern.exec(sheetDataMatch[1])) !== null) {
+    rowMap.set(Number(rowMatch[1]), rowMatch[0]);
+  }
+
+  const uniqueAddresses = Array.from(new Set(cellAddresses)).sort((left, right) => {
+    const leftRef = XLSX.utils.decode_cell(left);
+    const rightRef = XLSX.utils.decode_cell(right);
+
+    if (leftRef.r !== rightRef.r) {
+      return leftRef.r - rightRef.r;
+    }
+
+    return leftRef.c - rightRef.c;
+  });
+
+  uniqueAddresses.forEach((cellAddress) => {
+    const { r } = XLSX.utils.decode_cell(cellAddress);
+    const rowNumber = r + 1;
+
+    if (!rowMap.has(rowNumber)) {
+      rowMap.set(rowNumber, `<row r="${rowNumber}"><c r="${cellAddress}"/></row>`);
+      return;
+    }
+
+    rowMap.set(rowNumber, ensureCellExistsInRow(rowMap.get(rowNumber), cellAddress));
+  });
+
+  const rebuiltSheetData = Array.from(rowMap.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([, rowXml]) => rowXml)
+    .join('');
+
+  return sheetXml.replace(sheetDataMatch[0], `<sheetData>${rebuiltSheetData}</sheetData>`);
+}
+
+function ensureCellExistsInRow(rowXml, cellAddress) {
+  if (new RegExp(`<c\\b[^>]*r="${escapeRegExp(cellAddress)}"`, 'i').test(rowXml)) {
+    return rowXml;
+  }
+
+  const rowStartMatch = /^<row\b[^>]*>/i.exec(rowXml);
+  if (!rowStartMatch) {
+    return rowXml;
+  }
+
+  const rowStart = rowStartMatch[0];
+  const rowBody = rowXml.slice(rowStart.length, -'</row>'.length);
+  const cellPattern = /<c\b[^>]*r="([A-Z]+\d+)"[^>]*(?:\/>|>[\s\S]*?<\/c>)/gi;
+  const cells = [];
+  let cellMatch;
+
+  while ((cellMatch = cellPattern.exec(rowBody)) !== null) {
+    cells.push({
+      ref: cellMatch[1],
+      xml: cellMatch[0]
+    });
+  }
+
+  cells.push({
+    ref: cellAddress,
+    xml: `<c r="${cellAddress}"/>`
+  });
+
+  cells.sort((left, right) => XLSX.utils.decode_cell(left.ref).c - XLSX.utils.decode_cell(right.ref).c);
+
+  return `${rowStart}${cells.map((cell) => cell.xml).join('')}</row>`;
+}
+
+function getCellXfList(stylesXml) {
+  const cellXfsMatch = /(<cellXfs\b[^>]*count=")([^"]+)("[^>]*>)([\s\S]*?)(<\/cellXfs>)/i.exec(stylesXml);
+  if (!cellXfsMatch) {
+    return null;
+  }
+
+  return {
+    match: cellXfsMatch,
+    xfList: cellXfsMatch[4].match(/<xf\b[\s\S]*?<\/xf>|<xf\b[^>]*\/>/gi) || []
+  };
+}
+
+function resolveCellStyleId(cellStyleMap, cellAddress) {
+  const styleId = cellStyleMap.get(cellAddress);
+  if (styleId === undefined || styleId === null || styleId === '') {
+    return '0';
+  }
+
+  return String(styleId);
+}
+
+function createNumberFormatStyleOverrides(stylesXml, cellStyleMap, cellAddresses, numFmtId) {
   const styleIds = Array.from(new Set(
     cellAddresses
-      .map((cellAddress) => styleMap.get(cellAddress))
-      .filter((styleId) => styleId !== undefined && styleId !== null)
+      .map((cellAddress) => resolveCellStyleId(cellStyleMap, cellAddress))
       .map((styleId) => Number(styleId))
       .filter((styleId) => Number.isInteger(styleId) && styleId >= 0)
   ));
 
   if (styleIds.length === 0) {
-    return { stylesXml, cellStyleMap: new Map() };
+    return stylesXml;
   }
 
-  const cellXfsMatch = /(<cellXfs\b[^>]*count=")([^"]+)("[^>]*>)([\s\S]*?)(<\/cellXfs>)/i.exec(stylesXml);
-  if (!cellXfsMatch) {
-    return { stylesXml, cellStyleMap: new Map() };
+  const cellXfData = getCellXfList(stylesXml);
+  if (!cellXfData) {
+    return stylesXml;
   }
 
-  const xfList = cellXfsMatch[4].match(/<xf\b[\s\S]*?<\/xf>|<xf\b[^>]*\/>/gi) || [];
+  const { match: cellXfsMatch, xfList } = cellXfData;
   const overrideStyleMap = new Map();
 
   styleIds.forEach((styleId) => {
@@ -1566,7 +1850,7 @@ function createDecimalStyleOverrides(stylesXml, styleMap, cellAddresses) {
       return;
     }
 
-    const decimalXf = forceDecimalXf(sourceXf);
+    const decimalXf = forceNumberFormatXf(sourceXf, numFmtId);
     let overrideStyleId = xfList.findIndex((xf) => xf === decimalXf);
     if (overrideStyleId === -1) {
       xfList.push(decimalXf);
@@ -1581,9 +1865,8 @@ function createDecimalStyleOverrides(stylesXml, styleMap, cellAddresses) {
     `${cellXfsMatch[1]}${xfList.length}${cellXfsMatch[3]}${xfList.join('')}${cellXfsMatch[5]}`
   );
 
-  const cellStyleMap = new Map();
   cellAddresses.forEach((cellAddress) => {
-    const sourceStyleId = styleMap.get(cellAddress);
+    const sourceStyleId = resolveCellStyleId(cellStyleMap, cellAddress);
     const overrideStyleId = sourceStyleId !== undefined && sourceStyleId !== null
       ? overrideStyleMap.get(String(sourceStyleId))
       : null;
@@ -1593,13 +1876,10 @@ function createDecimalStyleOverrides(stylesXml, styleMap, cellAddresses) {
     }
   });
 
-  return {
-    stylesXml: updatedStylesXml,
-    cellStyleMap
-  };
+  return updatedStylesXml;
 }
 
-function forceDecimalXf(xfXml) {
+function forceNumberFormatXf(xfXml, numFmtId) {
   const xfMatch = /^<xf\b([^>]*?)(\/?>[\s\S]*)$/i.exec(xfXml);
   if (!xfMatch) {
     return xfXml;
@@ -1608,8 +1888,119 @@ function forceDecimalXf(xfXml) {
   let attributes = xfMatch[1];
   const suffix = xfMatch[2];
 
-  attributes = upsertXmlAttribute(attributes, 'numFmtId', '2');
+  attributes = upsertXmlAttribute(attributes, 'numFmtId', String(numFmtId));
   attributes = upsertXmlAttribute(attributes, 'applyNumberFormat', '1');
+
+  return `<xf${attributes}${suffix}`;
+}
+
+function buildBorderAssignments(rangeConfig) {
+  const startColIndex = XLSX.utils.decode_col(rangeConfig.startCol);
+  const endColIndex = XLSX.utils.decode_col(rangeConfig.endCol);
+  const assignments = [];
+
+  for (let row = rangeConfig.startRow; row <= rangeConfig.endRow; row += 1) {
+    for (let colIndex = startColIndex; colIndex <= endColIndex; colIndex += 1) {
+      assignments.push({
+        cellAddress: XLSX.utils.encode_cell({ c: colIndex, r: row - 1 }),
+        borderSpec: {
+          left: colIndex === startColIndex ? 'thick' : 'thin',
+          right: colIndex === endColIndex ? 'thick' : 'thin',
+          top: row === rangeConfig.startRow ? 'thick' : 'thin',
+          bottom: row === rangeConfig.endRow ? 'thick' : 'thin'
+        }
+      });
+    }
+  }
+
+  return assignments;
+}
+
+function createBorderStyleOverrides(stylesXml, cellStyleMap, borderAssignments) {
+  if (!Array.isArray(borderAssignments) || borderAssignments.length === 0) {
+    return stylesXml;
+  }
+
+  const bordersMatch = /(<borders\b[^>]*count=")([^"]+)("[^>]*>)([\s\S]*?)(<\/borders>)/i.exec(stylesXml);
+  const cellXfData = getCellXfList(stylesXml);
+
+  if (!bordersMatch || !cellXfData) {
+    return stylesXml;
+  }
+
+  const borderList = bordersMatch[4].match(/<border\b[\s\S]*?<\/border>|<border\b[^>]*\/>/gi) || [];
+  const { match: cellXfsMatch, xfList } = cellXfData;
+  const overrideStyleMap = new Map();
+
+  borderAssignments.forEach(({ cellAddress, borderSpec }) => {
+    const sourceStyleId = resolveCellStyleId(cellStyleMap, cellAddress);
+    const cacheKey = `${sourceStyleId}|${JSON.stringify(borderSpec)}`;
+
+    if (!overrideStyleMap.has(cacheKey)) {
+      const sourceXf = xfList[Number(sourceStyleId)] || xfList[0];
+      if (!sourceXf) {
+        return;
+      }
+
+      const borderXml = buildBorderXml(borderSpec);
+      let borderId = borderList.findIndex((border) => border === borderXml);
+      if (borderId === -1) {
+        borderList.push(borderXml);
+        borderId = borderList.length - 1;
+      }
+
+      const borderXf = forceBorderXf(sourceXf, borderId);
+      let overrideStyleId = xfList.findIndex((xf) => xf === borderXf);
+      if (overrideStyleId === -1) {
+        xfList.push(borderXf);
+        overrideStyleId = xfList.length - 1;
+      }
+
+      overrideStyleMap.set(cacheKey, String(overrideStyleId));
+    }
+
+    const overrideStyleId = overrideStyleMap.get(cacheKey);
+    if (overrideStyleId) {
+      cellStyleMap.set(cellAddress, overrideStyleId);
+    }
+  });
+
+  let updatedStylesXml = stylesXml.replace(
+    bordersMatch[0],
+    `${bordersMatch[1]}${borderList.length}${bordersMatch[3]}${borderList.join('')}${bordersMatch[5]}`
+  );
+
+  updatedStylesXml = updatedStylesXml.replace(
+    cellXfsMatch[0],
+    `${cellXfsMatch[1]}${xfList.length}${cellXfsMatch[3]}${xfList.join('')}${cellXfsMatch[5]}`
+  );
+
+  return updatedStylesXml;
+}
+
+function buildBorderXml(borderSpec) {
+  return `<border>${buildBorderSideXml('left', borderSpec.left)}${buildBorderSideXml('right', borderSpec.right)}${buildBorderSideXml('top', borderSpec.top)}${buildBorderSideXml('bottom', borderSpec.bottom)}<diagonal/></border>`;
+}
+
+function buildBorderSideXml(sideName, styleValue) {
+  if (!styleValue) {
+    return `<${sideName}/>`;
+  }
+
+  return `<${sideName} style="${styleValue}"><color auto="1"/></${sideName}>`;
+}
+
+function forceBorderXf(xfXml, borderId) {
+  const xfMatch = /^<xf\b([^>]*?)(\/?>[\s\S]*)$/i.exec(xfXml);
+  if (!xfMatch) {
+    return xfXml;
+  }
+
+  let attributes = xfMatch[1];
+  const suffix = xfMatch[2];
+
+  attributes = upsertXmlAttribute(attributes, 'borderId', String(borderId));
+  attributes = upsertXmlAttribute(attributes, 'applyBorder', '1');
 
   return `<xf${attributes}${suffix}`;
 }
