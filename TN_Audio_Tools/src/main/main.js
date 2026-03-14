@@ -1,3 +1,5 @@
+require('./services/reportChecker/runtimePolyfills');
+
 const fs = require('fs/promises');
 const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const isDev = require('electron-is-dev');

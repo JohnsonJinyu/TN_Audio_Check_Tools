@@ -1,3 +1,5 @@
+require('./runtimePolyfills');
+
 const cheerio = require('cheerio');
 
 function normalizeText(value, textNormalizeConfig = {}) {

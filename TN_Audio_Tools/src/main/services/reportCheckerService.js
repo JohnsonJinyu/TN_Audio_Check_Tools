@@ -1,3 +1,5 @@
+require('./reportChecker/runtimePolyfills');
+
 const path = require('path');
 const { applyResultsToChecklist } = require('./reportChecker/checklistWriter');
 const { createReportRunner } = require('./reportChecker/reportRunner');
@@ -11,10 +13,6 @@ const {
   resolveTableValue,
   resolveRegexValue
 } = require('./reportChecker/reportAnalysis');
-
-if (typeof globalThis.File === 'undefined') {
-  globalThis.File = class File {};
-}
 const WordExtractor = require('word-extractor');
 
 const SUPPORTED_REPORT_EXTENSIONS = new Set(['.doc', '.docx']);
