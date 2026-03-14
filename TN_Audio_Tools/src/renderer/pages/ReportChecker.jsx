@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Card, Button, Upload, Table, Space, Tag, Modal, message, Typography } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { Card, Button, Upload, Table, Space, Tag, Modal, Progress, message, Typography } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordReportCheckResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
@@ -23,6 +23,96 @@ function ReportChecker() {
   const [checklistFile, setChecklistFile] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [exportingRules, setExportingRules] = useState(false);
+  const [progressState, setProgressState] = useState({
+    active: false,
+    total: 0,
+    completed: 0,
+    successCount: 0,
+    errorCount: 0,
+    currentReportName: ''
+  });
+  const activeRunIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!window.electron?.reportChecker?.onProgress) {
+      return undefined;
+    }
+
+    const unsubscribe = window.electron.reportChecker.onProgress((payload) => {
+      if (!payload || payload.runId !== activeRunIdRef.current) {
+        return;
+      }
+
+      if (payload.type === 'batch-start') {
+        setProgressState({
+          active: true,
+          total: payload.total || 0,
+          completed: payload.completed || 0,
+          successCount: payload.successCount || 0,
+          errorCount: payload.errorCount || 0,
+          currentReportName: ''
+        });
+        return;
+      }
+
+      if (payload.type === 'report-complete' && payload.result) {
+        const result = payload.result;
+
+        setFiles((prev) => prev.map((item) => {
+          if (item.path !== result.reportPath) {
+            return item;
+          }
+
+          if (result.status === 'error') {
+            return {
+              ...item,
+              status: 'error',
+              error: result.error,
+              items: 0,
+              outputPath: '',
+              outputName: '',
+              unmatchedItems: []
+            };
+          }
+
+          return {
+            ...item,
+            status: 'success',
+            items: result.matchedItems,
+            outputPath: result.outputPath,
+            outputName: getOutputFileName(result.outputPath),
+            unmatchedItems: result.unmatchedItems || [],
+            error: ''
+          };
+        }));
+
+        setProgressState({
+          active: true,
+          total: payload.total || 0,
+          completed: payload.completed || 0,
+          successCount: payload.successCount || 0,
+          errorCount: payload.errorCount || 0,
+          currentReportName: getOutputFileName(result.reportPath)
+        });
+        return;
+      }
+
+      if (payload.type === 'batch-complete') {
+        setProgressState((prev) => ({
+          ...prev,
+          active: false,
+          total: payload.total || prev.total,
+          completed: payload.completed || prev.completed,
+          successCount: payload.successCount || prev.successCount,
+          errorCount: payload.errorCount || prev.errorCount
+        }));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const handleUpload = (file, target, onSuccess) => {
     if (!file.path) {
@@ -73,6 +163,23 @@ function ReportChecker() {
 
   const removeReport = (reportId) => {
     setFiles((prev) => prev.filter((item) => item.id !== reportId));
+  };
+
+  const clearReports = () => {
+    if (processing || files.length === 0) {
+      return;
+    }
+
+    setFiles([]);
+    setProgressState({
+      active: false,
+      total: 0,
+      completed: 0,
+      successCount: 0,
+      errorCount: 0,
+      currentReportName: ''
+    });
+    message.success('已清空测试报告列表');
   };
 
   const openOutputFolder = async (record) => {
@@ -136,11 +243,22 @@ function ReportChecker() {
       return;
     }
 
+    const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    activeRunIdRef.current = runId;
     setProcessing(true);
     setFiles((prev) => prev.map((item) => ({ ...item, status: 'processing', error: '' })));
+    setProgressState({
+      active: true,
+      total: files.length,
+      completed: 0,
+      successCount: 0,
+      errorCount: 0,
+      currentReportName: ''
+    });
 
     try {
       const response = await window.electron.reportChecker.processReports({
+        runId,
         reportPaths: files.map((item) => item.path),
         checklistPath: checklistFile.path,
         rulePath: ruleFile?.path || null
@@ -180,15 +298,34 @@ function ReportChecker() {
 
       const successCount = response.results.filter((item) => item.status === 'success').length;
       const errorCount = response.results.length - successCount;
+      setProgressState((prev) => ({
+        ...prev,
+        active: false,
+        total: response.results.length,
+        completed: response.results.length,
+        successCount,
+        errorCount
+      }));
       message.success(`处理完成：成功 ${successCount} 份，失败 ${errorCount} 份。`);
     } catch (error) {
       const errorMessage = error?.message || '执行报告检查失败';
       setFiles((prev) => prev.map((item) => ({ ...item, status: 'error', error: errorMessage })));
+      setProgressState((prev) => ({
+        ...prev,
+        active: false,
+        errorCount: prev.total || prev.completed ? Math.max(prev.errorCount, prev.total - prev.completed) : prev.errorCount
+      }));
       message.error(errorMessage);
     } finally {
+      activeRunIdRef.current = null;
       setProcessing(false);
     }
   };
+
+  const progressPercent = progressState.total > 0
+    ? Math.min(100, Math.round((progressState.completed / progressState.total) * 100))
+    : 0;
+  const uploadedReportCount = files.length;
 
   const exportRules = async () => {
     setExportingRules(true);
@@ -288,11 +425,46 @@ function ReportChecker() {
         </Button>
       </div>
 
+      {(processing || progressState.completed > 0) && (
+        <Card className="report-checker-card report-checker-progress-card">
+          <div className="report-checker-progress-header">
+            <div>
+              <div className="report-checker-progress-title">批量处理进度</div>
+              <div className="report-checker-progress-subtitle">
+                {progressState.active
+                  ? `正在处理 ${progressState.completed + 1 <= progressState.total ? progressState.completed + 1 : progressState.total}/${progressState.total} 份报告`
+                  : `已完成 ${progressState.completed}/${progressState.total} 份报告`}
+              </div>
+            </div>
+            <div className="report-checker-progress-stats">
+              <span>成功 {progressState.successCount}</span>
+              <span>失败 {progressState.errorCount}</span>
+            </div>
+          </div>
+          <Progress percent={progressPercent} status={progressState.active ? 'active' : progressState.errorCount > 0 ? 'exception' : 'success'} />
+          <div className="report-checker-progress-footer">
+            <span>
+              {progressState.currentReportName ? `最近完成: ${progressState.currentReportName}` : '等待后台返回首个结果...'}
+            </span>
+            <span>{progressState.completed}/{progressState.total}</span>
+          </div>
+        </Card>
+      )}
+
       <Card 
         className="report-checker-card report-checker-main-card"
         title="上传测试报告"
         extra={
           <div className="report-checker-actions">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              className="report-checker-clear-action report-checker-section-action"
+              disabled={processing || files.length === 0}
+              onClick={clearReports}
+            >
+              清空列表
+            </Button>
             <Upload
               customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
               multiple
@@ -306,6 +478,19 @@ function ReportChecker() {
           </div>
         }
       >
+        <div className="report-checker-upload-summary">
+          <div className="report-checker-upload-summary-item">
+            <span className="report-checker-upload-summary-label">已上传测试报告</span>
+            <span className="report-checker-upload-summary-value">{uploadedReportCount}</span>
+          </div>
+          <div className="report-checker-upload-summary-item">
+            <span className="report-checker-upload-summary-label">当前状态</span>
+            <span className="report-checker-upload-summary-text">
+              {uploadedReportCount > 0 ? `已选择 ${uploadedReportCount} 份报告，开始检查后会逐个生成结果` : '还没有选择测试报告'}
+            </span>
+          </div>
+        </div>
+
         <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
           上传真实 .doc/.docx 测试报告和 I 列为空的 checklist，系统会按 moto_rules_for_analysis.json5 提取报告数据并回填到 checklist，最终在报告目录下生成新的 Excel 文件。
         </p>

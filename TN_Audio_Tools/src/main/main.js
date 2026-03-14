@@ -137,9 +137,21 @@ ipcMain.handle('get-version', () => {
 });
 
 ipcMain.handle('report-checker:process-reports', async (_, payload) => {
+  const runId = payload?.runId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
   return processReports({
     ...payload,
-    appPath: app.getAppPath()
+    appPath: app.getAppPath(),
+    onProgress: (progressPayload) => {
+      if (_.sender.isDestroyed()) {
+        return;
+      }
+
+      _.sender.send('report-checker:progress', {
+        runId,
+        ...progressPayload
+      });
+    }
   });
 });
 

@@ -161,9 +161,100 @@
   margin-bottom: 18px;
 }
 
+.report-checker-progress-card {
+  margin-bottom: 18px;
+}
+
+.report-checker-progress-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.report-checker-progress-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2a44;
+}
+
+.report-checker-progress-subtitle {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.report-checker-progress-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #44506b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-checker-progress-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  color: #667085;
+  font-size: 12px;
+}
+
 .report-checker-main-card .ant-card-head,
 .report-checker-section-card .ant-card-head {
   min-height: 68px;
+}
+
+.report-checker-upload-summary {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.report-checker-upload-summary-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 74px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid #e7eafe;
+  background: linear-gradient(135deg, rgba(125, 137, 255, 0.1) 0%, rgba(90, 103, 216, 0.04) 100%);
+}
+
+.report-checker-upload-summary-item:first-child {
+  min-width: 180px;
+}
+
+.report-checker-upload-summary-item:last-child {
+  flex: 1;
+  min-width: 280px;
+}
+
+.report-checker-upload-summary-label {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.report-checker-upload-summary-value {
+  color: #2d3f8f;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.report-checker-upload-summary-text {
+  color: #344054;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .report-checker-actions {
@@ -202,6 +293,14 @@
   border-color: #6c7af7;
   background: linear-gradient(135deg, #6f7cff 0%, #4f5fcd 100%);
   box-shadow: 0 12px 24px rgba(90, 103, 216, 0.28);
+}
+
+.report-checker-clear-action.ant-btn {
+  min-width: 128px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 600;
 }
 
 .report-checker-section-action.ant-btn {
@@ -283,6 +382,19 @@
 
   .report-checker-toolbar {
     padding: 0 0 16px;
+  }
+
+  .report-checker-upload-summary-item,
+  .report-checker-upload-summary-item:first-child,
+  .report-checker-upload-summary-item:last-child {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .report-checker-progress-header,
+  .report-checker-progress-footer {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .report-checker-primary-action.ant-btn,
