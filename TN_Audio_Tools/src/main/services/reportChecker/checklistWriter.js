@@ -2,8 +2,8 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const XLSX = require('xlsx');
 const { styleChecklistWithCom } = require('./excelComStyler');
+const { resolveOutputCell, usesPercentNumberFormat } = require('./checklistLayout');
 
-const PERCENT_OUTPUT_CELLS = new Set(['I41', 'I42', 'I43', 'I44', 'I45', 'I46']);
 const CHECKLIST_BORDER_RANGE = {
   startCol: 'A',
   endCol: 'K',
@@ -44,15 +44,20 @@ function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems) {
       continue;
     }
 
+    const resolvedOutputCell = resolveOutputCell(worksheet, itemResult);
+    if (!resolvedOutputCell) {
+      continue;
+    }
+
     const normalizedValue = toWorksheetValue(itemResult.value);
 
-    writeLegacyChecklistCell(worksheet, itemResult.outputCell, normalizedValue);
+    writeLegacyChecklistCell(worksheet, resolvedOutputCell, normalizedValue);
 
-    if (typeof normalizedValue === 'number' && Number.isFinite(normalizedValue) && /^I\d+$/i.test(itemResult.outputCell)) {
-      if (PERCENT_OUTPUT_CELLS.has(itemResult.outputCell.toUpperCase())) {
-        percentCells.push(itemResult.outputCell);
+    if (typeof normalizedValue === 'number' && Number.isFinite(normalizedValue) && /^I\d+$/i.test(resolvedOutputCell)) {
+      if (usesPercentNumberFormat(worksheet, resolvedOutputCell)) {
+        percentCells.push(resolvedOutputCell);
       } else {
-        decimalCells.push(itemResult.outputCell);
+        decimalCells.push(resolvedOutputCell);
       }
     }
   }

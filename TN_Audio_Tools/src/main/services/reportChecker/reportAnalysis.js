@@ -2,6 +2,9 @@ require('./runtimePolyfills');
 
 const cheerio = require('cheerio');
 
+const optionalKeywordSet = new Set(['avg', 'average', 'with', 'check', 'mandatory', 'mand', 'informative', 'calculated', 'value', 'result', 'max', 'min', 'nom', 'vol', 'volume']);
+const variantSuffixTokens = ['ecrp', '20up', '25down', '10out', 'max', 'max-1', 'max-2', 'max-3', 'max-4', 'max-5', 'max-6', 'max-7', 'nom', 'min', '1o2', '2o2'];
+
 function normalizeText(value, textNormalizeConfig = {}) {
   if (typeof value !== 'string') {
     return '';
@@ -10,7 +13,12 @@ function normalizeText(value, textNormalizeConfig = {}) {
   let normalized = value.replace(/\r/g, ' ').replace(/\n/g, ' ');
 
   normalized = normalized
+    .replace(/\bhasb\b/gi, ' HABAND ')
+    .replace(/\bha(?:nb|wb|sb|swb)(max(?:-\d+)?|nom|min)\b/gi, ' HABAND $1 ')
     .replace(/\bha(?:nb|wb|sb|swb)\b/gi, ' HABAND ')
+    .replace(/\bbgn\b/gi, ' NOISE ')
+    .replace(/\bbackground\s+noise\b/gi, ' NOISE ')
+    .replace(/\bin\s+noise\b/gi, ' NOISE ')
     .replace(/\bmxx-(\d+)/gi, ' MAX-$1 ')
     .replace(/\breceiv(?:e|ing|eing)\b/gi, ' RCV ')
     .replace(/\bsending\b/gi, ' SND ')
@@ -18,6 +26,7 @@ function normalizeText(value, textNormalizeConfig = {}) {
     .replace(/\bcharact(?:er)?\.?\b/gi, ' CHAR ')
     .replace(/\baverage\b/gi, ' AVG ')
     .replace(/\bnominal\b/gi, ' NOM ')
+    .replace(/\bsinglevalue\b/gi, ' SINGLE VALUE ')
     .replace(/\bvolume\b/gi, ' VOL ')
     .replace(/\bmandatory\b/gi, ' MAND ');
 
@@ -65,17 +74,42 @@ function hasAllKeywords(text, keywords, textNormalizeConfig) {
   return keywords.every((keyword) => normalizedText.includes(normalizeText(keyword, textNormalizeConfig)));
 }
 
-function itemMatchesKeywords(reportData, item, text, textNormalizeConfig, allowFallback = false) {
+function stripOptionalKeywords(keywords, textNormalizeConfig) {
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return [];
+  }
+
+  return keywords.filter((keyword) => {
+    const normalizedKeyword = normalizeText(keyword, textNormalizeConfig);
+    return normalizedKeyword && !optionalKeywordSet.has(normalizedKeyword);
+  });
+}
+
+function getKeywordMatchTier(reportData, item, text, textNormalizeConfig, allowFallback = false) {
   if (hasAllKeywords(text, item.coreKeywords, textNormalizeConfig)) {
-    return true;
+    return 4;
   }
 
   const isLegacyTextOnlyReport = !Array.isArray(reportData?.tables) || reportData.tables.length === 0;
-  if (!isLegacyTextOnlyReport && !allowFallback) {
-    return false;
+  if ((isLegacyTextOnlyReport || allowFallback) && hasAllKeywords(text, item.fallbackKeywords, textNormalizeConfig)) {
+    return 3;
   }
 
-  return hasAllKeywords(text, item.fallbackKeywords, textNormalizeConfig);
+  const relaxedCoreKeywords = stripOptionalKeywords(item.coreKeywords, textNormalizeConfig);
+  if (relaxedCoreKeywords.length >= 3 && hasAllKeywords(text, relaxedCoreKeywords, textNormalizeConfig)) {
+    return 2;
+  }
+
+  const relaxedFallbackKeywords = stripOptionalKeywords(item.fallbackKeywords, textNormalizeConfig);
+  if ((isLegacyTextOnlyReport || allowFallback) && relaxedFallbackKeywords.length >= 3 && hasAllKeywords(text, relaxedFallbackKeywords, textNormalizeConfig)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function itemMatchesKeywords(reportData, item, text, textNormalizeConfig, allowFallback = false) {
+  return getKeywordMatchTier(reportData, item, text, textNormalizeConfig, allowFallback) > 0;
 }
 
 function getRowDescriptorText(rowContext) {
@@ -164,7 +198,11 @@ function extractNumberTokens(text) {
     return [];
   }
 
-  return text.match(/-?\d+(?:\.\d+)?(?:\s*(?:%|dB(?:m0|Pa)?|ms|Hz|MOS|s))?/gi) || [];
+  const normalizedText = String(text)
+    .replace(/(\d)\s*\.\s*(\d)/g, '$1.$2')
+    .replace(/(\d\.\d+)\s+(\d)/g, '$1$2');
+
+  return normalizedText.match(/-?\d+(?:\.\d+)?(?:\s*(?:%|dB(?:m0|Pa)?|ms|Hz|MOS|s))?/gi) || [];
 }
 
 function getCandidateScore(rowContext) {
@@ -175,6 +213,46 @@ function getCandidateScore(rowContext) {
   const headerScore = Array.isArray(rowContext.headers) && rowContext.headers.length > 0 ? 50 : 0;
   const statusScore = extractStatus(rowContext.text) ? 500 : 0;
   return structuredScore + numericCellScore + headerScore + statusScore + rowContext.text.length;
+}
+
+function getPrimaryRows(reportData) {
+  return Array.isArray(reportData?.tableRows) ? reportData.tableRows : [];
+}
+
+function getFallbackRows(reportData) {
+  return Array.isArray(reportData?.fallbackRows) ? reportData.fallbackRows : [];
+}
+
+function getRowsForMatching(reportData, includeFallbackRows = false) {
+  return includeFallbackRows
+    ? [...getPrimaryRows(reportData), ...getFallbackRows(reportData)]
+    : getPrimaryRows(reportData);
+}
+
+function getVariantPenalty(item, descriptorText, textNormalizeConfig) {
+  if (!item || !descriptorText) {
+    return 0;
+  }
+
+  const hasExplicitRequiredSuffix = Array.isArray(item.requiredSuffix) && item.requiredSuffix.length > 0;
+  if (hasExplicitRequiredSuffix) {
+    return 0;
+  }
+
+  const normalizedDescriptor = normalizeText(descriptorText, textNormalizeConfig);
+  const configuredKeywords = [
+    ...(Array.isArray(item.coreKeywords) ? item.coreKeywords : []),
+    ...(Array.isArray(item.fallbackKeywords) ? item.fallbackKeywords : []),
+    ...(Array.isArray(item.exactRowKeywords) ? item.exactRowKeywords : [])
+  ].map((keyword) => normalizeText(keyword, textNormalizeConfig));
+
+  const matchedVariantTokens = variantSuffixTokens.filter((token) => normalizedDescriptor.includes(normalizeText(token, textNormalizeConfig)));
+  if (matchedVariantTokens.length === 0) {
+    return 0;
+  }
+
+  const hasConfiguredVariant = matchedVariantTokens.some((token) => configuredKeywords.includes(normalizeText(token, textNormalizeConfig)));
+  return hasConfiguredVariant ? 0 : -4000;
 }
 
 function extractMeasurementObject(rawText) {
@@ -198,12 +276,12 @@ function getAmbientNoiseSceneCandidates(rowName) {
   const aliasMap = {
     pub: ['Pub', 'Pub Noise'],
     road: ['Road', 'Outside Traffic Road'],
-    crossroad: ['Crossroad', 'Crossroads', 'Outside Traffic Crossroads'],
+    crossroad: ['Crossroad', 'Crossroads', 'Xroad', 'Outside Traffic Crossroads'],
     tstation: ['Train Station', 'TStation', 'Train'],
     fullsizecar: ['Fullsize Car 130 km/h', 'Fullsize Car', 'FullsizeCar', 'Car'],
-    cafeteria: ['Cafeteria', 'Cafeteria Noise'],
+    cafeteria: ['Cafeteria', 'Cafeteria Noise', 'Count'],
     mensa: ['Mensa'],
-    callcenter: ['Callcenter', 'Call Center', 'Work Noise Office Callcenter']
+    callcenter: ['Callcenter', 'Call Center', 'CallC', 'CallCenter', 'Work Noise Office Callcenter']
   };
 
   const normalized = String(rowName || '').replace(/\s+/g, '').toLowerCase();
@@ -225,7 +303,7 @@ function getAmbientNoiseSceneKey(value) {
     return '';
   }
 
-  if (normalized.includes('crossroad')) {
+  if (normalized.includes('crossroad') || normalized.includes('xroad')) {
     return 'crossroad';
   }
 
@@ -241,7 +319,15 @@ function getAmbientNoiseSceneKey(value) {
     return 'callcenter';
   }
 
+  if (normalized === 'callc') {
+    return 'callcenter';
+  }
+
   if (normalized.includes('cafeteria')) {
+    return 'cafeteria';
+  }
+
+  if (normalized === 'count') {
     return 'cafeteria';
   }
 
@@ -258,6 +344,54 @@ function getAmbientNoiseSceneKey(value) {
   }
 
   return normalized;
+}
+
+function getAmbientNoiseMetricKey(value) {
+  const normalized = normalizeText(value, {
+    removeNumberPrefix: true,
+    multiSpaceToSingle: true,
+    caseInsensitive: true,
+    trimSpecialChar: true
+  });
+
+  if (normalized.includes('s-mos')) {
+    return 'smos';
+  }
+
+  if (normalized.includes('n-mos')) {
+    return 'nmos';
+  }
+
+  if (normalized.includes('g-mos')) {
+    return 'gmos';
+  }
+
+  return null;
+}
+
+function extractMetricRowValue(cells) {
+  if (!Array.isArray(cells) || cells.length === 0) {
+    return null;
+  }
+
+  for (const cell of cells.slice(1)) {
+    if (!cell || /\b\d{1,2}\/\d{1,2}\/\d{4}\b/.test(cell) || isStatusCell(cell) || isLikelyReportMetadataCell(cell)) {
+      continue;
+    }
+
+    const collapsedNumericCell = String(cell).replace(/\s+/g, '');
+    if (/^-?\d+(?:\.\d+)?$/.test(collapsedNumericCell)) {
+      return collapsedNumericCell;
+    }
+
+    const tokens = extractNumberTokens(cell);
+    const value = tokens.length > 0 ? tokens[0].trim() : null;
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function isStatusCell(text) {
@@ -277,7 +411,13 @@ function isLikelyReportMetadataCell(text) {
     return false;
   }
 
+  const collapsed = normalized.replace(/\s+/g, '');
+
   if (/^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+){2,}$/.test(normalized)) {
+    return true;
+  }
+
+  if (/^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+){2,}$/.test(collapsed)) {
     return true;
   }
 
@@ -286,11 +426,16 @@ function isLikelyReportMetadataCell(text) {
 
 function getLastMeaningfulNumericToken(text) {
   const cleanedText = String(text || '')
-    .replace(/^[0-9.]+\s+/, '')
+    .replace(/^\d+(?:\.\d+)+(?:[a-z])?\s+/i, '')
     .replace(/[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+)+$/g, '')
+    .replace(/[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)*(?:_[A-Za-z0-9+-]+)+$/g, '')
     .trim();
 
-  const tokens = extractNumberTokens(cleanedText);
+  const normalizedNumericText = cleanedText
+    .replace(/(\d)\s*\.\s*(\d)/g, '$1.$2')
+    .replace(/(\d\.\d+)\s+(\d)/g, '$1$2');
+
+  const tokens = extractNumberTokens(normalizedNumericText);
   return tokens.length > 0 ? tokens[tokens.length - 1].trim() : null;
 }
 
@@ -318,7 +463,11 @@ function parseNumericValue(text) {
     return null;
   }
 
-  const match = text.match(/-?\d+(?:\.\d+)?/);
+  const normalizedText = String(text)
+    .replace(/(\d)\s*\.\s*(\d)/g, '$1.$2')
+    .replace(/(\d\.\d+)\s+(\d)/g, '$1$2');
+
+  const match = normalizedText.match(/-?\d+(?:\.\d+)?/);
   if (!match) {
     return null;
   }
@@ -342,6 +491,32 @@ function makeSourcePreview(text) {
   }
 
   return text.replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function scoreHeaderPatternMatch(normalizedHeader, normalizedPattern) {
+  if (!normalizedHeader || !normalizedPattern || !normalizedHeader.includes(normalizedPattern)) {
+    return 0;
+  }
+
+  if (normalizedHeader === normalizedPattern) {
+    return 10000 + normalizedPattern.length;
+  }
+
+  let score = 1000 + normalizedPattern.length;
+
+  if (normalizedHeader.startsWith(`${normalizedPattern} `) || normalizedHeader.endsWith(` ${normalizedPattern}`)) {
+    score += 250;
+  }
+
+  if (normalizedHeader.startsWith(normalizedPattern)) {
+    score += 100;
+  }
+
+  if (normalizedHeader.includes('description') && !normalizedPattern.includes('description')) {
+    score -= 1000;
+  }
+
+  return score;
 }
 
 function extractAmbientNoiseAverageBlocks(rawText) {
@@ -402,6 +577,7 @@ function getHeaderBasedCell(rowContext, headerPatterns, textNormalizeConfig) {
   }
 
   const normalizedPatterns = headerPatterns.map((pattern) => normalizeText(pattern, textNormalizeConfig));
+  let bestMatch = null;
 
   for (let index = 0; index < rowContext.headers.length; index += 1) {
     const normalizedHeader = normalizeText(rowContext.headers[index] || '', textNormalizeConfig);
@@ -409,9 +585,23 @@ function getHeaderBasedCell(rowContext, headerPatterns, textNormalizeConfig) {
       continue;
     }
 
-    if (normalizedPatterns.some((pattern) => normalizedHeader.includes(pattern))) {
-      return rowContext.cells[index] || null;
-    }
+    normalizedPatterns.forEach((pattern) => {
+      const score = scoreHeaderPatternMatch(normalizedHeader, pattern);
+      if (!score) {
+        return;
+      }
+
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = {
+          score,
+          cell: rowContext.cells[index] || null
+        };
+      }
+    });
+  }
+
+  if (bestMatch) {
+    return bestMatch.cell;
   }
 
   return null;
@@ -428,14 +618,14 @@ function extractSummaryValue(rowContext, textNormalizeConfig) {
     textNormalizeConfig
   );
 
-  const numericCellValue = extractRowNumericCell(rowContext);
-  if (numericCellValue) {
-    return numericCellValue;
-  }
-
   const directCellValue = getLastMeaningfulNumericToken(directCell);
   if (directCellValue) {
     return directCellValue;
+  }
+
+  const numericCellValue = extractRowNumericCell(rowContext);
+  if (numericCellValue) {
+    return numericCellValue;
   }
 
   const fallbackValue = getLastMeaningfulNumericToken(rowContext.text);
@@ -471,7 +661,9 @@ function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, 
     return null;
   }
 
-  const shouldUseBaseItemValue = rowContext?.sourceKind && rowContext.sourceKind !== 'html-table';
+  const shouldUseBaseItemValue = item.formula?.useBaseItemValue === true
+    && rowContext?.sourceKind
+    && rowContext.sourceKind !== 'html-table';
 
   if (shouldUseBaseItemValue && item.formula.baseItemId && extractedResultsByItemId instanceof Map) {
     const baseResult = extractedResultsByItemId.get(Number(item.formula.baseItemId));
@@ -582,8 +774,9 @@ function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchCon
   const range = item.regexConfig.valueRange;
   const candidates = [];
 
-  for (const rowContext of reportData.tableRows) {
-    if (!itemMatchesKeywords(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')) {
+  for (const rowContext of getRowsForMatching(reportData, true)) {
+    const keywordTier = getKeywordMatchTier(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table');
+    if (keywordTier === 0) {
       continue;
     }
 
@@ -617,15 +810,45 @@ function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchCon
 
     candidates.push({
       matched: true,
-      value: rowContext.text.includes('%') && numericValue !== null ? String(numericValue / 100) : value,
+        value,
       sourcePreview: makeSourcePreview(rowContext.text),
       sourceType: 'regex-row',
-      score: 2000 + getCandidateScore(rowContext)
+        score: keywordTier * 10000 + 2000 + getCandidateScore(rowContext)
     });
   }
 
-  for (let lineIndex = 0; lineIndex < reportData.lines.length; lineIndex += 1) {
-    const contextWindow = findLineWindow(reportData.lines, Math.max(0, lineIndex - 2), 12);
+  const hasAnchorConstraints = (Array.isArray(item.exactRowKeywords) && item.exactRowKeywords.length > 0)
+    || (Array.isArray(item.requiredSuffix) && item.requiredSuffix.length > 0);
+
+  const anchorIndexes = hasAnchorConstraints
+    ? reportData.lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => {
+        if (!itemMatchesKeywords(reportData, item, line, textNormalizeConfig, true)) {
+          return false;
+        }
+
+        if (!hasRequiredSuffixes(line, item.requiredSuffix, textNormalizeConfig)) {
+          return false;
+        }
+
+        if (!hasExactRowKeywords(line, item.exactRowKeywords, textNormalizeConfig)) {
+          return false;
+        }
+
+        return true;
+      })
+      .map(({ index }) => index)
+    : [];
+
+  const lineSearchIndexes = anchorIndexes.length > 0
+    ? anchorIndexes
+    : reportData.lines.map((_, index) => index);
+
+  for (const lineIndex of lineSearchIndexes) {
+    const contextWindow = anchorIndexes.length > 0
+      ? findLineWindow(reportData.lines, lineIndex, 8)
+      : findLineWindow(reportData.lines, Math.max(0, lineIndex - 2), 12);
     const joinedWindow = contextWindow.join('\n');
 
     if (!itemMatchesKeywords(reportData, item, joinedWindow, textNormalizeConfig, true)) {
@@ -660,6 +883,7 @@ function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchCon
       const requiredSuffixes = Array.isArray(item.requiredSuffix) ? item.requiredSuffix : [];
       const lineHasRequiredSuffix = hasRequiredSuffixes(candidateLine, requiredSuffixes, textNormalizeConfig);
       const sameLineKeywordScore = itemMatchesKeywords(reportData, item, candidateLine, textNormalizeConfig, true) ? 500 : 0;
+      const distanceFromAnchor = anchorIndexes.length > 0 ? candidateIndex : 0;
       const nearestSuffixDistance = requiredSuffixes.length === 0
         ? 0
         : contextWindow.reduce((bestDistance, line, windowIndex) => {
@@ -681,10 +905,10 @@ function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchCon
 
       candidates.push({
         matched: true,
-        value: candidateLine.includes('%') && numericValue !== null ? String(numericValue / 100) : value,
+        value,
         sourcePreview: makeSourcePreview(candidateLine),
         sourceType: 'regex-line',
-        score: (lineHasRequiredSuffix ? 1000 : 0) + sameLineKeywordScore + proximityScore + candidateLine.length
+        score: (lineHasRequiredSuffix ? 1000 : 0) + sameLineKeywordScore + proximityScore + candidateLine.length + (anchorIndexes.length > 0 ? Math.max(0, 300 - distanceFromAnchor * 80) : 0)
       });
     }
   }
@@ -743,6 +967,256 @@ function resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig) 
   };
 }
 
+function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeConfig) {
+  const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
+  if (!normalizedChecklistDesc.includes('ambient noise') || !normalizedChecklistDesc.includes('average')) {
+    return null;
+  }
+
+  const metricKey = normalizedChecklistDesc.includes('s-mos')
+    ? 'smos'
+    : normalizedChecklistDesc.includes('n-mos')
+      ? 'nmos'
+      : normalizedChecklistDesc.includes('g-mos')
+        ? 'gmos'
+        : null;
+
+  if (!metricKey) {
+    return null;
+  }
+
+  const metricPattern = metricKey === 'smos'
+    ? /average\s+s-mos/i
+    : metricKey === 'nmos'
+      ? /average\s+n-mos/i
+      : /average\s+g-mos/i;
+  const calculatedValuePattern = /calculated\s+value[^0-9-]*(-?\d+(?:\.\d+)?)/i;
+
+  for (const rowContext of getRowsForMatching(reportData, true)) {
+    const rowText = String(rowContext?.text || '').trim();
+    if (!rowText || !metricPattern.test(rowText)) {
+      continue;
+    }
+
+    if (!/calculated\s+value|mos\s*\(avg\)/i.test(rowText)) {
+      continue;
+    }
+
+    const value = calculatedValuePattern.exec(rowText)?.[1]
+      || extractSummaryValue(rowContext, textNormalizeConfig)
+      || getLastMeaningfulNumericToken(rowText);
+    const numericValue = parseNumericValue(value);
+    if (numericValue === null || numericValue > 5) {
+      continue;
+    }
+
+    return {
+      matched: true,
+      value: String(numericValue),
+      sourcePreview: makeSourcePreview(rowText),
+      sourceType: 'ambient-average-row'
+    };
+  }
+
+  for (let lineIndex = 0; lineIndex < reportData.lines.length; lineIndex += 1) {
+    const line = String(reportData.lines[lineIndex] || '').trim();
+    if (!metricPattern.test(line)) {
+      continue;
+    }
+
+    const inlineValue = calculatedValuePattern.exec(line)?.[1] || getLastMeaningfulNumericToken(line);
+    const inlineNumericValue = parseNumericValue(inlineValue);
+    if (inlineNumericValue !== null && inlineNumericValue <= 5) {
+      return {
+        matched: true,
+        value: String(inlineNumericValue),
+        sourcePreview: makeSourcePreview(line),
+        sourceType: 'ambient-average-line'
+      };
+    }
+
+    const windowLines = reportData.lines.slice(lineIndex + 1, lineIndex + 6);
+    for (const candidateLine of windowLines) {
+      const trimmedCandidate = String(candidateLine || '').trim();
+      if (!trimmedCandidate) {
+        continue;
+      }
+
+      if (!/calculated\s+value|mos/i.test(trimmedCandidate)) {
+        continue;
+      }
+
+      const numericValue = parseNumericValue(calculatedValuePattern.exec(trimmedCandidate)?.[1] || getLastMeaningfulNumericToken(trimmedCandidate));
+      if (numericValue === null) {
+        continue;
+      }
+
+      return {
+        matched: true,
+        value: String(numericValue),
+        sourcePreview: makeSourcePreview(`${line} ${trimmedCandidate}`),
+        sourceType: 'ambient-average-line'
+      };
+    }
+  }
+
+  return null;
+}
+
+function resolveAmbientNoiseMetricRowValue(reportData, item, textNormalizeConfig) {
+  const tableConfig = item.tableConfig;
+  if (!tableConfig?.rowNameMatch || !tableConfig?.targetColumnName) {
+    return null;
+  }
+
+  const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
+  if (!normalizedChecklistDesc.includes('ambient noise')) {
+    return null;
+  }
+
+  const metricKey = getAmbientNoiseMetricKey(tableConfig.targetColumnName);
+  if (!metricKey) {
+    return null;
+  }
+
+  const sceneKeys = new Set(
+    getAmbientNoiseSceneCandidates(tableConfig.rowNameMatch)
+      .map((candidate) => getAmbientNoiseSceneKey(candidate))
+      .filter(Boolean)
+  );
+
+  const targetRow = reportData.tableRows.find((rowContext) => {
+    const identifier = String(rowContext?.cells?.[0] || '').trim();
+    if (!identifier) {
+      return false;
+    }
+
+    const match = identifier.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:HASB|HA(?:NB|WB|SB|SWB))$/i);
+    if (!match) {
+      return false;
+    }
+
+    const rowMetricKey = match[1].toLowerCase() === 's'
+      ? 'smos'
+      : match[1].toLowerCase() === 'n'
+        ? 'nmos'
+        : match[1].toLowerCase() === 'g'
+          ? 'gmos'
+          : null;
+
+    if (rowMetricKey !== metricKey) {
+      return false;
+    }
+
+    const sceneKey = getAmbientNoiseSceneKey(match[2]);
+    return sceneKeys.has(sceneKey);
+  });
+
+  if (!targetRow) {
+    return null;
+  }
+
+  const value = extractMetricRowValue(targetRow.cells);
+  if (!value) {
+    return null;
+  }
+
+  return {
+    matched: true,
+    value,
+    sourcePreview: makeSourcePreview(targetRow.text),
+    sourceType: 'ambient-metric-row'
+  };
+}
+
+function resolveAmbientNoiseMetricLineValue(reportData, item, textNormalizeConfig) {
+  const tableConfig = item.tableConfig;
+  if (!tableConfig?.rowNameMatch || !tableConfig?.targetColumnName) {
+    return null;
+  }
+
+  const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
+  if (!normalizedChecklistDesc.includes('ambient noise')) {
+    return null;
+  }
+
+  const metricKey = getAmbientNoiseMetricKey(tableConfig.targetColumnName);
+  if (!metricKey) {
+    return null;
+  }
+
+  const sceneKeys = new Set(
+    getAmbientNoiseSceneCandidates(tableConfig.rowNameMatch)
+      .map((candidate) => getAmbientNoiseSceneKey(candidate))
+      .filter(Boolean)
+  );
+
+  for (let lineIndex = 0; lineIndex < reportData.lines.length; lineIndex += 1) {
+    const line = String(reportData.lines[lineIndex] || '').trim();
+    if (!line) {
+      continue;
+    }
+
+    const identifierMatch = line.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:HASB|HA(?:NB|WB|SB|SWB))(.*)$/i);
+    if (!identifierMatch) {
+      continue;
+    }
+
+    const rowMetricKey = identifierMatch[1].toLowerCase() === 's'
+      ? 'smos'
+      : identifierMatch[1].toLowerCase() === 'n'
+        ? 'nmos'
+        : identifierMatch[1].toLowerCase() === 'g'
+          ? 'gmos'
+          : null;
+
+    if (rowMetricKey !== metricKey) {
+      continue;
+    }
+
+    const sceneKey = getAmbientNoiseSceneKey(identifierMatch[2]);
+    if (!sceneKeys.has(sceneKey)) {
+      continue;
+    }
+
+    const inlineValue = parseNumericValue(identifierMatch[3]);
+    if (inlineValue !== null) {
+      return {
+        matched: true,
+        value: String(inlineValue),
+        sourcePreview: makeSourcePreview(line),
+        sourceType: 'ambient-metric-line'
+      };
+    }
+
+    const windowLines = reportData.lines.slice(lineIndex + 1, lineIndex + 6);
+    for (const candidateLine of windowLines) {
+      const trimmedCandidate = String(candidateLine || '').trim();
+      if (!trimmedCandidate || /^(?:Measured|Calculated Value|G-MOS|N-MOS|S-MOS)$/i.test(trimmedCandidate)) {
+        continue;
+      }
+
+      if (/\b\d{1,2}\/\d{1,2}\/\d{4}\b/.test(trimmedCandidate)) {
+        continue;
+      }
+
+      const numericValue = parseNumericValue(trimmedCandidate);
+      if (numericValue === null) {
+        continue;
+      }
+
+      return {
+        matched: true,
+        value: String(numericValue),
+        sourcePreview: makeSourcePreview(`${line} ${trimmedCandidate}`),
+        sourceType: 'ambient-metric-line'
+      };
+    }
+  }
+
+  return null;
+}
+
 function resolveTableValue(reportData, item, textNormalizeConfig) {
   const tableConfig = item.tableConfig;
   if (!tableConfig) {
@@ -752,6 +1226,16 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
   const ambientNoiseValue = resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig);
   if (ambientNoiseValue) {
     return ambientNoiseValue;
+  }
+
+  const ambientMetricRowValue = resolveAmbientNoiseMetricRowValue(reportData, item, textNormalizeConfig);
+  if (ambientMetricRowValue) {
+    return ambientMetricRowValue;
+  }
+
+  const ambientMetricLineValue = resolveAmbientNoiseMetricLineValue(reportData, item, textNormalizeConfig);
+  if (ambientMetricLineValue) {
+    return ambientMetricLineValue;
   }
 
   const requiredHeaders = Array.isArray(tableConfig.tableHeaderMatch) ? tableConfig.tableHeaderMatch : [];
@@ -793,7 +1277,7 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
     };
   }
 
-  for (const rowContext of reportData.tableRows) {
+  for (const rowContext of getRowsForMatching(reportData, true)) {
     const normalizedText = normalizeText(rowContext.text, textNormalizeConfig);
 
     if (!rowNameCandidates.some((candidate) => normalizedText.includes(normalizeText(candidate, textNormalizeConfig)))) {
@@ -804,14 +1288,14 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
       continue;
     }
 
-    const tokens = extractNumberTokens(rowContext.text);
-    if (tokens.length === 0) {
+    const value = extractMetricRowValue(rowContext.cells) || getLastMeaningfulNumericToken(rowContext.text);
+    if (!value) {
       continue;
     }
 
     return {
       matched: true,
-      value: tokens[tokens.length - 1].trim(),
+      value,
       sourcePreview: makeSourcePreview(rowContext.text),
       sourceType: 'text-row-table-fallback'
     };
@@ -822,41 +1306,61 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
 
 function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig) {
   const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig);
-  const candidates = reportData.tableRows.filter((rowContext) => {
-    if (!itemMatchesKeywords(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')) {
-      return false;
-    }
+  const collectCandidates = (rows) => rows
+    .map((rowContext) => ({
+      rowContext,
+      keywordTier: getKeywordMatchTier(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')
+    }))
+    .filter(({ rowContext, keywordTier }) => {
+      if (keywordTier === 0) {
+        return false;
+      }
 
-    const descriptorText = getRowDescriptorText(rowContext);
+      const descriptorText = getRowDescriptorText(rowContext);
+      if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
+        return false;
+      }
 
-    if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
-      return false;
-    }
+      if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
+        return false;
+      }
 
-    if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
-      return false;
-    }
+      if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
+        return false;
+      }
 
-    if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
-      return false;
-    }
+      return true;
+    })
+    .sort((left, right) => {
+      const rightDescriptor = getRowDescriptorText(right.rowContext);
+      const leftDescriptor = getRowDescriptorText(left.rowContext);
+      const rightScore = right.keywordTier * 10000 + getCandidateScore(right.rowContext) + getVariantPenalty(item, rightDescriptor, textNormalizeConfig);
+      const leftScore = left.keywordTier * 10000 + getCandidateScore(left.rowContext) + getVariantPenalty(item, leftDescriptor, textNormalizeConfig);
+      return rightScore - leftScore;
+    });
 
-    return true;
-  });
-
-  if (candidates.length === 0) {
-    return null;
+  const primaryCandidates = collectCandidates(getPrimaryRows(reportData));
+  if (primaryCandidates.length > 0) {
+    return primaryCandidates[0].rowContext;
   }
 
-  return candidates.sort((left, right) => getCandidateScore(right) - getCandidateScore(left))[0];
+  const fallbackCandidates = collectCandidates(getFallbackRows(reportData));
+  return fallbackCandidates.length > 0 ? fallbackCandidates[0].rowContext : null;
 }
 
 function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId) {
+  if (item.extractType === 'summary_table_match') {
+    const ambientOverallAverageValue = resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeConfig);
+    if (ambientOverallAverageValue) {
+      return ambientOverallAverageValue;
+    }
+  }
+
   let rowContext = selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig);
 
   if (item.extractType === 'status_judge') {
     const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig);
-    const explicitStatusRows = reportData.tableRows.filter((candidate) => {
+    const explicitStatusRows = getRowsForMatching(reportData, true).filter((candidate) => {
       if (!itemMatchesKeywords(reportData, item, candidate.text, textNormalizeConfig, candidate.sourceKind !== 'html-table')) {
         return false;
       }
@@ -912,11 +1416,19 @@ function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatch
   return { matched: false, reason: '未知的行匹配提取类型' };
 }
 
-function createSearchData(rawText, html) {
-  const lines = rawText
+function createSearchData(rawText, html, structuredData = {}) {
+  const rawLines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+
+  const structuredLines = Array.isArray(structuredData?.lines)
+    ? structuredData.lines.map((line) => String(line || '').trim()).filter(Boolean)
+    : [];
+
+  const lines = structuredLines.length > 0
+    ? Array.from(new Set([...structuredLines, ...rawLines]))
+    : rawLines;
 
   const flattenedText = rawText
     .replace(/\r/g, ' ')
@@ -990,8 +1502,19 @@ function createSearchData(rawText, html) {
       .filter((row) => row.text.length > 8);
   }
 
+  const structuredTables = Array.isArray(structuredData?.tables)
+    ? structuredData.tables
+      .map((table, tableIndex) => ({
+        tableIndex,
+        rows: Array.isArray(table?.rows)
+          ? table.rows.map((row) => Array.isArray(row) ? row.map((cell) => String(cell || '').trim()).filter(Boolean) : []).filter((row) => row.length > 0)
+          : []
+      }))
+      .filter((table) => table.rows.length > 0)
+    : [];
+
   const $ = cheerio.load(html);
-  const tables = $('table')
+  const htmlTables = $('table')
     .toArray()
     .map((tableElement, tableIndex) => {
       const rows = $(tableElement)
@@ -1009,6 +1532,8 @@ function createSearchData(rawText, html) {
       return { tableIndex, rows };
     })
     .filter((table) => table.rows.length > 0);
+
+  const tables = structuredTables.length > 0 ? structuredTables : htmlTables;
 
   const tableRows = tables.flatMap((table) => {
     const headers = table.rows[0] || [];
@@ -1028,7 +1553,8 @@ function createSearchData(rawText, html) {
     lines,
     ambientNoiseBlocks: extractAmbientNoiseAverageBlocks(rawText),
     tables,
-    tableRows: [...tableRows, ...lineRows, ...derivedRows]
+    tableRows,
+    fallbackRows: [...lineRows, ...derivedRows]
   };
 }
 

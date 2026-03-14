@@ -73,7 +73,7 @@
       "outputCell": "I6",
       "extractType": "summary_table_match",
       "coreKeywords": ["Loudness", "Rating", "SND", "SLR", "HASB"],
-      "forbiddenSuffix": [],
+      "forbiddenSuffix": ["ECRP", "20UP", "25DOWN", "10OUT"],
       "requiredSuffix": []
     },
     // 2. 接收响度RLR MAX音量
@@ -124,7 +124,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX-4", "NOM"]
+      "requiredSuffix": ["MAX-4"]
     },
     // 7. 接收响度RLR MAX-5音量
     {
@@ -154,7 +154,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX-7", "MIN"]
+      "requiredSuffix": ["MAX-7"]
     },
     // 10. 噪声下RLR
     {
@@ -163,6 +163,7 @@
       "outputCell": "I15",
       "extractType": "summary_table_match",
       "coreKeywords": ["RLR", "max", "with", "BGN", "HASB"],
+      "fallbackKeywords": ["RLR", "noise", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -173,6 +174,7 @@
       "outputCell": "I16",
       "extractType": "summary_table_match",
       "coreKeywords": ["Idle", "channel", "noise", "SND", "AVG", "HASB"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "SND", "HASB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -199,8 +201,9 @@
       "outputCell": "I18",
       "extractType": "summary_table_match",
       "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "max", "HASB"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["MAX"]
     },
     // 14. 接收端空闲信道噪声NOM音量
     {
@@ -209,8 +212,9 @@
       "outputCell": "I19",
       "extractType": "summary_table_match",
       "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "nom", "HASB"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["NOM"]
     },
     // 15. 接收端单频干扰
     {
@@ -294,7 +298,9 @@
       "checklistDesc": "Sidetone characteristics - STMR - max vol.",
       "outputCell": "I26",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sidetone", "Electr", "Enabled", "HASB"],
+      "coreKeywords": ["Sidetone", "STMR", "HASB"],
+      "fallbackKeywords": ["STMR", "HASB"],
+      "exactRowKeywords": ["STMR"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX", "VOL"]
     },
@@ -304,7 +310,9 @@
       "checklistDesc": "Sidetone characteristics - STMR - mon. vol.",
       "outputCell": "I27",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sidetone", "Electr", "Enabled", "HASB"],
+      "coreKeywords": ["Sidetone", "STMR", "HASB"],
+      "fallbackKeywords": ["STMR", "HASB"],
+      "exactRowKeywords": ["STMR"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM", "VOL"]
     },
@@ -314,7 +322,9 @@
       "checklistDesc": "Sidetone characteristics - STMR - min vol.",
       "outputCell": "I28",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sidetone", "Electr", "Enabled", "HASB"],
+      "coreKeywords": ["Sidetone", "STMR", "HASB"],
+      "fallbackKeywords": ["STMR", "HASB"],
+      "exactRowKeywords": ["STMR"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN", "VOL"]
     },
@@ -335,8 +345,9 @@
       "outputCell": "I30",
       "extractType": "summary_table_match",
       "coreKeywords": ["Stability", "loss", "check", "HASB"],
+      "fallbackKeywords": ["Stability", "loss", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX"]
+      "requiredSuffix": []
     },
     // 26. 回声损耗MAX音量
     {
@@ -450,7 +461,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -466,7 +477,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -482,7 +493,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -498,7 +509,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -514,7 +525,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -530,7 +541,7 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["2o2"],
       "regexConfig": {
-        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+\\.\\d+)(?:\\s*%)?",
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
         "valueRange": [0, 100]
       }
@@ -542,6 +553,7 @@
       "outputCell": "I47",
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "S-MOS", "Speech", "HASB"],
+      "exactRowKeywords": ["Average", "Speech"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -552,6 +564,7 @@
       "outputCell": "I48",
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "N-MOS", "Noise", "HASB"],
+      "exactRowKeywords": ["Average", "Noise"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -561,8 +574,9 @@
       "checklistDesc": "Quality in the presence of ambient noise - G-MOS - average",
       "outputCell": "I49",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Average", "G-MOS", "Speech", "HASB"],
-      "fallbackKeywords": ["Average", "G-MOS", "HASB"],
+      "coreKeywords": ["Average", "G-MOS", "Global", "HASB"],
+      "fallbackKeywords": ["Average", "G-MOS", "Global"],
+      "exactRowKeywords": ["Average", "Global"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -812,9 +826,10 @@
       "checklistDesc": "SND Robustness with noise - ECRP",
       "outputCell": "I67",
       "extractType": "summary_table_match",
-      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "ECRP"],
+      "coreKeywords": ["Loudness", "Rating", "SND", "SLR", "HASB", "ECRP"],
+      "fallbackKeywords": ["SLR", "SND", "HASB", "ECRP"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["ECRP"]
     },
     // 62. 发送端高斯白噪声鲁棒性 20UP
     {
@@ -822,9 +837,10 @@
       "checklistDesc": "SND Robustness with noise - 20UP",
       "outputCell": "I68",
       "extractType": "summary_table_match",
-      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "20UP"],
+      "coreKeywords": ["Loudness", "Rating", "SND", "SLR", "HASB", "20UP"],
+      "fallbackKeywords": ["SLR", "SND", "HASB", "20UP"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["20UP"]
     },
     // 63. 发送端高斯白噪声鲁棒性 25DOWN
     {
@@ -832,9 +848,10 @@
       "checklistDesc": "SND Robustness with noise - 25DOWN",
       "outputCell": "I69",
       "extractType": "summary_table_match",
-      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "25DOWN"],
+      "coreKeywords": ["Loudness", "Rating", "SND", "SLR", "HASB", "25DOWN"],
+      "fallbackKeywords": ["SLR", "SND", "HASB", "25DOWN"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["25DOWN"]
     },
     // 64. 发送端高斯白噪声鲁棒性 10OUT
     {
@@ -842,9 +859,10 @@
       "checklistDesc": "SND Robustness with noise - 10OUT",
       "outputCell": "I70",
       "extractType": "summary_table_match",
-      "coreKeywords": ["SND", "Robustness", "with", "noise", "gausswhite", "82dB", "HASB", "10OUT"],
+      "coreKeywords": ["Loudness", "Rating", "SND", "SLR", "HASB", "10OUT"],
+      "fallbackKeywords": ["SLR", "SND", "HASB", "10OUT"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+      "requiredSuffix": ["10OUT"]
     },
     // 65. POLQA 发送端单句 MOS-LQO
     {
@@ -852,9 +870,9 @@
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Sending",
       "outputCell": "I72",
       "extractType": "summary_table_match",
-      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "SND"],
-      "fallbackKeywords": ["POLQA", "MOS-LQO", "SND"],
-      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "SND"],
+      "coreKeywords": ["MOS-LQO", "P.863", "SND", "informative"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "SND"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "SND", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -864,9 +882,9 @@
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - max vol.",
       "outputCell": "I73",
       "extractType": "summary_table_match",
-      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
-      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
-      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -876,9 +894,9 @@
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - nom vol.",
       "outputCell": "I74",
       "extractType": "summary_table_match",
-      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
-      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
-      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -888,9 +906,9 @@
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - min vol.",
       "outputCell": "I75",
       "extractType": "summary_table_match",
-      "coreKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
-      "fallbackKeywords": ["POLQA", "MOS-LQO", "RCV"],
-      "exactRowKeywords": ["MOS-LQO", "P.863", "Single", "Sent", "RCV"],
+      "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
+      "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],
+      "exactRowKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     }

@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const mammoth = require('mammoth');
 const JSON5 = require('json5');
+const { parseDocxStructuredData } = require('./docxStructuredParser');
 
 function createReportSource({
   supportedReportExtensions,
@@ -21,12 +22,13 @@ function createReportSource({
   }
 
   async function parseDocxReport(reportPath) {
-    const [rawTextResult, htmlResult] = await Promise.all([
+    const [rawTextResult, htmlResult, structuredData] = await Promise.all([
       mammoth.extractRawText({ path: reportPath }),
-      mammoth.convertToHtml({ path: reportPath })
+      mammoth.convertToHtml({ path: reportPath }),
+      parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [] }))
     ]);
 
-    return createSearchData(rawTextResult.value || '', htmlResult.value || '');
+    return createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData);
   }
 
   // 解析入口只负责拿到标准化的搜索数据，不参与后续提取规则判断。
