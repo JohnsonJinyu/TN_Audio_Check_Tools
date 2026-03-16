@@ -4,6 +4,82 @@ const mammoth = require('mammoth');
 const JSON5 = require('json5');
 const { parseDocxStructuredData } = require('./docxStructuredParser');
 
+function normalizeReportBandwidth(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+
+  if (['SB', 'SWB'].includes(normalized)) {
+    return 'SWB';
+  }
+
+  if (normalized.endsWith('SWB')) {
+    return 'SWB';
+  }
+
+  if (normalized.endsWith('WB')) {
+    return 'WB';
+  }
+
+  if (normalized.endsWith('NB')) {
+    return 'NB';
+  }
+
+  return '';
+}
+
+function deriveBandwidthFromPath(reportPath) {
+  const normalizedPath = String(reportPath || '').toUpperCase();
+  if (/([_\-\s]|^)SWB([_\-\s.]|$)/.test(normalizedPath) || /\bSB\b/.test(normalizedPath)) {
+    return 'SWB';
+  }
+
+  if (/([_\-\s]|^)WB([_\-\s.]|$)/.test(normalizedPath)) {
+    return 'WB';
+  }
+
+  if (/([_\-\s]|^)NB([_\-\s.]|$)/.test(normalizedPath)) {
+    return 'NB';
+  }
+
+  return '';
+}
+
+function deriveBandwidthFromText(rawText) {
+  const normalizedText = String(rawText || '').toUpperCase();
+  const directMatches = [
+    normalizedText.match(/\b(?:AMR|EVS)[_\-\s]?SWB\b/),
+    normalizedText.match(/\bSWB\b/),
+    normalizedText.match(/\b(?:AMR|EVS)[_\-\s]?WB\b/),
+    normalizedText.match(/\bWB\b/),
+    normalizedText.match(/\b(?:AMR|EVS)[_\-\s]?NB\b/),
+    normalizedText.match(/\bNB\b/)
+  ].filter(Boolean);
+
+  for (const match of directMatches) {
+    const bandwidth = normalizeReportBandwidth(match[0]);
+    if (bandwidth) {
+      return bandwidth;
+    }
+  }
+
+  return '';
+}
+
+function attachReportContext(reportData, reportPath, rawText = '') {
+  const existingBandwidth = normalizeReportBandwidth(reportData?.reportContext?.bandwidth);
+  const bandwidth = existingBandwidth || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '';
+
+  return {
+    ...reportData,
+    reportContext: {
+      ...(reportData?.reportContext || {}),
+      bandwidth
+    }
+  };
+}
+
 function createReportSource({
   supportedReportExtensions,
   convertDocToTemporaryDocx,
@@ -29,7 +105,11 @@ function createReportSource({
       parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [] }))
     ]);
 
-    return createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData);
+    return attachReportContext(
+      createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData),
+      reportPath,
+      rawTextResult.value || ''
+    );
   }
 
   // 解析入口只负责拿到标准化的搜索数据，不参与后续提取规则判断。
@@ -40,7 +120,7 @@ function createReportSource({
     }
 
     if (reportExtension === '.xlsx' || reportExtension === '.xls') {
-      return parseXlsxReport(reportPath);
+      return attachReportContext(await parseXlsxReport(reportPath), reportPath);
     }
 
     if (reportExtension === '.doc') {
@@ -67,7 +147,7 @@ function createReportSource({
         throw new Error('.doc 报告转换超时或未读取到内容。请优先另存为 .docx 后重试，或关闭可能弹出的 Word/WPS 隐藏窗口。');
       }
 
-      return createSearchData(rawText, '');
+      return attachReportContext(createSearchData(rawText, ''), reportPath, rawText);
     }
 
     return parseDocxReport(reportPath);

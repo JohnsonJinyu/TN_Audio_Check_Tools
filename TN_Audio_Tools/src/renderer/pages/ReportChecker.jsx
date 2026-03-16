@@ -136,6 +136,7 @@ function ReportChecker() {
         outputPath: '',
         outputName: '',
         error: '',
+        skippedItems: [],
         unmatchedItems: []
       };
 
@@ -227,6 +228,18 @@ function ReportChecker() {
               </div>
             </div>
           ) : null}
+          {record.skippedItems?.length ? (
+            <div style={{ marginTop: 16 }}>
+              <Text strong>按场景跳过：</Text>
+              <div style={{ maxHeight: 180, overflow: 'auto', marginTop: 8, paddingRight: 8 }}>
+                {record.skippedItems.map((item) => (
+                  <Paragraph key={`${record.id}-skipped-${item.itemId}`} style={{ marginBottom: 8 }}>
+                    {item.outputCell} - {item.checklistDesc} ({item.reason})
+                  </Paragraph>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       )
     });
@@ -281,6 +294,7 @@ function ReportChecker() {
             items: 0,
             outputPath: '',
             outputName: '',
+            skippedItems: [],
             unmatchedItems: []
           };
         }
@@ -291,6 +305,7 @@ function ReportChecker() {
           items: result.matchedItems,
           outputPath: result.outputPath,
           outputName: getOutputFileName(result.outputPath),
+          skippedItems: result.skippedItems || [],
           unmatchedItems: result.unmatchedItems || [],
           error: ''
         };

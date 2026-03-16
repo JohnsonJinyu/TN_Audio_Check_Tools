@@ -95,3 +95,13 @@ export function recordReportCheckResults(resultList) {
     reportHistory: [...historyEntries.reverse(), ...currentValue.reportHistory].slice(0, REPORT_HISTORY_LIMIT)
   });
 }
+
+export function clearReportHistory() {
+  const currentValue = readDashboardData();
+
+  writeDashboardData({
+    ...currentValue,
+    checkedReports: 0,
+    reportHistory: []
+  });
+}

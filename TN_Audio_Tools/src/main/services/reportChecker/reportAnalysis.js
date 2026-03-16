@@ -653,6 +653,14 @@ function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, 
   }
 
   if (!rawValue) {
+    rawValue = getHeaderBasedCell(
+      rowContext,
+      ['single value', 'measured value', 'value', 'actual value', 'result'],
+      textNormalizeConfig
+    );
+  }
+
+  if (!rawValue) {
     rawValue = extractRowNumericCell(rowContext) || getLastMeaningfulNumericToken(rowContext.text);
   }
 

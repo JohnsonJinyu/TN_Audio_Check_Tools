@@ -8,7 +8,7 @@ import {
   ArrowRightOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons';
-import { readDashboardData } from '../modules/dashboard/storage';
+import { clearReportHistory, readDashboardData } from '../modules/dashboard/storage';
 import '../styles/pages.css';
 
 function Dashboard({ onNavigate }) {
@@ -80,6 +80,25 @@ function Dashboard({ onNavigate }) {
     } catch (error) {
       message.error(error?.message || '打开输出目录失败');
     }
+  };
+
+  const handleClearReportHistory = () => {
+    if (dashboardData.reportHistory.length === 0) {
+      return;
+    }
+
+    Modal.confirm({
+      title: '清空检查历史记录',
+      content: '清空后将删除当前本地保存的报告检查历史，且不可恢复。',
+      okText: '确认清空',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        clearReportHistory();
+        setDashboardData(readDashboardData());
+        message.success('已清空检查历史记录');
+      }
+    });
   };
 
   const quickStats = [
@@ -304,6 +323,14 @@ function Dashboard({ onNavigate }) {
         onCancel={() => setHistoryVisible(false)}
         width={900}
         footer={[
+          <Button
+            key="clear-history"
+            danger
+            disabled={dashboardData.reportHistory.length === 0}
+            onClick={handleClearReportHistory}
+          >
+            清空记录
+          </Button>,
           <Button key="go-report-checker" onClick={() => {
             setHistoryVisible(false);
             handleNavigate('report-checker');
