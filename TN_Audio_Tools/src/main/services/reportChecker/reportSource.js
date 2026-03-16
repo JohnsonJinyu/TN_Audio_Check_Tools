@@ -8,7 +8,8 @@ function createReportSource({
   supportedReportExtensions,
   convertDocToTemporaryDocx,
   wordExtractor,
-  createSearchData
+  createSearchData,
+  parseXlsxReport
 }) {
   async function loadRules(rulePath) {
     const content = await fs.readFile(rulePath, 'utf8');
@@ -35,7 +36,11 @@ function createReportSource({
   async function parseReport(reportPath) {
     const reportExtension = path.extname(reportPath).toLowerCase();
     if (!supportedReportExtensions.has(reportExtension)) {
-      throw new Error('当前仅支持 .doc 或 .docx 测试报告');
+      throw new Error('当前仅支持 .xlsx / .xls / .doc / .docx 测试报告');
+    }
+
+    if (reportExtension === '.xlsx' || reportExtension === '.xls') {
+      return parseXlsxReport(reportPath);
     }
 
     if (reportExtension === '.doc') {

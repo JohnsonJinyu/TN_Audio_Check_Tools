@@ -6,6 +6,7 @@ const { createReportRunner } = require('./reportChecker/reportRunner');
 const { createReportSource } = require('./reportChecker/reportSource');
 const { createReportExtractor } = require('./reportChecker/reportExtractor');
 const { createReportConverter } = require('./reportChecker/reportConverter');
+const { createXlsxReportSource } = require('./reportChecker/xlsxReportSource');
 const {
   createSearchData,
   resolveRowBasedValue,
@@ -15,7 +16,7 @@ const {
 } = require('./reportChecker/reportAnalysis');
 const WordExtractor = require('word-extractor');
 
-const SUPPORTED_REPORT_EXTENSIONS = new Set(['.doc', '.docx']);
+const SUPPORTED_REPORT_EXTENSIONS = new Set(['.doc', '.docx', '.xlsx', '.xls']);
 const SUPPORTED_CHECKLIST_EXTENSIONS = new Set(['.xlsx', '.xls']);
 const DEFAULT_RULES_RELATIVE_PATH = path.join(
   'src',
@@ -37,11 +38,14 @@ const { convertDocToTemporaryDocx } = createReportConverter({
   libreOfficeCandidatePaths: LIBRE_OFFICE_CANDIDATE_PATHS
 });
 
+const { parseXlsxReport } = createXlsxReportSource();
+
 const { loadRules, parseReport } = createReportSource({
   supportedReportExtensions: SUPPORTED_REPORT_EXTENSIONS,
   convertDocToTemporaryDocx,
   wordExtractor,
-  createSearchData
+  createSearchData,
+  parseXlsxReport
 });
 
 const { processSingleReport } = createReportExtractor({

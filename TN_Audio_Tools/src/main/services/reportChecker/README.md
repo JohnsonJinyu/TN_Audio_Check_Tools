@@ -21,8 +21,16 @@
 ### `reportSource.js`
 
 - 负责规则文件读取。
-- 负责 `.doc` / `.docx` 报告内容解析。
+- 负责按扩展名分发报告解析流程。
+- `.xlsx` / `.xls` 走结构化 Excel 报告解析。
+- `.doc` / `.docx` 继续走原有 Word 报告解析。
 - 输出统一的搜索数据结构，供后续提取模块使用。
+
+### `xlsxReportSource.js`
+
+- 负责 ACQUA 导出的 `.xlsx` / `.xls` 结构化报告解析。
+- 主要读取 `Detailed` / `Values` 工作表并构造成统一搜索数据。
+- 与 Word 解析链路分离，便于后续独立扩展 Excel 主方案。
 
 ### `reportConverter.js`
 

@@ -122,8 +122,8 @@ function ReportChecker() {
 
     if (target === 'report') {
       const extension = file.name.toLowerCase();
-      if (!extension.endsWith('.doc') && !extension.endsWith('.docx')) {
-        message.error('当前后台仅支持 .doc / .docx 测试报告。');
+      if (!extension.endsWith('.doc') && !extension.endsWith('.docx') && !extension.endsWith('.xlsx') && !extension.endsWith('.xls')) {
+        message.error('当前后台仅支持 .xlsx / .xls / .doc / .docx 测试报告。');
         return;
       }
 
@@ -234,7 +234,7 @@ function ReportChecker() {
 
   const processReports = async () => {
     if (files.length === 0) {
-      message.warning('请先上传至少一个 Word 测试报告。');
+      message.warning('请先上传至少一个测试报告。');
       return;
     }
 
@@ -468,7 +468,7 @@ function ReportChecker() {
             <Upload
               customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
               multiple
-              accept=".doc,.docx"
+              accept=".xlsx,.xls,.doc,.docx"
               showUploadList={false}
             >
               <Button icon={<UploadOutlined />} className="report-checker-upload-action report-checker-section-action">
@@ -492,17 +492,17 @@ function ReportChecker() {
         </div>
 
         <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
-          上传真实 .doc/.docx 测试报告和 I 列为空的 checklist，系统会按 moto_rules_for_analysis.json5 提取报告数据并回填到 checklist，最终在报告目录下生成新的 Excel 文件。
+          上传 ACQUA 导出的 .xlsx/.xls 测试报告或传统 .doc/.docx 报告，以及 I 列为空的 checklist，系统会按 moto_rules_for_analysis.json5 提取数据并回填到 checklist，最终在报告目录下生成新的 Excel 文件。
         </p>
         <p style={{ marginTop: '-12px', marginBottom: '24px', color: '#8c8c8c' }}>
-          注意：.doc 报告会先做转换，通常比 .docx 慢；处理完成后可在表格里查看输出文件名，或点击“打开目录”直接定位结果。
+          注意：系统会优先按 Excel 结构化报告解析；.doc 报告仍会先做转换，通常比 .docx / .xlsx 慢。处理完成后可在表格里查看输出文件名，或点击“打开目录”直接定位结果。
         </p>
 
         {files.length === 0 ? (
           <Upload.Dragger
             customRequest={({ file, onSuccess }) => handleUpload(file, 'report', onSuccess)}
             multiple
-            accept=".doc,.docx"
+            accept=".xlsx,.xls,.doc,.docx"
             showUploadList={false}
             className="report-checker-upload report-checker-upload-report"
             style={{ padding: '16px 18px', minHeight: '108px' }}
@@ -512,7 +512,7 @@ function ReportChecker() {
               拖拽报告文件到此处，或点击上方按钮上传
             </p>
             <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
-              当前支持格式: Word (.doc, .docx)
+              当前支持格式: Excel (.xlsx, .xls) 优先，兼容 Word (.doc, .docx)
             </p>
           </Upload.Dragger>
         ) : (
@@ -629,6 +629,7 @@ function ReportChecker() {
       <Card title="检查规则" style={{ marginTop: '24px' }}>
         <ul style={{ paddingLeft: '20px' }}>
           <li>报告解析当前使用主进程后台执行，避免浏览器沙箱限制本地文件读写。</li>
+          <li>ACQUA 导出的 .xlsx / .xls 报告会优先走结构化解析链路；Word 解析链路继续保留作为兼容方案。</li>
           <li>默认读取内置 JSON5 规则，也可以手动上传其它规则文件覆盖。</li>
           <li>“导出规则”会导出当前使用的规则文件；若未上传自定义规则，则导出内置默认规则。</li>
           <li>.doc 报告会优先在后台临时转为 .docx 后解析，解析完成后自动清理临时文件。</li>

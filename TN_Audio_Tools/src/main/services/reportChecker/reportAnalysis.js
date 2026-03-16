@@ -698,6 +698,18 @@ function resolveAnchorValue(reportData, item, textNormalizeConfig, globalMatchCo
     .filter(({ line }) => normalizeText(line, textNormalizeConfig).includes(normalizedAnchor));
 
   if (anchorIndexes.length === 0) {
+    const fallbackRow = resolveRowBasedValue(reportData, {
+      ...item,
+      extractType: 'summary_table_match'
+    }, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
+
+    if (fallbackRow?.matched) {
+      return {
+        ...fallbackRow,
+        sourceType: 'anchor-missing-fallback-row'
+      };
+    }
+
     return { matched: false, reason: '未找到锚点文本' };
   }
 
@@ -917,7 +929,71 @@ function resolveRegexValue(reportData, item, textNormalizeConfig, globalMatchCon
     return candidates.sort((left, right) => right.score - left.score)[0];
   }
 
+  if (reportData?.reportFormat === 'xlsx') {
+    const rowNameHint = getRegexRowNameHint(item);
+    const fallbackRow = getRowsForMatching(reportData, true)
+      .filter((rowContext) => {
+        const keywordTier = getKeywordMatchTier(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table');
+        if (keywordTier === 0) {
+          return false;
+        }
+
+        const descriptorText = getRowDescriptorText(rowContext);
+        if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
+          return false;
+        }
+
+        if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
+          return false;
+        }
+
+        if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
+          return false;
+        }
+
+        if (!rowNameHint) {
+          return true;
+        }
+
+        return normalizeText(rowContext.text, textNormalizeConfig).includes(normalizeText(rowNameHint, textNormalizeConfig));
+      })
+      .sort((left, right) => getCandidateScore(right) - getCandidateScore(left))[0];
+
+    if (fallbackRow) {
+      const value = extractSummaryValue(fallbackRow, textNormalizeConfig);
+      if (value) {
+        return {
+          matched: true,
+          value,
+          sourcePreview: makeSourcePreview(fallbackRow.text),
+          sourceType: 'regex-row-fallback'
+        };
+      }
+    }
+  }
+
   return { matched: false, reason: '未匹配到正则目标文本' };
+}
+
+function getRegexRowNameHint(item) {
+  const matchRegex = String(item?.regexConfig?.matchRegex || '');
+  if (!matchRegex) {
+    return null;
+  }
+
+  if (/ST Class A1\\\+A2/i.test(matchRegex)) {
+    return 'ST Class A1+A2';
+  }
+
+  if (/DT Class A1\\\+A2/i.test(matchRegex)) {
+    return 'DT Class A1+A2';
+  }
+
+  if (/DT Class A1/i.test(matchRegex)) {
+    return 'DT Class A1';
+  }
+
+  return null;
 }
 
 function resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig) {

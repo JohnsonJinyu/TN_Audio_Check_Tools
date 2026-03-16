@@ -49,7 +49,7 @@ function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems) {
       continue;
     }
 
-    const normalizedValue = toWorksheetValue(itemResult.value);
+    const normalizedValue = normalizeChecklistValue(worksheet, resolvedOutputCell, itemResult.value);
 
     writeLegacyChecklistCell(worksheet, resolvedOutputCell, normalizedValue);
 
@@ -347,6 +347,20 @@ function toWorksheetValue(value) {
   }
 
   return value;
+}
+
+function normalizeChecklistValue(worksheet, cellAddress, value) {
+  const worksheetValue = toWorksheetValue(value);
+
+  if (!usesPercentNumberFormat(worksheet, cellAddress)) {
+    return worksheetValue;
+  }
+
+  if (typeof worksheetValue === 'number' && Number.isFinite(worksheetValue) && Math.abs(worksheetValue) > 1) {
+    return worksheetValue / 100;
+  }
+
+  return worksheetValue;
 }
 
 function buildOutputFileName(reportName) {
