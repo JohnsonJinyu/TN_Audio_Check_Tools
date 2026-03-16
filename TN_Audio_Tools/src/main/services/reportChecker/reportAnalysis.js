@@ -120,7 +120,10 @@ function getRowDescriptorText(rowContext) {
       return statusSplit || singleCellText;
     }
 
-    return rowContext.cells[0] || rowContext.text || '';
+    const primaryCellText = String(rowContext.cells[0] || rowContext.text || '');
+    const pipeSplitText = primaryCellText.split('|')[0].trim();
+    const statusSplitText = pipeSplitText.split(/\b(?:not\s+ok|ok|done)\b/i)[0]?.trim();
+    return statusSplitText || pipeSplitText || primaryCellText;
   }
 
   const rawText = String(rowContext?.text || '');

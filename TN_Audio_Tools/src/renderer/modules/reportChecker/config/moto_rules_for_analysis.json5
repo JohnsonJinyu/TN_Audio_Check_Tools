@@ -439,6 +439,7 @@
       "outputCell": "I39",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "AVG", "HASB"],
+      "exactRowKeywords": ["Distortion", "-16", "dBm0"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
