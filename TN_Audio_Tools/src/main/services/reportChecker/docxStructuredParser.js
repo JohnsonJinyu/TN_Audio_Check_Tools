@@ -146,12 +146,32 @@ async function parseDocxStructuredData(reportPath) {
   const zip = await JSZip.loadAsync(buffer);
   const documentEntry = zip.file('word/document.xml');
 
+   const readXmlLines = async (filePattern) => {
+    const entries = zip.file(filePattern) || [];
+    const lineGroups = await Promise.all(entries.map(async (entry) => {
+      const xmlContent = await entry.async('string');
+      return parseDocumentXml(xmlContent).lines;
+    }));
+
+    return lineGroups.flat().filter(Boolean);
+  };
+
   if (!documentEntry) {
-    return { lines: [], tables: [] };
+    return { lines: [], tables: [], headers: [], footers: [] };
   }
 
   const documentXml = await documentEntry.async('string');
-  return parseDocumentXml(documentXml);
+  const documentData = parseDocumentXml(documentXml);
+  const [headers, footers] = await Promise.all([
+    readXmlLines(/^word\/header\d+\.xml$/),
+    readXmlLines(/^word\/footer\d+\.xml$/)
+  ]);
+
+  return {
+    ...documentData,
+    headers,
+    footers
+  };
 }
 
 module.exports = {

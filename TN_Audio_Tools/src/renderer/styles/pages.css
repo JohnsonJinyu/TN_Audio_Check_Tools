@@ -12,6 +12,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -152,17 +153,241 @@
   box-shadow: 0 10px 26px rgba(54, 67, 120, 0.06);
 }
 
-.report-checker-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  padding: 4px 0 18px;
+.report-checker-guide-card {
   margin-bottom: 18px;
+}
+
+.report-checker-top-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.report-checker-top-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 92px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid #d9e7ee;
+  background: linear-gradient(135deg, rgba(0, 151, 167, 0.12) 0%, rgba(242, 248, 251, 0.95) 100%);
+  box-shadow: 0 10px 22px rgba(14, 59, 79, 0.05);
+}
+
+.report-checker-top-card strong {
+  color: #0f3d50;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.report-checker-top-label {
+  color: #53707f;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .report-checker-progress-card {
   margin-bottom: 18px;
+}
+
+.report-checker-upload-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.report-checker-aux-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.report-checker-action-card {
+  margin-bottom: 18px;
+}
+
+.report-checker-action-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.report-checker-action-title {
+  color: #1f2a44;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.report-checker-action-text {
+  margin-top: 6px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.report-checker-conclusion-card {
+  margin-bottom: 18px;
+  border-color: #dfe7fb;
+}
+
+.report-checker-conclusion-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-checker-conclusion-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 78px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #e4ebff;
+  background: linear-gradient(135deg, rgba(73, 114, 255, 0.1) 0%, rgba(73, 114, 255, 0.03) 100%);
+}
+
+.report-checker-conclusion-metric strong {
+  color: #243a8f;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.report-checker-conclusion-label {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.report-checker-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.report-checker-insight-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 148px;
+  padding: 18px;
+  border: 1px solid #dde6f3;
+  border-radius: 16px;
+  background: linear-gradient(155deg, #ffffff 0%, #f3f8ff 100%);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.report-checker-insight-card:hover {
+  border-color: #91b6d7;
+  box-shadow: 0 12px 26px rgba(32, 74, 110, 0.1);
+  transform: translateY(-2px);
+}
+
+.report-checker-insight-header {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.report-checker-insight-title {
+  color: #1f2a44;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.report-checker-insight-card strong {
+  color: #154d66;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.report-checker-insight-text {
+  color: #55657a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.report-checker-bundle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.report-checker-bundle-item {
+  width: 100%;
+  display: block;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #e7ebf7;
+  background: #fbfcff;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.report-checker-bundle-item:hover {
+  border-color: #9ab2d8;
+  box-shadow: 0 10px 20px rgba(40, 72, 109, 0.08);
+  transform: translateY(-1px);
+}
+
+.report-checker-bundle-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-checker-bundle-title {
+  color: #1f2a44;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.report-checker-bundle-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.report-checker-bundle-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.report-checker-bundle-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  color: #44506b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-checker-conclusion-actions {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed #dde4f6;
+}
+
+.report-checker-conclusion-action-list {
+  margin-top: 10px;
 }
 
 .report-checker-progress-header {
@@ -238,6 +463,10 @@
   min-width: 280px;
 }
 
+.report-checker-upload-summary-expanded .report-checker-upload-summary-item:last-child {
+  min-width: 340px;
+}
+
 .report-checker-upload-summary-label {
   color: #667085;
   font-size: 12px;
@@ -263,6 +492,12 @@
   justify-content: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.report-checker-report-table .ant-table-wrapper,
+.report-checker-report-table .ant-spin-nested-loading,
+.report-checker-report-table .ant-spin-container {
+  width: 100%;
 }
 
 .report-checker-primary-action.ant-btn {
@@ -306,6 +541,12 @@
 .report-checker-section-action.ant-btn {
   min-width: 128px;
   justify-content: center;
+}
+
+.report-checker-note-list {
+  color: #44506b;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 /* 按钮样式 */
@@ -375,13 +616,21 @@
     margin-bottom: 12px;
   }
 
+  .report-checker-top-grid,
+  .report-checker-conclusion-grid,
+  .report-checker-insight-grid,
+  .report-checker-aux-grid {
+    grid-template-columns: 1fr;
+  }
+
   .report-checker-actions {
     width: 100%;
     justify-content: stretch;
   }
 
-  .report-checker-toolbar {
-    padding: 0 0 16px;
+  .report-checker-action-panel {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .report-checker-upload-summary-item,
@@ -392,9 +641,14 @@
   }
 
   .report-checker-progress-header,
-  .report-checker-progress-footer {
+  .report-checker-progress-footer,
+  .report-checker-bundle-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .report-checker-bundle-tags {
+    justify-content: flex-start;
   }
 
   .report-checker-primary-action.ant-btn,

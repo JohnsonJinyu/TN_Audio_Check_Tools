@@ -13,19 +13,28 @@ function createReportRunner({
   supportedChecklistExtensions,
   defaultRulesRelativePath,
   loadRules,
-  processSingleReport
+  processSingleReport,
+  buildBatchConclusion
 }) {
   async function validatePaths({ reportPaths, checklistPath, rulePath }) {
     if (!Array.isArray(reportPaths) || reportPaths.length === 0) {
       throw new Error('请先选择至少一个测试报告');
     }
 
-    const checklistExtension = path.extname(checklistPath || '').toLowerCase();
-    if (!supportedChecklistExtensions.has(checklistExtension)) {
-      throw new Error('checklist 仅支持 .xlsx 或 .xls 文件');
+    const hasExcelReports = reportPaths.some((reportPath) => ['.xlsx', '.xls'].includes(path.extname(reportPath || '').toLowerCase()));
+    if (hasExcelReports && !checklistPath) {
+      throw new Error('存在 Excel 报告时，必须提供 checklist 文件。');
     }
 
-    await fs.access(checklistPath);
+    if (checklistPath) {
+      const checklistExtension = path.extname(checklistPath || '').toLowerCase();
+      if (!supportedChecklistExtensions.has(checklistExtension)) {
+        throw new Error('checklist 仅支持 .xlsx 或 .xls 文件');
+      }
+
+      await fs.access(checklistPath);
+    }
+
     await Promise.all(reportPaths.map((reportPath) => fs.access(reportPath)));
 
     if (rulePath) {
@@ -97,7 +106,10 @@ function createReportRunner({
 
     return {
       rulePath: resolvedRulePath,
-      results
+      results,
+      conclusion: typeof buildBatchConclusion === 'function'
+        ? buildBatchConclusion({ results, checklistPath })
+        : null
     };
   }
 

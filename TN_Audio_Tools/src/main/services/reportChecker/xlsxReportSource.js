@@ -1,6 +1,45 @@
 const XLSX = require('xlsx');
 
 function createXlsxReportSource() {
+  function normalizeReportBandwidth(value) {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (!normalized) {
+      return '';
+    }
+
+    if (['SB', 'SWB'].includes(normalized)) {
+      return 'SWB';
+    }
+
+    if (normalized.endsWith('SWB')) {
+      return 'SWB';
+    }
+
+    if (normalized.endsWith('WB')) {
+      return 'WB';
+    }
+
+    if (normalized.endsWith('NB')) {
+      return 'NB';
+    }
+
+    return normalized;
+  }
+
+  function resolveDominantValue(values, normalizer = (value) => stringifyCellValue(value)) {
+    const counts = new Map();
+
+    values
+      .map((value) => normalizer(value))
+      .filter(Boolean)
+      .forEach((value) => {
+        counts.set(value, (counts.get(value) || 0) + 1);
+      });
+
+    const rankedEntries = Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
+    return rankedEntries[0]?.[0] || '';
+  }
+
   function normalizeCellValue(value) {
     if (value === undefined || value === null) {
       return '';
@@ -235,6 +274,10 @@ function createXlsxReportSource() {
 
     return {
       reportFormat: 'xlsx',
+      reportContext: {
+        measurementObject: resolveDominantValue(detailedRows.map((row) => row['Measurement Object'])),
+        bandwidth: resolveDominantValue(detailedRows.map((row) => row.Bandwidth), normalizeReportBandwidth)
+      },
       rawText: lines.join('\n'),
       html: '',
       lines,
@@ -246,7 +289,12 @@ function createXlsxReportSource() {
         }
       ],
       tableRows: detailedRowContexts,
-      fallbackRows: valuesDerivedRows
+      fallbackRows: valuesDerivedRows,
+      structuredStats: {
+        detailedRowCount: detailedRows.length,
+        uniqueMeasurementObjectCount: new Set(detailedRows.map((row) => stringifyCellValue(row['Measurement Object'])).filter(Boolean)).size,
+        uniqueDescriptorCount: new Set(detailedRows.map((row) => joinNonEmpty([row.SMD, row.Name, row.ResultName])).filter(Boolean)).size
+      }
     };
   }
 

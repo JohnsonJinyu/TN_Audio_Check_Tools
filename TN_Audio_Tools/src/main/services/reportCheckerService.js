@@ -8,6 +8,11 @@ const { createReportExtractor } = require('./reportChecker/reportExtractor');
 const { createReportConverter } = require('./reportChecker/reportConverter');
 const { createXlsxReportSource } = require('./reportChecker/xlsxReportSource');
 const {
+  analyzeExcelReport,
+  analyzeWordReport,
+  buildBatchConclusion
+} = require('./reportChecker/reportConclusion');
+const {
   createSearchData,
   resolveRowBasedValue,
   resolveAnchorValue,
@@ -54,14 +59,17 @@ const { processSingleReport } = createReportExtractor({
   resolveRowBasedValue,
   resolveAnchorValue,
   resolveTableValue,
-  resolveRegexValue
+  resolveRegexValue,
+  analyzeExcelReport,
+  analyzeWordReport
 });
 
 const { processReports } = createReportRunner({
   supportedChecklistExtensions: SUPPORTED_CHECKLIST_EXTENSIONS,
   defaultRulesRelativePath: DEFAULT_RULES_RELATIVE_PATH,
   loadRules,
-  processSingleReport
+  processSingleReport,
+  buildBatchConclusion
 });
 
 module.exports = {

@@ -1,10 +1,14 @@
+const path = require('path');
+
 function createReportExtractor({
   parseReport,
   applyResultsToChecklist,
   resolveRowBasedValue,
   resolveAnchorValue,
   resolveTableValue,
-  resolveRegexValue
+  resolveRegexValue,
+  analyzeExcelReport,
+  analyzeWordReport
 }) {
   function normalizeBandwidth(value) {
     const normalized = String(value || '').trim().toUpperCase();
@@ -62,6 +66,29 @@ function createReportExtractor({
 
   async function processSingleReport({ reportPath, checklistPath, rules }) {
     const reportData = await parseReport(reportPath);
+    const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
+
+    if (reportKind === 'word') {
+      return {
+        reportPath,
+        reportKind,
+        reportFormat: reportData?.reportFormat || 'docx',
+        bundleKey: path.parse(reportPath).name,
+        reportContext: reportData?.reportContext || {},
+        outputPath: '',
+        totalItems: 0,
+        matchedItems: 0,
+        skippedItems: [],
+        unmatchedItems: [],
+        extractedItems: [],
+        audit: analyzeWordReport({ reportPath, reportData })
+      };
+    }
+
+    if (!checklistPath) {
+      throw new Error('Excel 报告处理需要 checklist 文件。');
+    }
+
     const textNormalizeConfig = rules.globalMatchConfig?.textNormalize || {};
     const globalMatchConfig = rules.globalMatchConfig || {};
 
@@ -126,12 +153,17 @@ function createReportExtractor({
 
     return {
       reportPath,
+      reportKind,
+      reportFormat: reportData?.reportFormat || 'xlsx',
+      bundleKey: path.parse(reportPath).name,
+      reportContext: reportData?.reportContext || {},
       outputPath,
       totalItems: extractedItems.length,
       matchedItems,
       skippedItems,
       unmatchedItems,
-      extractedItems
+      extractedItems,
+      audit: analyzeExcelReport({ reportPath, reportData, extractedItems })
     };
   }
 

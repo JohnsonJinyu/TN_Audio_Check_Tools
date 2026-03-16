@@ -67,15 +67,60 @@ function deriveBandwidthFromText(rawText) {
   return '';
 }
 
+function deriveTokenByCandidates(sourceText, candidates) {
+  const normalizedText = String(sourceText || '').toUpperCase();
+  if (!normalizedText) {
+    return '';
+  }
+
+  return candidates.find((candidate) => new RegExp(`(^|[_\\-\\s])${candidate}([_\\-\\s.]|$)`, 'i').test(normalizedText)) || '';
+}
+
+function deriveMeasurementObject(rawText) {
+  const normalizedText = String(rawText || '');
+  if (!normalizedText.trim()) {
+    return '';
+  }
+
+  const patterns = [
+    /Measurement Object\s*[:：-]?\s*([^\r\n]+)/i,
+    /Object\s*[:：-]?\s*([^\r\n]+)/i
+  ];
+
+  for (const pattern of patterns) {
+    const matched = normalizedText.match(pattern);
+    const candidate = matched?.[1]?.trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+function deriveReportMetadata(reportPath, rawText, reportData) {
+  const reportName = path.parse(reportPath || '').name;
+  const combinedSource = `${reportName} ${rawText || ''}`;
+  const reportContext = reportData?.reportContext || {};
+
+  return {
+    reportName,
+    measurementObject: String(reportContext.measurementObject || '').trim() || deriveMeasurementObject(rawText) || reportName,
+    bandwidth: normalizeReportBandwidth(reportContext.bandwidth) || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '',
+    codec: String(reportContext.codec || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['EVS', 'AMR']),
+    network: String(reportContext.network || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['VOLTE', 'VOWIFI', 'VONR', 'VOIP', 'WCDMA', 'GSM']),
+    terminalMode: String(reportContext.terminalMode || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['HA', 'HF', 'HS', 'HE', 'HH'])
+  };
+}
+
 function attachReportContext(reportData, reportPath, rawText = '') {
-  const existingBandwidth = normalizeReportBandwidth(reportData?.reportContext?.bandwidth);
-  const bandwidth = existingBandwidth || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '';
+  const metadata = deriveReportMetadata(reportPath, rawText, reportData);
 
   return {
     ...reportData,
     reportContext: {
       ...(reportData?.reportContext || {}),
-      bandwidth
+      ...metadata
     }
   };
 }
@@ -102,11 +147,17 @@ function createReportSource({
     const [rawTextResult, htmlResult, structuredData] = await Promise.all([
       mammoth.extractRawText({ path: reportPath }),
       mammoth.convertToHtml({ path: reportPath }),
-      parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [] }))
+      parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [], headers: [], footers: [] }))
     ]);
 
+    const searchData = createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData);
+
     return attachReportContext(
-      createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData),
+      {
+        ...searchData,
+        reportFormat: 'docx',
+        structuredData
+      },
       reportPath,
       rawTextResult.value || ''
     );
@@ -147,7 +198,16 @@ function createReportSource({
         throw new Error('.doc 报告转换超时或未读取到内容。请优先另存为 .docx 后重试，或关闭可能弹出的 Word/WPS 隐藏窗口。');
       }
 
-      return attachReportContext(createSearchData(rawText, ''), reportPath, rawText);
+      return attachReportContext({
+        ...createSearchData(rawText, ''),
+        reportFormat: 'doc',
+        structuredData: {
+          lines: [],
+          tables: [],
+          headers: extracted.getHeaders?.() ? [extracted.getHeaders()] : [],
+          footers: []
+        }
+      }, reportPath, rawText);
     }
 
     return parseDocxReport(reportPath);
