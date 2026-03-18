@@ -13,9 +13,8 @@ function normalizeText(value, textNormalizeConfig = {}) {
   let normalized = value.replace(/\r/g, ' ').replace(/\n/g, ' ');
 
   normalized = normalized
-    .replace(/\bhasb\b/gi, ' HABAND ')
-    .replace(/\bha(?:nb|wb|sb|swb)(max(?:-\d+)?|nom|min)\b/gi, ' HABAND $1 ')
-    .replace(/\bha(?:nb|wb|sb|swb)\b/gi, ' HABAND ')
+    .replace(/\bh(?:a|e|h)(?:nb|wb|sb|swb)(max(?:-\d+)?|nom|min)\b/gi, ' HABAND $1 ')
+    .replace(/\bh(?:a|e|h)(?:nb|wb|sb|swb)\b/gi, ' HABAND ')
     .replace(/\bbgn\b/gi, ' NOISE ')
     .replace(/\bbackground\s+noise\b/gi, ' NOISE ')
     .replace(/\bin\s+noise\b/gi, ' NOISE ')
@@ -1178,7 +1177,7 @@ function resolveAmbientNoiseMetricRowValue(reportData, item, textNormalizeConfig
       return false;
     }
 
-    const match = identifier.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:HASB|HA(?:NB|WB|SB|SWB))$/i);
+    const match = identifier.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:H(?:A|E|H)(?:NB|WB|SB|SWB))$/i);
     if (!match) {
       return false;
     }
@@ -1244,7 +1243,7 @@ function resolveAmbientNoiseMetricLineValue(reportData, item, textNormalizeConfi
       continue;
     }
 
-    const identifierMatch = line.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:HASB|HA(?:NB|WB|SB|SWB))(.*)$/i);
+    const identifierMatch = line.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:H(?:A|E|H)(?:NB|WB|SB|SWB))(.*)$/i);
     if (!identifierMatch) {
       continue;
     }

@@ -4,7 +4,7 @@ const fs = require('fs/promises');
 const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
-const { processReports, DEFAULT_RULES_RELATIVE_PATH } = require('./services/reportCheckerService');
+const { processReports, DEFAULT_RULES_RELATIVE_PATH, buildExportableRulesContent } = require('./services/reportCheckerService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
@@ -186,7 +186,8 @@ ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {
     ? filePath
     : `${filePath}${path.extname(defaultName) || '.json5'}`;
 
-  await fs.copyFile(sourcePath, outputPath);
+  const exportableContent = await buildExportableRulesContent(sourcePath);
+  await fs.writeFile(outputPath, exportableContent, 'utf8');
   return {
     canceled: false,
     filePath: outputPath

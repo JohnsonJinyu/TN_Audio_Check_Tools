@@ -125,6 +125,33 @@ function attachReportContext(reportData, reportPath, rawText = '') {
   };
 }
 
+function isSingleRulesConfig(rules) {
+  return Array.isArray(rules?.extractItemList);
+}
+
+function isRuleBundleConfig(rules) {
+  return rules && typeof rules === 'object' && rules.ruleProfiles && typeof rules.ruleProfiles === 'object';
+}
+
+function serializeRulesForExport(rules) {
+  if (isSingleRulesConfig(rules)) {
+    return rules;
+  }
+
+  if (isRuleBundleConfig(rules)) {
+    return {
+      ruleBaseInfo: rules.ruleBaseInfo || {},
+      defaultProfileKey: rules.defaultProfileKey || '',
+      ruleProfiles: Object.fromEntries(Object.entries(rules.ruleProfiles).map(([profileKey, profileRules]) => [
+        profileKey,
+        serializeRulesForExport(profileRules)
+      ]))
+    };
+  }
+
+  return rules;
+}
+
 function createReportSource({
   supportedReportExtensions,
   convertDocToTemporaryDocx,
@@ -132,15 +159,58 @@ function createReportSource({
   createSearchData,
   parseXlsxReport
 }) {
+  async function normalizeRulesConfig(rulePath, rules) {
+    if (isSingleRulesConfig(rules)) {
+      return rules;
+    }
+
+    if (!isRuleBundleConfig(rules)) {
+      throw new Error('规则文件缺少 extractItemList 配置');
+    }
+
+    const profileEntries = Object.entries(rules.ruleProfiles || {});
+    if (profileEntries.length === 0) {
+      throw new Error('规则文件缺少 ruleProfiles 配置');
+    }
+
+    const normalizedProfiles = {};
+    for (const [profileKey, profileConfig] of profileEntries) {
+      if (typeof profileConfig === 'string') {
+        normalizedProfiles[profileKey] = await loadRules(path.resolve(path.dirname(rulePath), profileConfig));
+        continue;
+      }
+
+      if (profileConfig && typeof profileConfig.rulePath === 'string') {
+        normalizedProfiles[profileKey] = await loadRules(path.resolve(path.dirname(rulePath), profileConfig.rulePath));
+        continue;
+      }
+
+      normalizedProfiles[profileKey] = await normalizeRulesConfig(rulePath, profileConfig);
+    }
+
+    return {
+      ruleBaseInfo: rules.ruleBaseInfo || {},
+      defaultProfileKey: String(rules.defaultProfileKey || profileEntries[0][0]).trim() || profileEntries[0][0],
+      ruleProfiles: normalizedProfiles
+    };
+  }
+
   async function loadRules(rulePath) {
     const content = await fs.readFile(rulePath, 'utf8');
     const rules = JSON5.parse(content);
 
-    if (!Array.isArray(rules.extractItemList)) {
-      throw new Error('规则文件缺少 extractItemList 配置');
+    return normalizeRulesConfig(rulePath, rules);
+  }
+
+  async function buildExportableRulesContent(rulePath) {
+    const content = await fs.readFile(rulePath, 'utf8');
+    const rules = JSON5.parse(content);
+
+    if (isSingleRulesConfig(rules)) {
+      return content;
     }
 
-    return rules;
+    return `${JSON.stringify(serializeRulesForExport(await normalizeRulesConfig(rulePath, rules)), null, 2)}\n`;
   }
 
   async function parseDocxReport(reportPath) {
@@ -215,6 +285,7 @@ function createReportSource({
 
   return {
     loadRules,
+    buildExportableRulesContent,
     parseReport
   };
 }

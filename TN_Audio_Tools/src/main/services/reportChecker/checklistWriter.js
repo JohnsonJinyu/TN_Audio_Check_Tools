@@ -185,11 +185,11 @@ function resolveChecklistSheetName(sheetNames, reportPath) {
     },
     {
       sheetName: 'Handsfree',
-      reportTokens: new Set(['hf', 'handsfree'])
+      reportTokens: new Set(['hf', 'he', 'handsfree'])
     },
     {
       sheetName: 'Headset',
-      reportTokens: new Set(['hs', 'headset'])
+      reportTokens: new Set(['hs', 'hh', 'headset'])
     }
   ].find((candidate) => {
     const hasSheet = sheetNames.some((sheetName) => normalizeSheetToken(sheetName) === normalizeSheetToken(candidate.sheetName));

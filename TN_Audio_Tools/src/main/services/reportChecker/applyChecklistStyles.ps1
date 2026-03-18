@@ -41,6 +41,18 @@ function Apply-RangeAlignment {
   $Range.VerticalAlignment = $VerticalAlignment
 }
 
+function Set-CellBorderEdge {
+  param(
+    $Cell,
+    [int]$Edge,
+    [int]$Weight
+  )
+
+  $border = $Cell.Borders.Item($Edge)
+  $border.LineStyle = $xlContinuous
+  $border.Weight = $Weight
+}
+
 function Apply-ChecklistStyles {
   param(
     $Worksheet,
@@ -50,17 +62,17 @@ function Apply-ChecklistStyles {
 
   $region = $Worksheet.Range('A3:K75')
 
-  # 先铺整块细线，再把外边框提升成粗线，这个顺序最接近手工在 Excel 里的操作。
-  $region.Borders.LineStyle = $xlContinuous
-  $region.Borders.Weight = $xlThin
-  $region.Borders.Item($xlInsideVertical).LineStyle = $xlContinuous
-  $region.Borders.Item($xlInsideVertical).Weight = $xlThin
-  $region.Borders.Item($xlInsideHorizontal).LineStyle = $xlContinuous
-  $region.Borders.Item($xlInsideHorizontal).Weight = $xlThin
+  # 在存在 merge 的模板里，直接对整块 Range 设边框会在局部产生异常粗线；
+  # 这里改为按物理单元格逐格设置四条边，保证外围粗、内部细稳定落地。
+  for ($rowNumber = 3; $rowNumber -le 75; $rowNumber++) {
+    for ($columnNumber = 1; $columnNumber -le 11; $columnNumber++) {
+      $cell = $Worksheet.Cells.Item($rowNumber, $columnNumber)
 
-  foreach ($edge in @($xlEdgeLeft, $xlEdgeTop, $xlEdgeBottom, $xlEdgeRight)) {
-    $region.Borders.Item($edge).LineStyle = $xlContinuous
-    $region.Borders.Item($edge).Weight = $xlThick
+      Set-CellBorderEdge -Cell $cell -Edge $xlEdgeLeft -Weight $(if ($columnNumber -eq 1) { $xlThick } else { $xlThin })
+      Set-CellBorderEdge -Cell $cell -Edge $xlEdgeRight -Weight $(if ($columnNumber -eq 11) { $xlThick } else { $xlThin })
+      Set-CellBorderEdge -Cell $cell -Edge $xlEdgeTop -Weight $(if ($rowNumber -eq 3) { $xlThick } else { $xlThin })
+      Set-CellBorderEdge -Cell $cell -Edge $xlEdgeBottom -Weight $(if ($rowNumber -eq 75) { $xlThick } else { $xlThin })
+    }
   }
 
   Apply-RangeAlignment -Range $region -HorizontalAlignment $xlHAlignCenter -VerticalAlignment $xlVAlignCenter

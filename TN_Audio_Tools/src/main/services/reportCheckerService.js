@@ -45,7 +45,7 @@ const { convertDocToTemporaryDocx } = createReportConverter({
 
 const { parseXlsxReport } = createXlsxReportSource();
 
-const { loadRules, parseReport } = createReportSource({
+const { loadRules, buildExportableRulesContent, parseReport } = createReportSource({
   supportedReportExtensions: SUPPORTED_REPORT_EXTENSIONS,
   convertDocToTemporaryDocx,
   wordExtractor,
@@ -74,5 +74,6 @@ const { processReports } = createReportRunner({
 
 module.exports = {
   processReports,
-  DEFAULT_RULES_RELATIVE_PATH
+  DEFAULT_RULES_RELATIVE_PATH,
+  buildExportableRulesContent
 };

@@ -10,6 +10,55 @@ function createReportExtractor({
   analyzeExcelReport,
   analyzeWordReport
 }) {
+  function resolveRuleProfileKey(reportData, checklistPath) {
+    const terminalMode = String(reportData?.reportContext?.terminalMode || '').trim().toUpperCase();
+    if (terminalMode === 'HA') {
+      return 'handset';
+    }
+
+    if (terminalMode === 'HE' || terminalMode === 'HF') {
+      return 'handsfree';
+    }
+
+    if (terminalMode === 'HH' || terminalMode === 'HS') {
+      return 'headset';
+    }
+
+    const checklistName = path.basename(checklistPath || '').toLowerCase();
+    if (checklistName.includes('handsfree')) {
+      return 'handsfree';
+    }
+
+    if (checklistName.includes('headset')) {
+      return 'headset';
+    }
+
+    return 'handset';
+  }
+
+  function resolveRulesForReport(rules, reportData, checklistPath) {
+    if (!rules?.ruleProfiles) {
+      return {
+        activeRules: rules,
+        profileKey: 'default'
+      };
+    }
+
+    const profileKey = resolveRuleProfileKey(reportData, checklistPath);
+    const activeRules = rules.ruleProfiles[profileKey]
+      || rules.ruleProfiles[rules.defaultProfileKey]
+      || Object.values(rules.ruleProfiles)[0];
+
+    if (!activeRules?.extractItemList) {
+      throw new Error(`未找到可用的规则 profile: ${profileKey}`);
+    }
+
+    return {
+      activeRules,
+      profileKey
+    };
+  }
+
   function normalizeBandwidth(value) {
     const normalized = String(value || '').trim().toUpperCase();
     if (!normalized) {
@@ -36,6 +85,27 @@ function createReportExtractor({
   }
 
   function isItemApplicable(reportData, item) {
+    const reportTerminalMode = String(reportData?.reportContext?.terminalMode || '').trim().toUpperCase();
+    const applicableTerminalModes = Array.isArray(item?.applicableTerminalModes)
+      ? item.applicableTerminalModes.map((mode) => String(mode || '').trim().toUpperCase()).filter(Boolean)
+      : [];
+    if (applicableTerminalModes.length > 0 && !applicableTerminalModes.includes(reportTerminalMode)) {
+      return {
+        applicable: false,
+        reason: `当前模式 ${reportTerminalMode || 'unknown'} 不要求测试该项`
+      };
+    }
+
+    const excludedTerminalModes = Array.isArray(item?.excludedTerminalModes)
+      ? item.excludedTerminalModes.map((mode) => String(mode || '').trim().toUpperCase()).filter(Boolean)
+      : [];
+    if (excludedTerminalModes.includes(reportTerminalMode)) {
+      return {
+        applicable: false,
+        reason: `当前模式 ${reportTerminalMode} 不要求测试该项`
+      };
+    }
+
     const reportBandwidth = normalizeBandwidth(reportData?.reportContext?.bandwidth);
     if (!reportBandwidth) {
       return { applicable: true };
@@ -67,6 +137,7 @@ function createReportExtractor({
   async function processSingleReport({ reportPath, checklistPath, rules }) {
     const reportData = await parseReport(reportPath);
     const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
+    const { activeRules, profileKey } = resolveRulesForReport(rules, reportData, checklistPath);
 
     if (reportKind === 'word') {
       return {
@@ -75,6 +146,7 @@ function createReportExtractor({
         reportFormat: reportData?.reportFormat || 'docx',
         bundleKey: path.parse(reportPath).name,
         reportContext: reportData?.reportContext || {},
+        ruleProfileKey: profileKey,
         outputPath: '',
         totalItems: 0,
         matchedItems: 0,
@@ -89,11 +161,11 @@ function createReportExtractor({
       throw new Error('Excel 报告处理需要 checklist 文件。');
     }
 
-    const textNormalizeConfig = rules.globalMatchConfig?.textNormalize || {};
-    const globalMatchConfig = rules.globalMatchConfig || {};
+    const textNormalizeConfig = activeRules.globalMatchConfig?.textNormalize || {};
+    const globalMatchConfig = activeRules.globalMatchConfig || {};
 
     const extractedResultsByItemId = new Map();
-    const extractedItems = rules.extractItemList.map((item) => {
+    const extractedItems = activeRules.extractItemList.map((item) => {
       const applicability = isItemApplicable(reportData, item);
       if (!applicability.applicable) {
         const skippedResult = {
@@ -157,6 +229,7 @@ function createReportExtractor({
       reportFormat: reportData?.reportFormat || 'xlsx',
       bundleKey: path.parse(reportPath).name,
       reportContext: reportData?.reportContext || {},
+      ruleProfileKey: profileKey,
       outputPath,
       totalItems: extractedItems.length,
       matchedItems,
