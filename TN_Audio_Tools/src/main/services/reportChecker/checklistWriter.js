@@ -3,48 +3,40 @@ const ExcelJS = require('exceljs');
 const XLSX = require('xlsx');
 const { styleChecklistWithCom } = require('./excelComStyler');
 const { resolveOutputCell, usesPercentNumberFormat } = require('./checklistLayout');
+const { resolveChecklistStyleProfile } = require('./checklistStyleProfiles');
 
-const CHECKLIST_BORDER_RANGE = {
-  startCol: 'A',
-  endCol: 'K',
-  startRow: 3,
-  endRow: 75
-};
-const CHECKLIST_LEFT_ALIGN_ROWS = new Set([5, 66, 71]);
-const CHECKLIST_DEFAULT_ALIGNMENT = {
-  horizontal: 'center',
-  vertical: 'middle'
-};
-const CHECKLIST_LEFT_ROW_ALIGNMENT = {
-  horizontal: 'left',
-  vertical: 'middle'
-};
-
-async function applyResultsToChecklist(checklistPath, reportPath, extractedItems) {
-  const { outputPath, sheetName, decimalCells, percentCells } = writeChecklistDataToOutput(
+async function applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportContext = {}) {
+  const { outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile } = writeChecklistDataToOutput(
     checklistPath,
     reportPath,
-    extractedItems
+    extractedItems,
+    reportContext
   );
 
-  await applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells);
+  await applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile);
   return outputPath;
 }
 
 // 先用 xlsx 写出一份标准化的新工作簿，避免直接读取模板时被 shared formula 卡住。
-function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems) {
+function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems, reportContext = {}) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath);
   const worksheet = workbook.Sheets[sheetName];
+  const styleProfile = resolveChecklistStyleProfile({ reportContext, sheetName });
   const decimalCells = [];
   const percentCells = [];
+  const skippedCells = [];
 
   for (const itemResult of extractedItems) {
+    const resolvedOutputCell = resolveOutputCell(worksheet, itemResult);
+    if (itemResult?.skipped && resolvedOutputCell) {
+      skippedCells.push(resolvedOutputCell);
+    }
+
     if (!shouldWriteItem(itemResult)) {
       continue;
     }
 
-    const resolvedOutputCell = resolveOutputCell(worksheet, itemResult);
     if (!resolvedOutputCell) {
       continue;
     }
@@ -67,24 +59,55 @@ function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems) {
     buildOutputFileName(path.parse(reportPath).name)
   );
 
+  stripWorksheetFormulas(workbook);
   XLSX.writeFile(workbook, outputPath, { bookType: 'xlsx' });
 
   return {
     outputPath,
     sheetName,
     decimalCells,
-    percentCells
+    percentCells,
+    skippedCells: [...new Set(skippedCells)],
+    styleProfile
   };
 }
 
+function stripWorksheetFormulas(workbook) {
+  for (const sheetName of getWorkbookSheetNames(workbook)) {
+    const worksheet = workbook.Sheets?.[sheetName];
+    if (!worksheet) {
+      continue;
+    }
+
+    for (const [cellAddress, cell] of Object.entries(worksheet)) {
+      if (cellAddress.startsWith('!') || !cell || typeof cell !== 'object') {
+        continue;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(cell, 'f')) {
+        delete cell.f;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(cell, 'F')) {
+        delete cell.F;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(cell, 'D')) {
+        delete cell.D;
+      }
+    }
+  }
+}
+
 // 样式统一在第二阶段完成，边框、对齐和数字格式都由 ExcelJS 在内存里处理。
-async function applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells) {
+async function applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile) {
   try {
     const styleEngine = await styleChecklistWithCom({
       outputPath,
       sheetName,
       decimalCells,
-      percentCells
+      percentCells,
+      skippedCells
     });
     console.log(`[reportChecker] checklist styles applied via ${styleEngine}`);
     return;
@@ -98,9 +121,7 @@ async function applyChecklistStylesToOutput(outputPath, sheetName, decimalCells,
 
   const worksheet = workbook.getWorksheet(sheetName);
 
-  // 如果目标是整个 A3:K75 都形成完整网格，就不能把区域内 merge 恢复回来。
-  unmergeCellsInRange(worksheet, CHECKLIST_BORDER_RANGE);
-  applyChecklistRegionStyles(worksheet, CHECKLIST_BORDER_RANGE);
+  applySkippedCellStyles(worksheet, skippedCells, styleProfile);
   applyNumericFormats(worksheet, decimalCells, '0.00');
   applyNumericFormats(worksheet, percentCells, '0.00%');
 
@@ -111,35 +132,18 @@ function shouldWriteItem(itemResult) {
   return Boolean(itemResult?.matched) && itemResult.value !== undefined && itemResult.value !== null && itemResult.value !== '';
 }
 
-function unmergeCellsInRange(worksheet, rangeConfig) {
-  const mergeRefs = [...(worksheet.model?.merges || [])];
+function applySkippedCellStyles(worksheet, cellAddresses, styleProfile) {
+  if (!styleProfile?.skippedFill) {
+    return;
+  }
 
-  for (const mergeRef of mergeRefs) {
-    const mergeBounds = parseRangeRef(mergeRef);
-    if (!mergeBounds || !doesRangeIntersect(mergeBounds, rangeConfig)) {
+  for (const cellAddress of new Set(cellAddresses || [])) {
+    if (!/^I\d+$/i.test(cellAddress)) {
       continue;
     }
 
-    worksheet.unMergeCells(mergeRef);
-  }
-}
-
-function applyChecklistRegionStyles(worksheet, rangeConfig) {
-  const startColumnNumber = columnLabelToNumber(rangeConfig.startCol);
-  const endColumnNumber = columnLabelToNumber(rangeConfig.endCol);
-
-  for (let rowNumber = rangeConfig.startRow; rowNumber <= rangeConfig.endRow; rowNumber += 1) {
-    for (let columnNumber = startColumnNumber; columnNumber <= endColumnNumber; columnNumber += 1) {
-      const cellAddress = `${columnNumberToLabel(columnNumber)}${rowNumber}`;
-      const cell = worksheet.getCell(cellAddress);
-
-      // 这里按物理单元格逐格设置边框，才能保证整个 A3:K75 都满足“外围粗、内部细”。
-      cell.alignment = {
-        ...(cell.alignment || {}),
-        ...resolveChecklistAlignment(rowNumber)
-      };
-      cell.border = buildCellBorderSpec(rowNumber, columnNumber, rangeConfig, startColumnNumber, endColumnNumber);
-    }
+    const cell = worksheet.getCell(cellAddress);
+    cell.fill = styleProfile.skippedFill;
   }
 }
 
@@ -148,30 +152,6 @@ function applyNumericFormats(worksheet, cellAddresses, numFmt) {
     const cell = worksheet.getCell(cellAddress);
     cell.numFmt = numFmt;
   }
-}
-
-function buildCellBorderSpec(rowNumber, columnNumber, rangeConfig, startColumnNumber, endColumnNumber) {
-  return {
-    left: buildBorderEdge(columnNumber === startColumnNumber ? 'thick' : 'thin'),
-    right: buildBorderEdge(columnNumber === endColumnNumber ? 'thick' : 'thin'),
-    top: buildBorderEdge(rowNumber === rangeConfig.startRow ? 'thick' : 'thin'),
-    bottom: buildBorderEdge(rowNumber === rangeConfig.endRow ? 'thick' : 'thin')
-  };
-}
-
-function buildBorderEdge(style) {
-  return {
-    style,
-    color: { argb: 'FF000000' }
-  };
-}
-
-function resolveChecklistAlignment(rowNumber) {
-  if (CHECKLIST_LEFT_ALIGN_ROWS.has(rowNumber)) {
-    return CHECKLIST_LEFT_ROW_ALIGNMENT;
-  }
-
-  return CHECKLIST_DEFAULT_ALIGNMENT;
 }
 
 function resolveChecklistSheetName(sheetNames, reportPath) {
@@ -241,74 +221,6 @@ function normalizeSheetToken(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
-}
-
-function parseRangeRef(rangeRef) {
-  const [startRef, endRef] = String(rangeRef || '').split(':');
-  if (!startRef || !endRef) {
-    return null;
-  }
-
-  const startCell = parseCellRef(startRef);
-  const endCell = parseCellRef(endRef);
-  if (!startCell || !endCell) {
-    return null;
-  }
-
-  return {
-    startCol: startCell.col,
-    endCol: endCell.col,
-    startRow: startCell.row,
-    endRow: endCell.row
-  };
-}
-
-function parseCellRef(cellRef) {
-  const match = /^([A-Z]+)(\d+)$/i.exec(String(cellRef || '').trim());
-  if (!match) {
-    return null;
-  }
-
-  return {
-    col: columnLabelToNumber(match[1]),
-    row: Number.parseInt(match[2], 10)
-  };
-}
-
-function doesRangeIntersect(mergeBounds, rangeConfig) {
-  const rangeStartCol = columnLabelToNumber(rangeConfig.startCol);
-  const rangeEndCol = columnLabelToNumber(rangeConfig.endCol);
-
-  return !(
-    mergeBounds.endCol < rangeStartCol ||
-    mergeBounds.startCol > rangeEndCol ||
-    mergeBounds.endRow < rangeConfig.startRow ||
-    mergeBounds.startRow > rangeConfig.endRow
-  );
-}
-
-function columnLabelToNumber(columnLabel) {
-  let result = 0;
-  const normalized = String(columnLabel || '').toUpperCase();
-
-  for (const char of normalized) {
-    result = result * 26 + (char.charCodeAt(0) - 64);
-  }
-
-  return result;
-}
-
-function columnNumberToLabel(columnNumber) {
-  let current = columnNumber;
-  let label = '';
-
-  while (current > 0) {
-    const remainder = (current - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    current = Math.floor((current - 1) / 26);
-  }
-
-  return label;
 }
 
 function writeLegacyChecklistCell(worksheet, cellAddress, rawValue) {

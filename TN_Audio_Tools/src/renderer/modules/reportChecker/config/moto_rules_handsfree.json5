@@ -353,6 +353,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Stability", "loss", "check", "HASB"],
       "fallbackKeywords": ["Stability", "loss", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -456,6 +457,7 @@
       "outputCell": "I40",
       "extractType": "summary_table_match",
       "coreKeywords": ["Delay", "Check", "DUT", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -562,7 +564,7 @@
       "outputCell": "I47",
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "S-MOS", "Speech", "HASB"],
-      "exactRowKeywords": ["Average", "Speech"],
+      "exactRowKeywords": ["S-MOS", "Average", "Speech"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -573,7 +575,7 @@
       "outputCell": "I48",
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "N-MOS", "Noise", "HASB"],
-      "exactRowKeywords": ["Average", "Noise"],
+      "exactRowKeywords": ["N-MOS", "Average", "Noise"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },

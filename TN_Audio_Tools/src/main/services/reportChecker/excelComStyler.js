@@ -64,7 +64,7 @@ function runProcess(command, args, options = {}) {
   });
 }
 
-async function styleChecklistWithCom({ outputPath, sheetName, decimalCells, percentCells }) {
+async function styleChecklistWithCom({ outputPath, sheetName, decimalCells, percentCells, skippedCells }) {
   const scriptPath = path.join(__dirname, 'applyChecklistStyles.ps1');
   const { stdout } = await runProcess(
     'powershell',
@@ -82,7 +82,9 @@ async function styleChecklistWithCom({ outputPath, sheetName, decimalCells, perc
       '-DecimalCells',
       (decimalCells || []).join(','),
       '-PercentCells',
-      (percentCells || []).join(',')
+      (percentCells || []).join(','),
+      '-SkippedCells',
+      (skippedCells || []).join(',')
     ],
     { timeoutMs: COM_STYLE_TIMEOUT_MS }
   );

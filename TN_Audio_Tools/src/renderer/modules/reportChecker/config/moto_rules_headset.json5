@@ -303,6 +303,7 @@
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
       "exactRowKeywords": ["STMR"],
+      "excludedTerminalModes": ["HH"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX", "VOL"]
     },
@@ -315,6 +316,7 @@
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
       "exactRowKeywords": ["STMR"],
+      "excludedTerminalModes": ["HH"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM", "VOL"]
     },
@@ -327,6 +329,7 @@
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
       "exactRowKeywords": ["STMR"],
+      "excludedTerminalModes": ["HH"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN", "VOL"]
     },
@@ -336,8 +339,9 @@
       "checklistDesc": "Sidetone characteristics - Delay",
       "outputCell": "I29",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sidetone", "delay", "NOM", "HASB"],
-      "exactRowKeywords": ["Sidetone", "Delay (Cross)"],
+      "coreKeywords": ["Delay", "RCV", "Loudspeaker", "DUT", "HHSB"],
+      "fallbackKeywords": ["Delay", "Cross", "HHSB"],
+      "exactRowKeywords": ["Delay (Cross)"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },

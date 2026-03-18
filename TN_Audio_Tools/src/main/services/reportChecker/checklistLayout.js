@@ -37,17 +37,71 @@ function isCompact3gppHandsetLayout(worksheet) {
     && row45Variant === 'average';
 }
 
+function isHandsfreeChecklistLayout(worksheet) {
+  const row28Section = normalizeCellText(getWorksheetCellValue(worksheet, 'A28'));
+  const row28Metric = normalizeCellText(getWorksheetCellValue(worksheet, 'C28'));
+  const row34Section = normalizeCellText(getWorksheetCellValue(worksheet, 'A34'));
+  const row53Section = normalizeCellText(getWorksheetCellValue(worksheet, 'A53'));
+
+  return row28Section === 'echo control characteristics'
+    && row28Metric === 'short dt class'
+    && row34Section === 'quality in the presence of ambient noise'
+    && row53Section === 'polqa mos';
+}
+
+function resolveHandsfreeOutputCell(itemId, configuredCell) {
+  const explicitMap = {
+    26: 'I19',
+    27: 'I20',
+    28: 'I21',
+    29: 'I22',
+    30: 'I23',
+    31: 'I24',
+    32: 'I25',
+    33: 'I26',
+    34: 'I27',
+    36: 'I28',
+    37: 'I29',
+    38: 'I30',
+    39: 'I31',
+    40: 'I32',
+    41: 'I33',
+    42: 'I34',
+    43: 'I35',
+    44: 'I36',
+    45: 'I37',
+    46: 'I38',
+    47: 'I39',
+    48: 'I40',
+    49: 'I41',
+    50: 'I42',
+    51: 'I43',
+    52: 'I44',
+    65: 'I54',
+    66: 'I55',
+    67: 'I56',
+    68: 'I57'
+  };
+
+  return explicitMap[itemId] || configuredCell;
+}
+
 function resolveOutputCell(worksheet, itemResult) {
   const configuredCell = String(itemResult?.outputCell || '').trim();
   if (!configuredCell || !worksheet) {
     return configuredCell || null;
   }
 
+  const itemId = Number(itemResult?.itemId);
+
+  if (isHandsfreeChecklistLayout(worksheet)) {
+    return resolveHandsfreeOutputCell(itemId, configuredCell);
+  }
+
   if (!isCompact3gppHandsetLayout(worksheet)) {
     return configuredCell;
   }
 
-  const itemId = Number(itemResult?.itemId);
   if (itemId === 36 || itemId === 39) {
     return null;
   }
@@ -86,5 +140,6 @@ function usesPercentNumberFormat(worksheet, cellAddress) {
 module.exports = {
   resolveOutputCell,
   usesPercentNumberFormat,
-  isCompact3gppHandsetLayout
+  isCompact3gppHandsetLayout,
+  isHandsfreeChecklistLayout
 };

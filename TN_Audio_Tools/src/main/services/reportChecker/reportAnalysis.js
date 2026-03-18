@@ -192,7 +192,7 @@ function extractStatus(text) {
 
 function isMeasurementObjectCell(text) {
   const normalized = String(text || '').trim();
-  return /^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+)+$/.test(normalized);
+  return /^[A-Za-z0-9#]+(?:_[A-Za-z0-9#+-]+)+$/.test(normalized);
 }
 
 function extractNumberTokens(text) {
@@ -415,11 +415,11 @@ function isLikelyReportMetadataCell(text) {
 
   const collapsed = normalized.replace(/\s+/g, '');
 
-  if (/^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+){2,}$/.test(normalized)) {
+  if (/^[A-Za-z0-9#]+(?:_[A-Za-z0-9#+-]+){2,}$/.test(normalized)) {
     return true;
   }
 
-  if (/^[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+){2,}$/.test(collapsed)) {
+  if (/^[A-Za-z0-9#]+(?:_[A-Za-z0-9#+-]+){2,}$/.test(collapsed)) {
     return true;
   }
 
@@ -429,8 +429,8 @@ function isLikelyReportMetadataCell(text) {
 function getLastMeaningfulNumericToken(text) {
   const cleanedText = String(text || '')
     .replace(/^\d+(?:\.\d+)+(?:[a-z])?\s+/i, '')
-    .replace(/[A-Za-z0-9]+(?:_[A-Za-z0-9+-]+)+$/g, '')
-    .replace(/[A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)*(?:_[A-Za-z0-9+-]+)+$/g, '')
+    .replace(/[A-Za-z0-9#]+(?:_[A-Za-z0-9#+-]+)+$/g, '')
+    .replace(/[A-Za-z0-9#]+(?:\s+[A-Za-z0-9#]+)*(?:_[A-Za-z0-9#+-]+)+$/g, '')
     .trim();
 
   const normalizedNumericText = cleanedText
@@ -635,12 +635,20 @@ function extractSummaryValue(rowContext, textNormalizeConfig) {
     return fallbackValue;
   }
 
-  const status = extractStatus(directCell || rowContext.text);
-  if (status) {
-    return status;
-  }
+  return null;
+}
 
-  return directCell || rowContext.cells[rowContext.cells.length - 1] || null;
+function selectFallbackOnlyRow(reportData, item, textNormalizeConfig, globalMatchConfig) {
+  return selectCandidateRow(
+    {
+      ...reportData,
+      tableRows: getFallbackRows(reportData),
+      fallbackRows: []
+    },
+    item,
+    textNormalizeConfig,
+    globalMatchConfig
+  );
 }
 
 function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId) {
@@ -1303,6 +1311,81 @@ function resolveAmbientNoiseMetricLineValue(reportData, item, textNormalizeConfi
   return null;
 }
 
+function isAmbientNoiseItem(item, textNormalizeConfig) {
+  const normalizedChecklistDesc = normalizeText(item?.checklistDesc || '', textNormalizeConfig);
+  return normalizedChecklistDesc.includes('ambient noise');
+}
+
+function hasAmbientNoiseEvidence(reportData) {
+  if (Array.isArray(reportData?.ambientNoiseBlocks) && reportData.ambientNoiseBlocks.length > 0) {
+    return true;
+  }
+
+  const evidencePattern = /quality\s+in\s+(?:the\s+presence\s+of\s+)?ambient\s+noise|(?:^|\b)[SNG]-MOS\b|^[SNG]_MOS_[A-Za-z0-9]+_/i;
+  return getRowsForMatching(reportData, true).some((rowContext) => evidencePattern.test(String(rowContext?.text || '').trim()));
+}
+
+function getAmbientNoiseMissingReason(reportData) {
+  return hasAmbientNoiseEvidence(reportData)
+    ? '未找到匹配表格或目标单元格'
+    : '报告源中未发现 ambient noise 场景事实';
+}
+
+function rowContextMatchesItem(reportData, item, rowContext, textNormalizeConfig, globalMatchConfig) {
+  if (!rowContext || !itemMatchesKeywords(reportData, item, rowContext.text, textNormalizeConfig, rowContext.sourceKind !== 'html-table')) {
+    return false;
+  }
+
+  const descriptorText = getRowDescriptorText(rowContext);
+  const forbiddenSuffixes = pickForbiddenSuffixes(item, globalMatchConfig || {});
+
+  if (!hasRequiredSuffixes(descriptorText, item.requiredSuffix, textNormalizeConfig)) {
+    return false;
+  }
+
+  if (hasForbiddenSuffix(descriptorText, forbiddenSuffixes, textNormalizeConfig)) {
+    return false;
+  }
+
+  if (!hasExactRowKeywords(rowContext.text, item.exactRowKeywords, textNormalizeConfig)) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasSourceEvidenceForItem(reportData, item, textNormalizeConfig, globalMatchConfig) {
+  return getRowsForMatching(reportData, true).some((rowContext) => rowContextMatchesItem(reportData, item, rowContext, textNormalizeConfig, globalMatchConfig));
+}
+
+function getMissingRowReason(reportData, item, textNormalizeConfig, globalMatchConfig) {
+  if (isAmbientNoiseItem(item, textNormalizeConfig)) {
+    return getAmbientNoiseMissingReason(reportData);
+  }
+
+  return hasSourceEvidenceForItem(reportData, item, textNormalizeConfig, globalMatchConfig)
+    ? '未找到匹配的表格行'
+    : '报告源中未发现对应测试事实';
+}
+
+function getMissingSummaryValueReason(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig) {
+  if (isAmbientNoiseItem(item, textNormalizeConfig)) {
+    return getAmbientNoiseMissingReason(reportData);
+  }
+
+  return hasSourceEvidenceForItem(reportData, item, textNormalizeConfig, globalMatchConfig)
+    ? '匹配到 summary 行，但报告源未提供可提取数值'
+    : '报告源中未发现对应测试事实';
+}
+
+function getMissingStatusReason(rowContext) {
+  if (/\bdone\b/i.test(String(rowContext?.text || ''))) {
+    return '匹配到行，但源行只有 Done，无 OK/Not OK 判定';
+  }
+
+  return '匹配到行但未找到状态值';
+}
+
 function resolveTableValue(reportData, item, textNormalizeConfig) {
   const tableConfig = item.tableConfig;
   if (!tableConfig) {
@@ -1387,7 +1470,12 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
     };
   }
 
-  return { matched: false, reason: '未找到匹配表格或目标单元格' };
+  return {
+    matched: false,
+    reason: isAmbientNoiseItem(item, textNormalizeConfig)
+      ? getAmbientNoiseMissingReason(reportData)
+      : '未找到匹配表格或目标单元格'
+  };
 }
 
 function selectCandidateRow(reportData, item, textNormalizeConfig, globalMatchConfig) {
@@ -1475,28 +1563,47 @@ function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatch
   }
 
   if (!rowContext) {
-    return { matched: false, reason: '未找到匹配的表格行' };
+    return {
+      matched: false,
+      reason: getMissingRowReason(reportData, item, textNormalizeConfig, globalMatchConfig)
+    };
   }
 
   if (item.extractType === 'summary_table_match') {
-    const value = extractSummaryValue(rowContext, textNormalizeConfig);
+    let value = extractSummaryValue(rowContext, textNormalizeConfig);
+    if (!value) {
+      const fallbackRowContext = selectFallbackOnlyRow(reportData, item, textNormalizeConfig, globalMatchConfig);
+      if (fallbackRowContext) {
+        rowContext = fallbackRowContext;
+        value = extractSummaryValue(rowContext, textNormalizeConfig);
+      }
+    }
+
     return value
       ? { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row' }
-      : { matched: false, reason: '匹配到行但未提取到值' };
+      : { matched: false, reason: getMissingSummaryValueReason(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig) };
   }
 
   if (item.extractType === 'formula_calc') {
-    const value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
+    let value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
+    if (!value) {
+      const fallbackRowContext = selectFallbackOnlyRow(reportData, item, textNormalizeConfig, globalMatchConfig);
+      if (fallbackRowContext) {
+        rowContext = fallbackRowContext;
+        value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
+      }
+    }
+
     return value
       ? { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row-formula' }
-      : { matched: false, reason: '匹配到行但公式计算失败' };
+      : { matched: false, reason: getMissingSummaryValueReason(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig) };
   }
 
   if (item.extractType === 'status_judge') {
     const value = extractStatus(rowContext.text);
     return value
       ? { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row-status' }
-      : { matched: false, reason: '匹配到行但未找到状态值' };
+      : { matched: false, reason: getMissingStatusReason(rowContext) };
   }
 
   return { matched: false, reason: '未知的行匹配提取类型' };

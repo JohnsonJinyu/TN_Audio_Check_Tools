@@ -208,7 +208,7 @@ function createReportExtractor({
       return itemResult;
     });
 
-    const outputPath = await applyResultsToChecklist(checklistPath, reportPath, extractedItems);
+    const outputPath = await applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportData?.reportContext || {});
     const matchedItems = extractedItems.filter((item) => item.matched).length;
     const skippedItems = extractedItems.filter((item) => item.skipped).map((item) => ({
       itemId: item.itemId,

@@ -54,7 +54,12 @@
 
 - 负责把提取结果写回 checklist。
 - 第一阶段使用 `xlsx` 落盘，避免直接处理模板时被 shared formula 卡住。
-- 第二阶段统一处理样式。
+- 第二阶段只补充 I 列数值格式和 skip 单元格灰填充，其他边框和填充保持模板原样。
+
+### `checklistStyleProfiles.js`
+
+- 负责管理 Handset / Handsfree / Headset 三类 checklist 的样式 profile。
+- 当前只保留模式识别和 skip 灰填充配置。
 
 ### `excelComStyler.js`
 
@@ -64,8 +69,8 @@
 ### `applyChecklistStyles.ps1`
 
 - 负责 Excel/WPS COM 样式落地。
-- 当前规则是：`A3:K75` 外围粗线，内部细线。
-- 同时处理对齐和 I 列数值格式。
+- 当前只处理 I 列数值格式和 skip 项的灰色填充。
+- 不再主动重写模板的边框、对齐和整行底色。
 
 ## 当前调用关系
 
@@ -77,7 +82,8 @@
 4. `reportExtractor.js` 按规则驱动 `reportAnalysis.js` 提取值。
 5. `checklistWriter.js` 把结果写入 checklist。
 6. `excelComStyler.js` 调起 `applyChecklistStyles.ps1` 做样式处理。
-7. 若 COM 不可用，`checklistWriter.js` 回退到 `ExcelJS` 样式方案。
+7. `checklistStyleProfiles.js` 为 `checklistWriter.js` 和 COM 样式脚本提供统一的样式 profile。
+8. 若 COM 不可用，`checklistWriter.js` 回退到 `ExcelJS` 样式方案。
 
 ## 样式处理策略
 
@@ -90,7 +96,7 @@
    - `et.Application`
 3. 若 COM 不可用，再回退到 `ExcelJS`。
 
-这么做的原因是：合并单元格、边框和模板样式恢复这类行为，用 COM 更接近人工在 Excel 或 WPS 里直接操作的结果。
+这么做的原因是：数值格式和 skip 标记仍适合通过 COM 精准补充，但模板边框和底色更应该保留原始 checklist 的既有样式，避免不同 mode 下被二次改坏。
 
 ## 后续维护建议
 
