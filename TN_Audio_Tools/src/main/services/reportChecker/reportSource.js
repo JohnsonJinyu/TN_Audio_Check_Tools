@@ -330,7 +330,7 @@ function createReportSource({
       ].filter(Boolean).join('\n');
 
       if (!rawText.trim()) {
-        throw new Error('.doc 报告转换超时或未读取到内容。请优先另存为 .docx 后重试，或关闭可能弹出的 Word/WPS 隐藏窗口。');
+        throw new Error('.doc 报告未读取到有效文本内容。请优先另存为 .docx 后重试。');
       }
 
       return attachReportContext({

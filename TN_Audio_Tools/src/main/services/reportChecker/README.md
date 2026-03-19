@@ -35,7 +35,7 @@
 ### `reportConverter.js`
 
 - 负责 `.doc` 到临时 `.docx` 的转换链路。
-- 优先尝试 Word COM，其次 WPS COM，最后 LibreOffice。
+- 使用 `word-extractor` 提取文本并通过 `jszip` 生成标准 `.docx` 包。
 - 只返回转换结果，不参与内容解析。
 
 ### `reportAnalysis.js`

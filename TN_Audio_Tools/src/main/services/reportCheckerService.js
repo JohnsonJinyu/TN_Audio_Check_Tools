@@ -33,15 +33,9 @@ const DEFAULT_RULES_RELATIVE_PATH = path.join(
   'moto_rules_for_analysis.json5'
 );
 const wordExtractor = new WordExtractor();
-const LIBRE_OFFICE_CANDIDATE_PATHS = [
-  'C:/Program Files/LibreOffice/program/soffice.exe',
-  'C:/Program Files (x86)/LibreOffice/program/soffice.exe'
-];
-const CHILD_PROCESS_TIMEOUT_MS = 90000;
 
 const { convertDocToTemporaryDocx } = createReportConverter({
-  childProcessTimeoutMs: CHILD_PROCESS_TIMEOUT_MS,
-  libreOfficeCandidatePaths: LIBRE_OFFICE_CANDIDATE_PATHS
+  wordExtractor
 });
 
 const { parseXlsxReport } = createXlsxReportSource();
