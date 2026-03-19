@@ -7,6 +7,7 @@ const { createReportSource } = require('./reportChecker/reportSource');
 const { createReportExtractor } = require('./reportChecker/reportExtractor');
 const { createReportConverter } = require('./reportChecker/reportConverter');
 const { createXlsxReportSource } = require('./reportChecker/xlsxReportSource');
+const { parseChecklistReportOptions } = require('./reportChecker/checklistReportPanel');
 const {
   analyzeExcelReport,
   analyzeWordReport,
@@ -75,5 +76,6 @@ const { processReports } = createReportRunner({
 module.exports = {
   processReports,
   DEFAULT_RULES_RELATIVE_PATH,
-  buildExportableRulesContent
+  buildExportableRulesContent,
+  parseChecklistReportOptions
 };

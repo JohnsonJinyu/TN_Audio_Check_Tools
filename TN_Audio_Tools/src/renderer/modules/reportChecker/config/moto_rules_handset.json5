@@ -280,6 +280,7 @@
       "exactRowKeywords": ["1/3oct"],
       "forbiddenSuffix": [],
       "applicableBandwidths": ["SWB"],
+      "applicableVocoders": ["EVS_SWB"],
       "requiredSuffix": ["NOM"]
     },
     // 20. 接收端灵敏度频响MIN音量
@@ -401,6 +402,7 @@
       "exactRowKeywords": ["Distortion", "-4.7", "dBPa"],
       "forbiddenSuffix": [],
       "applicableBandwidths": ["SWB", "WB"],
+      "excludedVocoders": ["AMR_NB", "EVS_NB"],
       "requiredSuffix": []
     },
     // 31. 接收失真1020Hz MAX音量

@@ -4,7 +4,12 @@ const fs = require('fs/promises');
 const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
-const { processReports, DEFAULT_RULES_RELATIVE_PATH, buildExportableRulesContent } = require('./services/reportCheckerService');
+const {
+  processReports,
+  DEFAULT_RULES_RELATIVE_PATH,
+  buildExportableRulesContent,
+  parseChecklistReportOptions
+} = require('./services/reportCheckerService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
@@ -162,6 +167,10 @@ ipcMain.handle('report-checker:show-output-in-folder', async (_, filePath) => {
 
   await shell.showItemInFolder(filePath);
   return true;
+});
+
+ipcMain.handle('report-checker:get-checklist-report-options', async (_, checklistPath) => {
+  return parseChecklistReportOptions(checklistPath);
 });
 
 ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {

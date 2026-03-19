@@ -47,7 +47,7 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
 
 function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
-  const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath);
+  const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
   const styleProfile = resolveChecklistStyleProfile({ reportContext, sheetName });
   const decimalCells = [];
@@ -109,7 +109,7 @@ async function copyChecklistTemplate(checklistPath, outputPath) {
 // 兜底链路仍保留 xlsx 重写，避免 COM 不可用时整个流程不可用。
 function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems, reportContext = {}, outputPathOverride = '') {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
-  const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath);
+  const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
   const styleProfile = resolveChecklistStyleProfile({ reportContext, sheetName });
   const decimalCells = [];
@@ -170,14 +170,26 @@ function resolveReportSheetUpdates(workbook, reportContext = {}) {
   }
 
   const updates = [];
-  const networkValue = normalizeReportNetworkValue(reportContext.network);
+  const selectedPanelValues = reportContext?.reportPanelSelections || {};
+
+  const headsetInterfaceValue = normalizeReportFieldValue(selectedPanelValues.B13 || reportContext.headsetInterface);
+  if (headsetInterfaceValue && reportSheet.B13) {
+    updates.push({ sheetName: 'Report', cellAddress: 'B13', value: headsetInterfaceValue });
+  }
+
+  const networkValue = normalizeReportNetworkValue(selectedPanelValues.B15 || reportContext.network);
   if (networkValue && reportSheet.B15) {
     updates.push({ sheetName: 'Report', cellAddress: 'B15', value: networkValue });
   }
 
-  const bandwidthValue = buildReportBandwidthValue(reportContext);
-  if (bandwidthValue && reportSheet.C15) {
-    updates.push({ sheetName: 'Report', cellAddress: 'C15', value: bandwidthValue });
+  const vocoderValue = normalizeReportFieldValue(selectedPanelValues.C15) || buildReportBandwidthValue(reportContext);
+  if (vocoderValue && reportSheet.C15) {
+    updates.push({ sheetName: 'Report', cellAddress: 'C15', value: vocoderValue });
+  }
+
+  const bitrateValue = normalizeReportFieldValue(selectedPanelValues.D15 || reportContext.bitrate);
+  if (bitrateValue && reportSheet.D15) {
+    updates.push({ sheetName: 'Report', cellAddress: 'D15', value: bitrateValue });
   }
 
   return updates;
@@ -206,6 +218,11 @@ function normalizeReportNetworkValue(value) {
   };
 
   return networkMap[normalized] || '';
+}
+
+function normalizeReportFieldValue(value) {
+  const normalized = String(value || '').trim();
+  return normalized || '';
 }
 
 function buildReportBandwidthValue(reportContext = {}) {
@@ -313,7 +330,12 @@ function applyNumericFormats(worksheet, cellAddresses, numFmt) {
   }
 }
 
-function resolveChecklistSheetName(sheetNames, reportPath) {
+function resolveChecklistSheetName(sheetNames, reportPath, reportContext = {}) {
+  const preferredModeFromContext = resolveModeSheetByTerminalMode(sheetNames, reportContext?.terminalMode);
+  if (preferredModeFromContext) {
+    return preferredModeFromContext;
+  }
+
   const reportName = path.parse(reportPath).name;
   const reportTokens = reportName.split(/[\s_-]+/).map(normalizeSheetToken).filter(Boolean);
 
@@ -362,6 +384,28 @@ function resolveChecklistSheetName(sheetNames, reportPath) {
   }
 
   return sheetNames[0];
+}
+
+function resolveModeSheetByTerminalMode(sheetNames, terminalMode) {
+  const normalizedMode = String(terminalMode || '').trim().toUpperCase();
+  if (!normalizedMode) {
+    return '';
+  }
+
+  const modeToSheet = {
+    HA: 'Handset',
+    HE: 'Headset',
+    HS: 'Headset',
+    HH: 'Handsfree',
+    HF: 'Handsfree'
+  };
+
+  const targetSheet = modeToSheet[normalizedMode];
+  if (!targetSheet) {
+    return '';
+  }
+
+  return sheetNames.find((sheetName) => normalizeSheetToken(sheetName) === normalizeSheetToken(targetSheet)) || '';
 }
 
 function getWorkbookSheetNames(workbook) {

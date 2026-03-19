@@ -51,7 +51,15 @@ function createReportRunner({
   }
 
   // 这一层只做流程编排，不关心具体的报告解析和提取细节。
-  async function processReports({ reportPaths, checklistPath, rulePath, appPath, onProgress }) {
+  async function processReports({
+    reportPaths,
+    checklistPath,
+    rulePath,
+    customer,
+    reportPanelSelections,
+    appPath,
+    onProgress
+  }) {
     const resolvedRulePath = resolveRulePath(appPath, rulePath);
     await validatePaths({ reportPaths, checklistPath, rulePath: resolvedRulePath });
 
@@ -71,7 +79,13 @@ function createReportRunner({
       let resultEntry;
 
       try {
-        const result = await processSingleReport({ reportPath, checklistPath, rules });
+        const result = await processSingleReport({
+          reportPath,
+          checklistPath,
+          rules,
+          customer,
+          reportPanelSelections
+        });
         resultEntry = { status: 'success', ...result };
       } catch (error) {
         resultEntry = {

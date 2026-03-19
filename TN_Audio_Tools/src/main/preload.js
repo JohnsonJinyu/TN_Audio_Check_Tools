@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electron', {
     processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload),
     onProgress: (listener) => subscribeToChannel('report-checker:progress', listener),
     showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath),
+    getChecklistReportOptions: (checklistPath) => ipcRenderer.invoke('report-checker:get-checklist-report-options', checklistPath),
     exportRules: (rulePath) => ipcRenderer.invoke('report-checker:export-rules', rulePath)
   }
 });

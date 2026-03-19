@@ -506,17 +506,68 @@ function analyzeConsistency(excelResults) {
 function mergeContext(items) {
   return items.reduce((accumulator, item) => ({
     measurementObject: accumulator.measurementObject || item.reportContext?.measurementObject || '',
+    customer: accumulator.customer || item.reportContext?.customer || '',
     codec: accumulator.codec || item.reportContext?.codec || '',
     network: accumulator.network || item.reportContext?.network || '',
     bandwidth: accumulator.bandwidth || item.reportContext?.bandwidth || '',
-    terminalMode: accumulator.terminalMode || item.reportContext?.terminalMode || ''
+    terminalMode: accumulator.terminalMode || item.reportContext?.terminalMode || '',
+    reportPanelSelections: accumulator.reportPanelSelections || item.reportContext?.reportPanelSelections || null
   }), {
     measurementObject: '',
+    customer: '',
     codec: '',
     network: '',
     bandwidth: '',
-    terminalMode: ''
+    terminalMode: '',
+    reportPanelSelections: null
   });
+}
+
+function buildRunConfigSummary(results) {
+  const successResults = (results || []).filter((item) => item.status === 'success');
+  const firstContext = successResults.find((item) => item.reportContext)?.reportContext || {};
+  const profileKeys = Array.from(new Set(
+    successResults
+      .map((item) => normalizeText(item.ruleProfileKey || ''))
+      .filter(Boolean)
+  ));
+
+  return {
+    customer: normalizeText(firstContext.customer || ''),
+    reportPanelSelections: firstContext.reportPanelSelections || null,
+    ruleProfiles: profileKeys
+  };
+}
+
+function buildSkipReasonStats(excelResults) {
+  const dimensionMap = new Map();
+
+  for (const result of excelResults || []) {
+    for (const item of result.skippedItems || []) {
+      const dimension = normalizeText(item?.skipContext?.dimension || 'unknown');
+      const actual = normalizeText(item?.skipContext?.actual || 'unknown');
+      const key = `${dimension}::${actual}`;
+      const current = dimensionMap.get(key) || {
+        dimension,
+        actual,
+        count: 0,
+        examples: []
+      };
+
+      current.count += 1;
+      if (current.examples.length < 3) {
+        current.examples.push(`${item.outputCell} - ${item.checklistDesc}`);
+      }
+
+      dimensionMap.set(key, current);
+    }
+  }
+
+  const stats = Array.from(dimensionMap.values()).sort((left, right) => right.count - left.count);
+  return {
+    totalGroups: stats.length,
+    topGroups: stats.slice(0, 10)
+  };
 }
 
 function buildBatchConclusion({ results, checklistPath }) {
@@ -572,6 +623,7 @@ function buildBatchConclusion({ results, checklistPath }) {
   const totalMissingCount = excelResults.reduce((sum, item) => sum + (item.audit?.coverage?.missingCount || 0), 0);
   const totalDuplicateCount = excelResults.reduce((sum, item) => sum + (item.audit?.coverage?.duplicateCount || 0), 0);
   const totalExtraCandidateCount = excelResults.reduce((sum, item) => sum + (item.audit?.coverage?.extraCandidateCount || 0), 0);
+  const skipReasonStats = buildSkipReasonStats(excelResults);
   const wordFindingCount = wordResults.reduce((sum, item) => sum + (item.audit?.documentCompleteness?.findings?.length || 0), 0);
   const loudnessDetectedCount = wordResults.filter((item) => item.audit?.curveReview?.loudness?.detected).length;
   const frequencyDetectedCount = wordResults.filter((item) => item.audit?.curveReview?.frequencyResponse?.detected).length;
@@ -594,6 +646,7 @@ function buildBatchConclusion({ results, checklistPath }) {
   }
 
   return {
+    runConfig: buildRunConfigSummary(results || []),
     overview: {
       totalReports: results.length,
       successCount: successResults.length,
@@ -611,6 +664,7 @@ function buildBatchConclusion({ results, checklistPath }) {
       skippedCount: excelResults.reduce((sum, item) => sum + (item.audit?.coverage?.skippedCount || 0), 0),
       duplicateCount: totalDuplicateCount,
       extraCandidateCount: totalExtraCandidateCount,
+      skipReasonStats,
       reportSummaries: excelResults.map((item) => ({
         reportName: getReportBaseName(item.reportPath),
         status: item.audit?.coverage?.status || 'not_applicable',

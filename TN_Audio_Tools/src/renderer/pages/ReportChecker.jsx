@@ -1,11 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Card, Button, Upload, Table, Space, Tag, Modal, Progress, message, Typography } from 'antd';
+import { Card, Button, Upload, Table, Space, Tag, Modal, Progress, message, Typography, Select } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordReportCheckResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
 
 const { Text, Paragraph } = Typography;
 const compactUploadDraggerStyle = { padding: '10px 14px', minHeight: '96px' };
+const CUSTOMER_OPTIONS = ['MOTOROLA', 'SAMSUNG', 'T-Mobile', 'ATT'];
+const REPORT_PANEL_FIELDS = [
+  { cell: 'B13', label: 'Headset Interface' },
+  { cell: 'B15', label: 'Network' },
+  { cell: 'C15', label: 'Vocoder' },
+  { cell: 'D15', label: 'Bitrate' }
+];
 
 function getReportKind(fileName = '') {
   const normalized = String(fileName).toLowerCase();
@@ -84,6 +91,11 @@ function buildConclusionData(uploadSummary, processedConclusion) {
   }
 
   return {
+    runConfig: {
+      customer: '',
+      reportPanelSelections: null,
+      ruleProfiles: []
+    },
     overview: {
       totalReports: uploadSummary.totalReports,
       successCount: 0,
@@ -139,6 +151,18 @@ function ReportChecker() {
   const [files, setFiles] = useState([]);
   const [ruleFile, setRuleFile] = useState(null);
   const [checklistFile, setChecklistFile] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState('MOTOROLA');
+  const [reportPanelMeta, setReportPanelMeta] = useState({
+    reportSheetName: 'Report',
+    fields: []
+  });
+  const [reportPanelSelections, setReportPanelSelections] = useState({
+    B13: '',
+    B15: '',
+    C15: '',
+    D15: ''
+  });
+  const [reportPanelDynamicOptions, setReportPanelDynamicOptions] = useState({});
   const [processedConclusion, setProcessedConclusion] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [exportingRules, setExportingRules] = useState(false);
@@ -200,6 +224,7 @@ function ReportChecker() {
             ...item,
             status: 'success',
             items: result.matchedItems,
+            ruleProfileKey: result.ruleProfileKey || item.ruleProfileKey || '',
             outputPath: result.outputPath,
             outputName: getOutputFileName(result.outputPath),
             unmatchedItems: result.unmatchedItems || [],
@@ -238,6 +263,64 @@ function ReportChecker() {
     };
   }, []);
 
+  const loadChecklistReportPanelOptions = async (checklistPath) => {
+    if (!checklistPath || !window.electron?.reportChecker?.getChecklistReportOptions) {
+      return;
+    }
+
+    try {
+      const result = await window.electron.reportChecker.getChecklistReportOptions(checklistPath);
+      const nextFields = Array.isArray(result?.fields) ? result.fields : [];
+      const nextSelections = nextFields.reduce((acc, field) => {
+        acc[field.cell] = field.currentValue || '';
+        return acc;
+      }, { B13: '', B15: '', C15: '', D15: '' });
+
+      setReportPanelMeta({
+        reportSheetName: result?.reportSheetName || 'Report',
+        fields: nextFields,
+        note: result?.note || ''
+      });
+      setReportPanelSelections(nextSelections);
+      setReportPanelDynamicOptions({});
+
+      if (result?.note) {
+        message.info(result.note);
+      }
+    } catch (error) {
+      setReportPanelMeta({ reportSheetName: 'Report', fields: [] });
+      setReportPanelSelections({ B13: '', B15: '', C15: '', D15: '' });
+      setReportPanelDynamicOptions({});
+      message.warning(error?.message || '读取 checklist Report 参数失败，将使用报告自动识别值。');
+    }
+  };
+
+  const updateReportPanelSelection = (cell, value) => {
+    const newSelections = { ...reportPanelSelections, [cell]: value || '' };
+    const newDynamicOptions = { ...reportPanelDynamicOptions };
+
+    if (cell === 'B15') {
+      const c15Field = reportPanelMeta.fields.find((f) => f.cell === 'C15');
+      const c15Options = (c15Field?.cascadeMap || {})[value] || c15Field?.options || [];
+      newDynamicOptions['C15'] = c15Options;
+      const firstC15 = c15Options[0] || '';
+      newSelections['C15'] = firstC15;
+
+      const d15Field = reportPanelMeta.fields.find((f) => f.cell === 'D15');
+      const d15Options = (d15Field?.cascadeMap || {})[firstC15] || d15Field?.options || [];
+      newDynamicOptions['D15'] = d15Options;
+      newSelections['D15'] = d15Options[0] || '';
+    } else if (cell === 'C15') {
+      const d15Field = reportPanelMeta.fields.find((f) => f.cell === 'D15');
+      const d15Options = (d15Field?.cascadeMap || {})[value] || d15Field?.options || [];
+      newDynamicOptions['D15'] = d15Options;
+      newSelections['D15'] = d15Options[0] || '';
+    }
+
+    setReportPanelSelections(newSelections);
+    setReportPanelDynamicOptions(newDynamicOptions);
+  };
+
   const handleUpload = (file, target, onSuccess) => {
     if (!file.path) {
       message.error('当前环境未提供本地文件路径，无法执行桌面端文件处理。');
@@ -260,6 +343,7 @@ function ReportChecker() {
         reportContext: detectReportContext(file.name),
         status: 'pending',
         items: 0,
+        ruleProfileKey: '',
         outputPath: '',
         outputName: '',
         error: '',
@@ -286,6 +370,7 @@ function ReportChecker() {
       setProcessedConclusion(null);
       setChecklistFile({ name: file.name, path: file.path });
       message.success(`已上传 checklist: ${file.name}`);
+      loadChecklistReportPanelOptions(file.path);
     }
 
     if (onSuccess) {
@@ -349,7 +434,20 @@ function ReportChecker() {
               .join(' / ') || '未识别'}
           </Paragraph>
           <Paragraph>
+            <Text strong>客户：</Text> {record.reportContext?.customer || selectedCustomer || '未指定'}
+          </Paragraph>
+          <Paragraph>
+            <Text strong>Report 参数：</Text>
+            {' '}
+            {record.reportContext?.reportPanelSelections
+              ? `B13=${record.reportContext.reportPanelSelections.B13 || '-'} / B15=${record.reportContext.reportPanelSelections.B15 || '-'} / C15=${record.reportContext.reportPanelSelections.C15 || '-'} / D15=${record.reportContext.reportPanelSelections.D15 || '-'}`
+              : '未指定'}
+          </Paragraph>
+          <Paragraph>
             <Text strong>命中规则数：</Text> {record.items || 0}
+          </Paragraph>
+          <Paragraph>
+            <Text strong>生效规则 Profile：</Text> {record.ruleProfileKey || '未标记'}
           </Paragraph>
           <Paragraph>
             <Text strong>输出文件：</Text> {record.outputPath || (record.reportKind === 'word' ? 'Word 审查不生成 checklist 输出' : '尚未生成')}
@@ -378,6 +476,9 @@ function ReportChecker() {
                 {record.skippedItems.map((item) => (
                   <Paragraph key={`${record.id}-skipped-${item.itemId}`} style={{ marginBottom: 8 }}>
                     {item.outputCell} - {item.checklistDesc} ({item.reason})
+                    {item.skipContext
+                      ? `；维度=${item.skipContext.dimension || '-'}，实际=${item.skipContext.actual || '-'}，允许=${(item.skipContext.include || []).join('/') || '-'}，排除=${(item.skipContext.exclude || []).join('/') || '-'}`
+                      : ''}
                   </Paragraph>
                 ))}
               </div>
@@ -447,6 +548,18 @@ function ReportChecker() {
             <Tag color={getStatusMeta(conclusionData.excelCoverage.status).color}>{getStatusMeta(conclusionData.excelCoverage.status).label}</Tag>
             共 {conclusionData.excelCoverage.reportCount} 份 Excel 报告，命中 {conclusionData.excelCoverage.matchedCount} 项，漏测 {conclusionData.excelCoverage.missingCount} 项，重测候选 {conclusionData.excelCoverage.duplicateCount} 组，多测候选 {conclusionData.excelCoverage.extraCandidateCount} 组。
           </Paragraph>
+          {conclusionData.excelCoverage.skipReasonStats?.topGroups?.length ? (
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>跳过原因统计：</Text>
+              <div style={{ marginTop: 8 }}>
+                {conclusionData.excelCoverage.skipReasonStats.topGroups.map((group) => (
+                  <Paragraph key={`${group.dimension}-${group.actual}`} style={{ marginBottom: 6 }}>
+                    {group.dimension} / {group.actual}：{group.count} 项；示例 {group.examples.join('；')}
+                  </Paragraph>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.excelCoverage.reportSummaries.map((summary) => (
               <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
@@ -578,6 +691,15 @@ function ReportChecker() {
             识别上下文：{[bundle.context.codec, bundle.context.network, bundle.context.bandwidth, bundle.context.terminalMode].filter(Boolean).join(' / ') || '未识别'}
           </Paragraph>
           <Paragraph>
+            客户：{bundle.context.customer || selectedCustomer || '未指定'}
+          </Paragraph>
+          <Paragraph>
+            Report 参数：
+            {bundle.context.reportPanelSelections
+              ? ` B13=${bundle.context.reportPanelSelections.B13 || '-'} / B15=${bundle.context.reportPanelSelections.B15 || '-'} / C15=${bundle.context.reportPanelSelections.C15 || '-'} / D15=${bundle.context.reportPanelSelections.D15 || '-'}`
+              : ' 未指定'}
+          </Paragraph>
+          <Paragraph>
             Excel 覆盖性：{bundle.excelCoverage.missingCount} 个漏测，{bundle.excelCoverage.duplicateCount} 组重测候选，{bundle.excelCoverage.extraCandidateCount} 组多测候选。
           </Paragraph>
           <Paragraph>
@@ -641,7 +763,9 @@ function ReportChecker() {
         runId,
         reportPaths: files.map((item) => item.path),
         checklistPath: checklistFile?.path || null,
-        rulePath: ruleFile?.path || null
+        rulePath: ruleFile?.path || null,
+        customer: selectedCustomer,
+        reportPanelSelections
       });
 
       const resultMap = new Map(response.results.map((item) => [item.reportPath, item]));
@@ -672,6 +796,7 @@ function ReportChecker() {
           ...item,
           status: 'success',
           items: result.matchedItems,
+          ruleProfileKey: result.ruleProfileKey || item.ruleProfileKey || '',
           outputPath: result.outputPath,
           outputName: getOutputFileName(result.outputPath),
           skippedItems: result.skippedItems || [],
@@ -1008,6 +1133,56 @@ function ReportChecker() {
         </div>
       </div>
 
+      <Card className="report-checker-card report-checker-section-card" title="任务参数">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(240px, 1fr))', gap: 16 }}>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>客户</Text>
+            <Select
+              value={selectedCustomer}
+              style={{ width: '100%' }}
+              options={CUSTOMER_OPTIONS.map((item) => ({ label: item, value: item }))}
+              onChange={setSelectedCustomer}
+            />
+          </div>
+          <div>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              Report 参数来源
+            </Text>
+            <Text type="secondary">
+              {checklistFile?.name
+                ? `${checklistFile.name} / ${reportPanelMeta.reportSheetName || 'Report'} 页`
+                : '先上传 checklist 后读取参数'}
+            </Text>
+          </div>
+          {REPORT_PANEL_FIELDS.map((field) => {
+            const panelField = reportPanelMeta.fields.find((item) => item.cell === field.cell);
+            const options = reportPanelDynamicOptions[field.cell] || panelField?.options || [];
+            const currentValue = reportPanelSelections[field.cell] || panelField?.currentValue || '';
+
+            return (
+              <div key={field.cell}>
+                <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                  {field.label} ({field.cell})
+                </Text>
+                <Select
+                  showSearch
+                  allowClear
+                  value={currentValue || undefined}
+                  style={{ width: '100%' }}
+                  placeholder="请选择参数值"
+                  onChange={(value) => updateReportPanelSelection(field.cell, value)}
+                  options={options.map((item) => ({ label: item, value: item }))}
+                  notFoundContent={options.length === 0 ? '暂无候选值' : null}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+          客户与 Report 参数会随本次任务提交后端，用于规则分发、动态工作表切换与 Report 页回写。
+        </Paragraph>
+      </Card>
+
       <Card className="report-checker-card report-checker-action-card">
         <div className="report-checker-action-panel">
           <div>
@@ -1053,6 +1228,26 @@ function ReportChecker() {
       )}
 
       <Card className="report-checker-card report-checker-conclusion-card" title="结论输出">
+        <div className="report-checker-conclusion-actions" style={{ marginBottom: 16 }}>
+          <Text strong>本次运行参数</Text>
+          <div className="report-checker-conclusion-action-list">
+            <Paragraph style={{ marginBottom: 8 }}>
+              客户：{conclusionData.runConfig?.customer || selectedCustomer || '未指定'}
+            </Paragraph>
+            <Paragraph style={{ marginBottom: 8 }}>
+              Report 参数：
+              {conclusionData.runConfig?.reportPanelSelections
+                ? ` B13=${conclusionData.runConfig.reportPanelSelections.B13 || '-'} / B15=${conclusionData.runConfig.reportPanelSelections.B15 || '-'} / C15=${conclusionData.runConfig.reportPanelSelections.C15 || '-'} / D15=${conclusionData.runConfig.reportPanelSelections.D15 || '-'}`
+                : ' 未指定'}
+            </Paragraph>
+            <Paragraph style={{ marginBottom: 0 }}>
+              生效规则 Profile：{Array.isArray(conclusionData.runConfig?.ruleProfiles) && conclusionData.runConfig.ruleProfiles.length > 0
+                ? conclusionData.runConfig.ruleProfiles.join(' / ')
+                : '未识别'}
+            </Paragraph>
+          </div>
+        </div>
+
         <div className="report-checker-conclusion-grid">
           <div className="report-checker-conclusion-metric">
             <span className="report-checker-conclusion-label">报告总数</span>
@@ -1080,7 +1275,7 @@ function ReportChecker() {
             </div>
             <strong>{conclusionData.excelCoverage.reportCount}</strong>
             <span className="report-checker-insight-text">
-              命中 {conclusionData.excelCoverage.matchedCount}，漏测 {conclusionData.excelCoverage.missingCount}，重测候选 {conclusionData.excelCoverage.duplicateCount}
+              命中 {conclusionData.excelCoverage.matchedCount}，漏测 {conclusionData.excelCoverage.missingCount}，跳过 {conclusionData.excelCoverage.skippedCount}，重测候选 {conclusionData.excelCoverage.duplicateCount}
             </span>
           </button>
 
@@ -1128,6 +1323,7 @@ function ReportChecker() {
                   <div>
                     <div className="report-checker-bundle-title">{bundle.key}</div>
                     <div className="report-checker-bundle-meta">
+                      <span>{bundle.context.customer || '未知客户'}</span>
                       <span>{bundle.context.codec || '未知 codec'}</span>
                       <span>{bundle.context.network || '未知 network'}</span>
                       <span>{bundle.context.bandwidth || '未知 bandwidth'}</span>
