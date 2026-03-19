@@ -1,11 +1,11 @@
 {
   // ========== 规则文件基础信息 ==========
   "ruleBaseInfo": {
-    "ruleName": "3GPP音频测试报告ACQUA数据提取规则 - Handsfree",
+    "ruleName": "3GPP音频测试报告ACQUA数据提取规则 - Headset",
     "version": "1.0",
     "updateTime": "2026-03-17",
     "fitReportType": "HEAD acoustics ACQUA 6.0 音频测试报告",
-    "fitChecklist": "手机音频性能测试checklist - Handsfree"
+    "fitChecklist": "手机音频性能测试checklist - Headset"
   },
 
   // ========== 全局匹配配置（非开发人员仅需改这里的开关，无需动代码） ==========
@@ -154,7 +154,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX-7"]
+      "requiredSuffix": ["MIN"]
     },
     // 10. 噪声下RLR
     {
@@ -565,6 +565,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "S-MOS", "Speech", "HASB"],
       "exactRowKeywords": ["S-MOS", "Average", "Speech"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -576,6 +577,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Average", "N-MOS", "Noise", "HASB"],
       "exactRowKeywords": ["N-MOS", "Average", "Noise"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -588,6 +590,7 @@
       "coreKeywords": ["Average", "G-MOS", "Global", "HASB"],
       "fallbackKeywords": ["Average", "G-MOS", "Global"],
       "exactRowKeywords": ["Average", "Global"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -598,6 +601,7 @@
       "outputCell": "I50",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -613,6 +617,7 @@
       "outputCell": "I51",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -628,6 +633,7 @@
       "outputCell": "I52",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -643,6 +649,7 @@
       "outputCell": "I53",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -658,6 +665,7 @@
       "outputCell": "I54",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -673,6 +681,7 @@
       "outputCell": "I55",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -688,6 +697,7 @@
       "outputCell": "I56",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {
@@ -703,6 +713,7 @@
       "outputCell": "I57",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Quality", "in", "the", "Presence", "of", "Ambient", "Noise", "AVG", "HASB"],
+      "excludedTerminalModes": ["HE"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "tableConfig": {

@@ -18,13 +18,13 @@
     },
     "handsfree": {
       "label": "Handsfree",
-      "terminalModes": ["HE", "HF"],
-      "rulePath": "./moto_rules_handsfree.json5"
+      "terminalModes": ["HH", "HF"],
+      "rulePath": "./moto_rules_headset.json5"
     },
     "headset": {
       "label": "Headset",
-      "terminalModes": ["HH", "HS"],
-      "rulePath": "./moto_rules_headset.json5"
+      "terminalModes": ["HE", "HS"],
+      "rulePath": "./moto_rules_handsfree.json5"
     }
   }
 }

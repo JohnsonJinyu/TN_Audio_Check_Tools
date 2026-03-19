@@ -29,11 +29,11 @@ function normalizeModeKey(value) {
     return 'handset';
   }
 
-  if (['he', 'hf', 'handsfree'].includes(normalized)) {
+  if (['hh', 'hf', 'handsfree'].includes(normalized)) {
     return 'handsfree';
   }
 
-  if (['hh', 'hs', 'headset'].includes(normalized)) {
+  if (['he', 'hs', 'headset'].includes(normalized)) {
     return 'headset';
   }
 

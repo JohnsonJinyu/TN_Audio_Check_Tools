@@ -37,6 +37,7 @@ lerna-debug.log*
 
 # Report checker outputs
 /documents/*_20*.xlsx
+/tmp/
 
 # OS
 .DS_Store

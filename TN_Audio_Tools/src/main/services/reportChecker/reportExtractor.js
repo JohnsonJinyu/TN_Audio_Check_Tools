@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs/promises');
 
 function createReportExtractor({
   parseReport,
@@ -10,20 +11,24 @@ function createReportExtractor({
   analyzeExcelReport,
   analyzeWordReport
 }) {
-  function resolveRuleProfileKey(reportData, checklistPath) {
-    const terminalMode = String(reportData?.reportContext?.terminalMode || '').trim().toUpperCase();
+  function resolveTerminalModeKey(value) {
+    const terminalMode = String(value || '').trim().toUpperCase();
     if (terminalMode === 'HA') {
       return 'handset';
     }
 
-    if (terminalMode === 'HE' || terminalMode === 'HF') {
+    if (terminalMode === 'HH' || terminalMode === 'HF') {
       return 'handsfree';
     }
 
-    if (terminalMode === 'HH' || terminalMode === 'HS') {
+    if (terminalMode === 'HE' || terminalMode === 'HS') {
       return 'headset';
     }
 
+    return '';
+  }
+
+  function resolveChecklistModeKeyFromName(checklistPath) {
     const checklistName = path.basename(checklistPath || '').toLowerCase();
     if (checklistName.includes('handsfree')) {
       return 'handsfree';
@@ -31,6 +36,66 @@ function createReportExtractor({
 
     if (checklistName.includes('headset')) {
       return 'headset';
+    }
+
+    if (checklistName.includes('handset')) {
+      return 'handset';
+    }
+
+    return '';
+  }
+
+  async function resolveChecklistPathForReport(checklistPath, reportContext = {}) {
+    if (!checklistPath) {
+      return checklistPath;
+    }
+
+    const targetModeKey = resolveTerminalModeKey(reportContext?.terminalMode);
+    if (!targetModeKey) {
+      return checklistPath;
+    }
+
+    const currentModeKey = resolveChecklistModeKeyFromName(checklistPath);
+    if (!currentModeKey || currentModeKey === targetModeKey) {
+      return checklistPath;
+    }
+
+    const modeNameMap = {
+      handset: 'Handset',
+      handsfree: 'Handsfree',
+      headset: 'Headset'
+    };
+    const nextModeName = modeNameMap[targetModeKey];
+    const checklistDir = path.dirname(checklistPath);
+    const checklistName = path.basename(checklistPath);
+    const candidateName = checklistName.replace(/handset|handsfree|headset/i, nextModeName);
+    const candidatePath = path.join(checklistDir, candidateName);
+
+    try {
+      await fs.access(candidatePath);
+      return candidatePath;
+    } catch {
+      return checklistPath;
+    }
+  }
+
+  function resolveRuleProfileKey(reportData, checklistPath) {
+    const modeKey = resolveTerminalModeKey(reportData?.reportContext?.terminalMode);
+    if (modeKey === 'handset') {
+      return 'handset';
+    }
+
+    if (modeKey === 'handsfree') {
+      return 'handsfree';
+    }
+
+    if (modeKey === 'headset') {
+      return 'headset';
+    }
+
+    const checklistModeKey = resolveChecklistModeKeyFromName(checklistPath);
+    if (checklistModeKey) {
+      return checklistModeKey;
     }
 
     return 'handset';
@@ -137,7 +202,8 @@ function createReportExtractor({
   async function processSingleReport({ reportPath, checklistPath, rules }) {
     const reportData = await parseReport(reportPath);
     const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
-    const { activeRules, profileKey } = resolveRulesForReport(rules, reportData, checklistPath);
+    const checklistPathForReport = await resolveChecklistPathForReport(checklistPath, reportData?.reportContext || {});
+    const { activeRules, profileKey } = resolveRulesForReport(rules, reportData, checklistPathForReport);
 
     if (reportKind === 'word') {
       return {
@@ -157,7 +223,7 @@ function createReportExtractor({
       };
     }
 
-    if (!checklistPath) {
+    if (!checklistPathForReport) {
       throw new Error('Excel 报告处理需要 checklist 文件。');
     }
 
@@ -208,7 +274,7 @@ function createReportExtractor({
       return itemResult;
     });
 
-    const outputPath = await applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportData?.reportContext || {});
+    const outputPath = await applyResultsToChecklist(checklistPathForReport, reportPath, extractedItems, reportData?.reportContext || {});
     const matchedItems = extractedItems.filter((item) => item.matched).length;
     const skippedItems = extractedItems.filter((item) => item.skipped).map((item) => ({
       itemId: item.itemId,
@@ -229,6 +295,7 @@ function createReportExtractor({
       reportFormat: reportData?.reportFormat || 'xlsx',
       bundleKey: path.parse(reportPath).name,
       reportContext: reportData?.reportContext || {},
+      checklistPathUsed: checklistPathForReport,
       ruleProfileKey: profileKey,
       outputPath,
       totalItems: extractedItems.length,

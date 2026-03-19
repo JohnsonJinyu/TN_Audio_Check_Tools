@@ -154,7 +154,7 @@
       "extractType": "summary_table_match",
       "coreKeywords": ["Loudness", "Rating", "RCV", "RLR", "HASB"],
       "forbiddenSuffix": [],
-      "requiredSuffix": ["MAX-7"]
+      "requiredSuffix": ["MIN"]
     },
     // 10. 噪声下RLR
     {

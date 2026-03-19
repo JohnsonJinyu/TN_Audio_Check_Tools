@@ -1157,6 +1157,74 @@ function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeC
   return null;
 }
 
+function resolveAmbientNoiseSceneAverageRowValue(reportData, item, textNormalizeConfig) {
+  const tableConfig = item.tableConfig;
+  if (!tableConfig?.rowNameMatch || !tableConfig?.targetColumnName) {
+    return null;
+  }
+
+  const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
+  if (!normalizedChecklistDesc.includes('ambient noise')) {
+    return null;
+  }
+
+  const metricKey = getAmbientNoiseMetricKey(tableConfig.targetColumnName);
+  if (!metricKey) {
+    return null;
+  }
+
+  const sceneKeys = new Set(
+    getAmbientNoiseSceneCandidates(tableConfig.rowNameMatch)
+      .map((candidate) => getAmbientNoiseSceneKey(candidate))
+      .filter(Boolean)
+  );
+
+  for (const rowContext of getPrimaryRows(reportData)) {
+    const rowText = String(rowContext?.text || '').trim();
+    if (!rowText || rowContext?.sourceKind !== 'xlsx-detailed') {
+      continue;
+    }
+
+    const normalizedRowText = normalizeText(rowText, textNormalizeConfig);
+    if (!normalizedRowText.includes('quality in ambient noise') || !normalizedRowText.includes('average')) {
+      continue;
+    }
+
+    const rowMetricKey = normalizedRowText.includes('s-mos')
+      ? 'smos'
+      : normalizedRowText.includes('n-mos')
+        ? 'nmos'
+        : normalizedRowText.includes('g-mos')
+          ? 'gmos'
+          : null;
+
+    if (rowMetricKey !== metricKey) {
+      continue;
+    }
+
+    const sceneMatch = /quality in ambient noise,\s*([^|]+)/i.exec(rowText);
+    const sceneKey = getAmbientNoiseSceneKey(sceneMatch?.[1] || '');
+    if (!sceneKey || !sceneKeys.has(sceneKey)) {
+      continue;
+    }
+
+    const value = extractMetricRowValue(rowContext.cells) || getLastMeaningfulNumericToken(rowText);
+    const numericValue = parseNumericValue(value);
+    if (numericValue === null || numericValue > 5) {
+      continue;
+    }
+
+    return {
+      matched: true,
+      value: String(numericValue),
+      sourcePreview: makeSourcePreview(rowText),
+      sourceType: 'ambient-scene-average-row'
+    };
+  }
+
+  return null;
+}
+
 function resolveAmbientNoiseMetricRowValue(reportData, item, textNormalizeConfig) {
   const tableConfig = item.tableConfig;
   if (!tableConfig?.rowNameMatch || !tableConfig?.targetColumnName) {
@@ -1392,6 +1460,11 @@ function resolveTableValue(reportData, item, textNormalizeConfig) {
     return { matched: false, reason: '缺少 tableConfig 配置' };
   }
 
+  const ambientSceneAverageRowValue = resolveAmbientNoiseSceneAverageRowValue(reportData, item, textNormalizeConfig);
+  if (ambientSceneAverageRowValue) {
+    return ambientSceneAverageRowValue;
+  }
+
   const ambientNoiseValue = resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig);
   if (ambientNoiseValue) {
     return ambientNoiseValue;
@@ -1601,9 +1674,23 @@ function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatch
 
   if (item.extractType === 'status_judge') {
     const value = extractStatus(rowContext.text);
-    return value
-      ? { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row-status' }
-      : { matched: false, reason: getMissingStatusReason(rowContext) };
+    if (value) {
+      return { matched: true, value, sourcePreview: makeSourcePreview(rowContext.text), sourceType: 'table-row-status' };
+    }
+
+    if (item.acceptDoneAsPass && /\bdone\b/i.test(String(rowContext.text || ''))) {
+      const numericEvidence = extractSummaryValue(rowContext, textNormalizeConfig) || getLastMeaningfulNumericToken(String(rowContext.text || ''));
+      if (numericEvidence) {
+        return {
+          matched: true,
+          value: 'Pass',
+          sourcePreview: makeSourcePreview(rowContext.text),
+          sourceType: 'table-row-status-done'
+        };
+      }
+    }
+
+    return { matched: false, reason: getMissingStatusReason(rowContext) };
   }
 
   return { matched: false, reason: '未知的行匹配提取类型' };
