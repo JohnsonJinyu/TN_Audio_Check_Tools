@@ -61,16 +61,11 @@
 - 负责管理 Handset / Handsfree / Headset 三类 checklist 的样式 profile。
 - 当前只保留模式识别和 skip 灰填充配置。
 
-### `excelComStyler.js`
+### `checklistLibraryStyler.js`
 
-- 负责从 Node 调起 PowerShell COM 样式脚本。
-- 只做脚本调用和结果回传，不关心具体边框规则。
-
-### `applyChecklistStyles.ps1`
-
-- 负责 Excel/WPS COM 样式落地。
-- 当前只处理 I 列数值格式和 skip 项的灰色填充。
-- 不再主动重写模板的边框、对齐和整行底色。
+- 负责基于 xlsx zip 结构直接补充样式。
+- 当前处理数字格式和 skip 项灰填充，不依赖 Office / WPS COM。
+- 不重写模板边框和底色，只在现有样式基础上追加必要样式变体。
 
 ## 当前调用关系
 
@@ -81,25 +76,24 @@
 3. `reportSource.js` 读取规则并解析单份报告。
 4. `reportExtractor.js` 按规则驱动 `reportAnalysis.js` 提取值。
 5. `checklistWriter.js` 把结果写入 checklist。
-6. `excelComStyler.js` 调起 `applyChecklistStyles.ps1` 做样式处理。
-7. `checklistStyleProfiles.js` 为 `checklistWriter.js` 和 COM 样式脚本提供统一的样式 profile。
-8. 若 COM 不可用，`checklistWriter.js` 回退到 `ExcelJS` 样式方案。
+6. `checklistLibraryStyler.js` 直接修改输出 xlsx 的样式 XML。
+7. `checklistStyleProfiles.js` 为 `checklistWriter.js` 和库样式层提供统一的样式 profile。
 
 ## 样式处理策略
 
-当前样式链路是 COM 优先、库方案兜底：
+当前 checklist 样式链路是纯库实现：
 
 1. `xlsx` 负责稳定写出数据。
-2. `applyChecklistStyles.ps1` 优先尝试以下 COM 引擎：
-   - `Excel.Application`
-   - `ket.Application`
-   - `et.Application`
-3. 若 COM 不可用，再回退到 `ExcelJS`。
+2. `adm-zip` 直接修改 workbook / worksheet / styles XML。
+3. 模板边框、填充和 sheet 顺序尽量保持原模板，只对需要变化的值、数字格式和 skip 灰填充做最小补丁。
 
-这么做的原因是：数值格式和 skip 标记仍适合通过 COM 精准补充，但模板边框和底色更应该保留原始 checklist 的既有样式，避免不同 mode 下被二次改坏。
+这么做的原因是：
+1. 避免依赖用户本机安装 Excel / WPS；
+2. 避免 COM 弹窗和用户误关闭；
+3. 保持输出链路在无 Office 环境下也可稳定运行。
 
 ## 后续维护建议
 
 - 如果后面要继续瘦身，优先考虑再拆 `reportAnalysis.js`。
 - 如果要新增提取类型，优先改 `reportExtractor.js` 的分发和 `reportAnalysis.js` 的实现。
-- 如果要调整 checklist 样式，优先改 `applyChecklistStyles.ps1`，再确认 `ExcelJS` fallback 是否需要同步。
+- 如果要调整 checklist 样式，优先改 `checklistLibraryStyler.js`，保持纯库实现，不要重新引入 COM 依赖。

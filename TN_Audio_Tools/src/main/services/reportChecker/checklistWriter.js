@@ -3,19 +3,24 @@ const path = require('path');
 const XLSX = require('xlsx');
 const AdmZip = require('adm-zip');
 const { resolveOutputCell, usesPercentNumberFormat } = require('./checklistLayout');
+const { styleChecklistWithLibraries } = require('./checklistLibraryStyler');
+const { resolveChecklistStyleProfile } = require('./checklistStyleProfiles');
 
 async function applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportContext = {}) {
+  const resolvedChecklistPath = path.resolve(checklistPath);
+  const resolvedReportPath = path.resolve(reportPath);
   const writePlan = buildChecklistWritePlan(
-    checklistPath,
-    reportPath,
+    resolvedChecklistPath,
+    resolvedReportPath,
     extractedItems,
     reportContext
   );
 
-  await fs.copyFile(checklistPath, writePlan.outputPath);
+  await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
   await applyChecklistWritePlan(writePlan);
+  await applyChecklistStyles(writePlan, extractedItems, reportContext);
 
-  console.log('[reportChecker] checklist values applied via template-preserving ExcelJS pipeline');
+  console.log('[reportChecker] checklist values applied via library-only template-preserving pipeline');
   return writePlan.outputPath;
 }
 
@@ -51,6 +56,7 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
 
   return {
     outputPath,
+    templatePath: checklistPath,
     sheetName,
     valueUpdates,
     reportUpdates: resolveReportSheetUpdates(workbook, reportContext)
@@ -82,11 +88,36 @@ async function applyChecklistWritePlan(writePlan) {
   }
 
   const updatedWorkbookXml = enableWorkbookRecalculation(workbookXml);
-  if (updatedWorkbookXml !== workbookXml) {
-    zip.updateFile(workbookXmlPath, Buffer.from(updatedWorkbookXml, 'utf8'));
+  const finalizedWorkbookXml = ensureFirstSheetActive(updatedWorkbookXml);
+  if (finalizedWorkbookXml !== workbookXml) {
+    zip.updateFile(workbookXmlPath, Buffer.from(finalizedWorkbookXml, 'utf8'));
   }
 
   zip.writeZip(writePlan.outputPath);
+}
+
+async function applyChecklistStyles(writePlan, extractedItems, reportContext = {}) {
+  const styleProfile = resolveChecklistStyleProfile({
+    reportContext,
+    sheetName: writePlan.sheetName
+  });
+
+  const skippedCells = extractedItems
+    .filter((item) => item?.skipped && item?.outputCell)
+    .map((item) => String(item.outputCell).trim().toUpperCase())
+    .filter(Boolean);
+
+  await styleChecklistWithLibraries({
+    outputPath: writePlan.outputPath,
+    sheetName: writePlan.sheetName,
+    templatePath: writePlan.templatePath,
+    templateSheetName: writePlan.sheetName,
+    decimalCells: [],
+    percentCells: [],
+    skippedCells: styleProfile?.skippedFill ? skippedCells : [],
+    valueUpdates: [],
+    reportUpdates: []
+  });
 }
 
 function groupUpdatesBySheet(updates) {
@@ -160,6 +191,22 @@ function enableWorkbookRecalculation(workbookXml) {
   return workbookXml.replace('</workbook>', `<calcPr${recalcAttrs}/></workbook>`);
 }
 
+function ensureFirstSheetActive(workbookXml) {
+  const bookViewsRegex = /<bookViews>([\s\S]*?)<\/bookViews>/i;
+  if (!bookViewsRegex.test(workbookXml)) {
+    return workbookXml;
+  }
+
+  return workbookXml.replace(bookViewsRegex, (full) => {
+    return full.replace(/<workbookView\b([^>]*)\/>/i, (_, attrs) => {
+      const cleanedAttrs = String(attrs || '')
+        .replace(/\s+activeTab="[^"]*"/i, '')
+        .replace(/\s+firstSheet="[^"]*"/i, '');
+      return `<workbookView${cleanedAttrs} activeTab="0" firstSheet="0"/>`;
+    });
+  });
+}
+
 function parseXmlAttributes(attributeText) {
   const attributes = {};
   const attrRegex = /(\S+)=['"]([^'"]*)['"]/g;
@@ -173,8 +220,8 @@ function parseXmlAttributes(attributeText) {
 
 function replaceCellValueInWorksheetXml(worksheetXml, cellAddress, value) {
   const escapedAddress = escapeRegExp(cellAddress);
-  const openCloseRegex = new RegExp(`<c\\b([^>]*?\\br=["']${escapedAddress}["'][^>]*)>([\\s\\S]*?)<\\/c>`, 'i');
   const selfClosingRegex = new RegExp(`<c\\b([^>]*?\\br=["']${escapedAddress}["'][^>]*)\\/>`, 'i');
+  const openCloseRegex = new RegExp(`<c\\b([^>]*?\\br=["']${escapedAddress}["'][^>]*?)>([\\s\\S]*?)<\\/c>`, 'i');
 
   const buildAttributes = (attributeText, forceInlineStr) => {
     let attrs = String(attributeText || '')
@@ -195,12 +242,12 @@ function replaceCellValueInWorksheetXml(worksheetXml, cellAddress, value) {
     ? `<v>${normalizedValue}</v>`
     : `<is><t xml:space="preserve">${escapeXml(String(normalizedValue ?? ''))}</t></is>`;
 
-  if (openCloseRegex.test(worksheetXml)) {
-    return worksheetXml.replace(openCloseRegex, (_, attrs) => `<c${buildAttributes(attrs, !isNumeric)}>${innerXml}</c>`);
-  }
-
   if (selfClosingRegex.test(worksheetXml)) {
     return worksheetXml.replace(selfClosingRegex, (_, attrs) => `<c${buildAttributes(attrs, !isNumeric)}>${innerXml}</c>`);
+  }
+
+  if (openCloseRegex.test(worksheetXml)) {
+    return worksheetXml.replace(openCloseRegex, (_, attrs) => `<c${buildAttributes(attrs, !isNumeric)}>${innerXml}</c>`);
   }
 
   return worksheetXml;
