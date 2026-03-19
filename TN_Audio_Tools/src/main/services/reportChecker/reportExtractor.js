@@ -128,7 +128,83 @@ function createReportExtractor({
     return '';
   }
 
-  async function resolveChecklistPathForReport(checklistPath, reportContext = {}) {
+  function normalizeChecklistTemplateName(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+  }
+
+  function buildChecklistModeTokens(modeKey) {
+    if (modeKey === 'handset') {
+      return ['handset'];
+    }
+
+    if (modeKey === 'handsfree') {
+      return ['handsfree'];
+    }
+
+    if (modeKey === 'headset') {
+      return ['headset'];
+    }
+
+    return [];
+  }
+
+  async function findModeChecklistTemplate({ checklistPath, reportPath, targetModeKey }) {
+    if (!targetModeKey) {
+      return '';
+    }
+
+    const candidateDirs = [];
+    const pushDir = (dirPath) => {
+      if (!dirPath) {
+        return;
+      }
+
+      const normalizedDir = path.resolve(dirPath);
+      if (!candidateDirs.includes(normalizedDir)) {
+        candidateDirs.push(normalizedDir);
+      }
+    };
+
+    pushDir(path.dirname(path.dirname(reportPath || '')));
+    pushDir(path.dirname(reportPath || ''));
+    pushDir(path.dirname(checklistPath || ''));
+
+    const modeTokens = buildChecklistModeTokens(targetModeKey);
+    for (const dirPath of candidateDirs) {
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        const matchedFile = entries.find((entry) => {
+          if (!entry.isFile()) {
+            return false;
+          }
+
+          if (!entry.name.toLowerCase().endsWith('.xlsx')) {
+            return false;
+          }
+
+          const normalizedName = normalizeChecklistTemplateName(entry.name);
+          const isVoiceTuningTemplate = normalizedName.includes('voicetuningchecklist');
+          if (!isVoiceTuningTemplate) {
+            return false;
+          }
+
+          return modeTokens.some((token) => normalizedName.includes(token));
+        });
+
+        if (matchedFile) {
+          return path.join(dirPath, matchedFile.name);
+        }
+      } catch {
+        // ignore and continue scanning next candidate directory
+      }
+    }
+
+    return '';
+  }
+
+  async function resolveChecklistPathForReport(checklistPath, reportContext = {}, reportPath = '') {
     if (!checklistPath) {
       return checklistPath;
     }
@@ -136,6 +212,15 @@ function createReportExtractor({
     const targetModeKey = resolveTerminalModeKey(reportContext?.terminalMode);
     if (!targetModeKey) {
       return checklistPath;
+    }
+
+    const modeSpecificTemplate = await findModeChecklistTemplate({
+      checklistPath,
+      reportPath,
+      targetModeKey
+    });
+    if (modeSpecificTemplate) {
+      return modeSpecificTemplate;
     }
 
     const currentModeKey = resolveChecklistModeKeyFromName(checklistPath);
@@ -329,9 +414,22 @@ function createReportExtractor({
 
   function isItemApplicable(reportData, item) {
     const reportTerminalMode = String(reportData?.reportContext?.terminalMode || '').trim().toUpperCase();
-    const applicableTerminalModes = Array.isArray(item?.applicableTerminalModes)
-      ? item.applicableTerminalModes.map((mode) => String(mode || '').trim().toUpperCase()).filter(Boolean)
-      : [];
+    const rawApplicableTerminalModes = [
+      ...(Array.isArray(item?.applicableTerminalModes) ? item.applicableTerminalModes : []),
+      ...(Array.isArray(item?.applicableModes) ? item.applicableModes : [])
+    ];
+    const applicableTerminalModes = [...new Set(rawApplicableTerminalModes
+      .map((mode) => String(mode || '').trim().toUpperCase())
+      .filter(Boolean))];
+
+    const rawExcludedTerminalModes = [
+      ...(Array.isArray(item?.excludedTerminalModes) ? item.excludedTerminalModes : []),
+      ...(Array.isArray(item?.excludedModes) ? item.excludedModes : [])
+    ];
+    const excludedTerminalModes = [...new Set(rawExcludedTerminalModes
+      .map((mode) => String(mode || '').trim().toUpperCase())
+      .filter(Boolean))];
+
     if (applicableTerminalModes.length > 0 && !applicableTerminalModes.includes(reportTerminalMode)) {
       return {
         applicable: false,
@@ -345,9 +443,6 @@ function createReportExtractor({
       };
     }
 
-    const excludedTerminalModes = Array.isArray(item?.excludedTerminalModes)
-      ? item.excludedTerminalModes.map((mode) => String(mode || '').trim().toUpperCase()).filter(Boolean)
-      : [];
     if (excludedTerminalModes.includes(reportTerminalMode)) {
       return {
         applicable: false,
@@ -488,7 +583,7 @@ function createReportExtractor({
       reportContext: mergedReportContext
     };
     const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
-    const checklistPathForReport = await resolveChecklistPathForReport(checklistPath, mergedReportContext);
+    const checklistPathForReport = await resolveChecklistPathForReport(checklistPath, mergedReportContext, reportPath);
     const { activeRules, profileKey } = resolveRulesForReport(rules, normalizedReportData, checklistPathForReport);
 
     if (reportKind === 'word') {

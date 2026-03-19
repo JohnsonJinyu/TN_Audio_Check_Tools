@@ -162,30 +162,32 @@
       "checklistDesc": "Overall loss/loudness ratings - RLR in noise - max vol.",
       "outputCell": "I15",
       "extractType": "summary_table_match",
-      "coreKeywords": ["RLR", "max", "with", "BGN", "HASB"],
-      "fallbackKeywords": ["RLR", "noise", "HASB"],
+      "coreKeywords": ["RLR", "RCV", "MAX", "HH", "WB"],
+      "fallbackKeywords": ["RLR", "RCV", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
     // 11. 发送端空闲信道噪声
     {
       "itemId": 11,
+      "excludedModes": ["HH"],
       "checklistDesc": "Idle channel noise - Sending",
       "outputCell": "I16",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Idle", "channel", "noise", "SND", "AVG", "HASB"],
-      "fallbackKeywords": ["Idle", "channel", "noise", "SND", "HASB"],
+      "coreKeywords": ["noise", "SND", "AVG", "HH", "WB"],
+      "fallbackKeywords": ["noise", "SND", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
     // 12. 发送端单频干扰
     {
       "itemId": 12,
+      "excludedModes": ["HH"],
       "checklistDesc": "Idle channel noise - Sending - Single Frequency",
       "outputCell": "I17",
       "extractType": "formula_calc",
-      "coreKeywords": ["AVG", "Single", "Freq", "Dist", "SND", "HASB"],
-      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "SND", "HASB"],
+      "coreKeywords": ["AVG", "Single", "Freq", "Dist", "SND", "HH", "WB"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "SND", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "formula": {
@@ -197,33 +199,36 @@
     // 13. 接收端空闲信道噪声MAX音量
     {
       "itemId": 13,
+      "excludedModes": ["HH"],
       "checklistDesc": "Idle channel noise - Receiving - max vol.",
       "outputCell": "I18",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "max", "HASB"],
-      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "HASB"],
+      "coreKeywords": ["noise", "RCV", "AVG", "MAX", "HH", "WB"],
+      "fallbackKeywords": ["noise", "RCV", "MAX", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
     // 14. 接收端空闲信道噪声NOM音量
     {
       "itemId": 14,
+      "excludedModes": ["HH"],
       "checklistDesc": "Idle channel noise - Receiving - nom vol.",
       "outputCell": "I19",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "nom", "HASB"],
-      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "HASB"],
+      "coreKeywords": ["noise", "RCV", "AVG", "NOM", "HH", "WB"],
+      "fallbackKeywords": ["noise", "RCV", "NOM", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
     // 15. 接收端单频干扰
     {
       "itemId": 15,
+      "excludedModes": ["HH"],
       "checklistDesc": "Idle channel noise - Receiving - Single Frequency",
       "outputCell": "I20",
       "extractType": "formula_calc",
-      "coreKeywords": ["Average", "Single", "Frequency", "Disturbances", "RCV", "HASB"],
-      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "RCV", "HASB"],
+      "coreKeywords": ["Average", "Single", "Frequency", "Disturbances", "RCV", "HH", "WB"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "RCV", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": [],
       "formula": {
@@ -254,8 +259,8 @@
       "checklistDesc": "Sensitivity/frequency character - Receiving - max vol.",
       "outputCell": "I22",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/12oct", "HASB"],
-      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "BIN", "HH", "WB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -265,8 +270,8 @@
       "checklistDesc": "Sensitivity/frequency character - Receiving - nom vol. 1/12Oct",
       "outputCell": "I23",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/12oct", "HASB"],
-      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "BIN", "HH", "WB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -290,14 +295,15 @@
       "checklistDesc": "Sensitivity/frequency character - Receiving - min vol.",
       "outputCell": "I25",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Sensitivity", "frequency", "char", "RCV", "1/3oct", "HASB"],
-      "fallbackKeywords": ["Sensitivity", "frequency", "char", "HASB"],
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "BIN", "HH", "WB"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV", "HH", "WB"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     },
     // 21. 侧音STMR MAX音量
     {
       "itemId": 21,
+      "excludedModes": ["HH"],
       "checklistDesc": "Sidetone characteristics - STMR - max vol.",
       "outputCell": "I26",
       "extractType": "summary_table_match",
@@ -311,6 +317,7 @@
     // 22. 侧音STMR NOM音量
     {
       "itemId": 22,
+      "excludedModes": ["HH"],
       "checklistDesc": "Sidetone characteristics - STMR - mon. vol.",
       "outputCell": "I27",
       "extractType": "summary_table_match",
@@ -324,6 +331,7 @@
     // 23. 侧音STMR MIN音量
     {
       "itemId": 23,
+      "excludedModes": ["HH"],
       "checklistDesc": "Sidetone characteristics - STMR - min vol.",
       "outputCell": "I28",
       "extractType": "summary_table_match",
@@ -337,6 +345,7 @@
     // 24. 侧音延迟
     {
       "itemId": 24,
+      "excludedModes": ["HH"],
       "checklistDesc": "Sidetone characteristics - Delay",
       "outputCell": "I29",
       "extractType": "summary_table_match",
@@ -349,6 +358,7 @@
     // 25. 稳定损耗
     {
       "itemId": 25,
+      "excludedModes": ["HH"],
       "checklistDesc": "Stability loss - max vol.",
       "outputCell": "I30",
       "extractType": "summary_table_match",
@@ -855,6 +865,7 @@
     // 61. 发送端高斯白噪声鲁棒性 ECRP
     {
       "itemId": 61,
+      "excludedModes": ["HH"],
       "checklistDesc": "SND Robustness with noise - ECRP",
       "outputCell": "I67",
       "extractType": "summary_table_match",
@@ -867,6 +878,7 @@
     // 62. 发送端高斯白噪声鲁棒性 20UP
     {
       "itemId": 62,
+      "excludedModes": ["HH"],
       "checklistDesc": "SND Robustness with noise - 20UP",
       "outputCell": "I68",
       "extractType": "summary_table_match",
@@ -879,6 +891,7 @@
     // 63. 发送端高斯白噪声鲁棒性 25DOWN
     {
       "itemId": 63,
+      "excludedModes": ["HH"],
       "checklistDesc": "SND Robustness with noise - 25DOWN",
       "outputCell": "I69",
       "extractType": "summary_table_match",
@@ -891,6 +904,7 @@
     // 64. 发送端高斯白噪声鲁棒性 10OUT
     {
       "itemId": 64,
+      "excludedModes": ["HH"],
       "checklistDesc": "SND Robustness with noise - 10OUT",
       "outputCell": "I70",
       "extractType": "summary_table_match",

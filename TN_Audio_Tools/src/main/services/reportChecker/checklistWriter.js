@@ -1,10 +1,8 @@
 const fs = require('fs/promises');
 const path = require('path');
-const ExcelJS = require('exceljs');
 const XLSX = require('xlsx');
-const { styleChecklistWithCom } = require('./excelComStyler');
+const AdmZip = require('adm-zip');
 const { resolveOutputCell, usesPercentNumberFormat } = require('./checklistLayout');
-const { resolveChecklistStyleProfile } = require('./checklistStyleProfiles');
 
 async function applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportContext = {}) {
   const writePlan = buildChecklistWritePlan(
@@ -14,53 +12,21 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
     reportContext
   );
 
-  try {
-    await copyChecklistTemplate(checklistPath, writePlan.outputPath);
+  await fs.copyFile(checklistPath, writePlan.outputPath);
+  await applyChecklistWritePlan(writePlan);
 
-    const styleEngine = await styleChecklistWithCom({
-      outputPath: writePlan.outputPath,
-      sheetName: writePlan.sheetName,
-      decimalCells: writePlan.decimalCells,
-      percentCells: writePlan.percentCells,
-      skippedCells: writePlan.skippedCells,
-      valueUpdates: writePlan.cellUpdates,
-      reportUpdates: writePlan.reportUpdates
-    });
-
-    console.log(`[reportChecker] checklist values and styles applied via ${styleEngine}`);
-    return writePlan.outputPath;
-  } catch (error) {
-    console.warn(`[reportChecker] COM checklist update unavailable, falling back to xlsx rewrite: ${error.message}`);
-  }
-
-  const { outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile } = writeChecklistDataToOutput(
-    checklistPath,
-    reportPath,
-    extractedItems,
-    reportContext,
-    writePlan.outputPath
-  );
-
-  await applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile);
-  return outputPath;
+  console.log('[reportChecker] checklist values applied via template-preserving ExcelJS pipeline');
+  return writePlan.outputPath;
 }
 
 function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
-  const styleProfile = resolveChecklistStyleProfile({ reportContext, sheetName });
-  const decimalCells = [];
-  const percentCells = [];
-  const skippedCells = [];
-  const cellUpdates = [];
+  const valueUpdates = [];
 
   for (const itemResult of extractedItems) {
     const resolvedOutputCell = resolveOutputCell(worksheet, itemResult);
-    if (itemResult?.skipped && resolvedOutputCell) {
-      skippedCells.push(resolvedOutputCell);
-    }
-
     if (!shouldWriteItem(itemResult)) {
       continue;
     }
@@ -70,19 +36,12 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
     }
 
     const normalizedValue = normalizeChecklistValue(worksheet, resolvedOutputCell, itemResult.value);
-    cellUpdates.push({
+
+    valueUpdates.push({
       sheetName,
       cellAddress: resolvedOutputCell,
       value: normalizedValue
     });
-
-    if (typeof normalizedValue === 'number' && Number.isFinite(normalizedValue) && /^I\d+$/i.test(resolvedOutputCell)) {
-      if (usesPercentNumberFormat(worksheet, resolvedOutputCell)) {
-        percentCells.push(resolvedOutputCell);
-      } else {
-        decimalCells.push(resolvedOutputCell);
-      }
-    }
   }
 
   const outputPath = path.join(
@@ -93,74 +52,159 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
   return {
     outputPath,
     sheetName,
-    decimalCells: [...new Set(decimalCells)],
-    percentCells: [...new Set(percentCells)],
-    skippedCells: [...new Set(skippedCells)],
-    styleProfile,
-    cellUpdates,
+    valueUpdates,
     reportUpdates: resolveReportSheetUpdates(workbook, reportContext)
   };
 }
 
-async function copyChecklistTemplate(checklistPath, outputPath) {
-  await fs.copyFile(checklistPath, outputPath);
-}
+async function applyChecklistWritePlan(writePlan) {
+  const zip = new AdmZip(writePlan.outputPath);
 
-// 兜底链路仍保留 xlsx 重写，避免 COM 不可用时整个流程不可用。
-function writeChecklistDataToOutput(checklistPath, reportPath, extractedItems, reportContext = {}, outputPathOverride = '') {
-  const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
-  const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
-  const worksheet = workbook.Sheets[sheetName];
-  const styleProfile = resolveChecklistStyleProfile({ reportContext, sheetName });
-  const decimalCells = [];
-  const percentCells = [];
-  const skippedCells = [];
+  const workbookXmlPath = 'xl/workbook.xml';
+  const workbookRelsPath = 'xl/_rels/workbook.xml.rels';
+  const workbookXml = readZipText(zip, workbookXmlPath);
+  const workbookRelsXml = readZipText(zip, workbookRelsPath);
 
-  for (const itemResult of extractedItems) {
-    const resolvedOutputCell = resolveOutputCell(worksheet, itemResult);
-    if (itemResult?.skipped && resolvedOutputCell) {
-      skippedCells.push(resolvedOutputCell);
-    }
+  const worksheetPathByName = resolveWorksheetPathByName(workbookXml, workbookRelsXml);
+  const groupedUpdates = groupUpdatesBySheet([...(writePlan.valueUpdates || []), ...(writePlan.reportUpdates || [])]);
 
-    if (!shouldWriteItem(itemResult)) {
+  for (const [sheetName, updates] of Object.entries(groupedUpdates)) {
+    const worksheetPath = worksheetPathByName[sheetName];
+    if (!worksheetPath) {
       continue;
     }
 
-    if (!resolvedOutputCell) {
-      continue;
+    let worksheetXml = readZipText(zip, worksheetPath);
+    for (const update of updates) {
+      worksheetXml = replaceCellValueInWorksheetXml(worksheetXml, update.cellAddress, update.value);
     }
-
-    const normalizedValue = normalizeChecklistValue(worksheet, resolvedOutputCell, itemResult.value);
-
-    writeLegacyChecklistCell(worksheet, resolvedOutputCell, normalizedValue);
-
-    if (typeof normalizedValue === 'number' && Number.isFinite(normalizedValue) && /^I\d+$/i.test(resolvedOutputCell)) {
-      if (usesPercentNumberFormat(worksheet, resolvedOutputCell)) {
-        percentCells.push(resolvedOutputCell);
-      } else {
-        decimalCells.push(resolvedOutputCell);
-      }
-    }
+    zip.updateFile(worksheetPath, Buffer.from(worksheetXml, 'utf8'));
   }
 
-  applyReportSheetUpdates(workbook, reportContext);
+  zip.writeZip(writePlan.outputPath);
+}
 
-  const outputPath = outputPathOverride || path.join(
-    path.dirname(reportPath),
-    buildOutputFileName(path.parse(reportPath).name)
-  );
+function groupUpdatesBySheet(updates) {
+  const grouped = {};
 
-  stripWorksheetFormulas(workbook);
-  XLSX.writeFile(workbook, outputPath, { bookType: 'xlsx' });
+  for (const update of updates) {
+    const sheetName = String(update?.sheetName || '').trim();
+    const cellAddress = String(update?.cellAddress || '').trim().toUpperCase();
+    if (!sheetName || !cellAddress) {
+      continue;
+    }
 
-  return {
-    outputPath,
-    sheetName,
-    decimalCells,
-    percentCells,
-    skippedCells: [...new Set(skippedCells)],
-    styleProfile
+    if (!grouped[sheetName]) {
+      grouped[sheetName] = [];
+    }
+
+    grouped[sheetName].push({
+      sheetName,
+      cellAddress,
+      value: update.value
+    });
+  }
+
+  return grouped;
+}
+
+function resolveWorksheetPathByName(workbookXml, workbookRelsXml) {
+  const relationById = {};
+  const relRegex = /<Relationship\b([^>]+?)\/>/g;
+  let relMatch;
+  while ((relMatch = relRegex.exec(workbookRelsXml)) !== null) {
+    const attrs = parseXmlAttributes(relMatch[1]);
+    if (!attrs.Id || !attrs.Target) {
+      continue;
+    }
+
+    relationById[attrs.Id] = attrs.Target.replace(/^\/?/, '');
+  }
+
+  const worksheetPathByName = {};
+  const sheetRegex = /<sheet\b([^>]+?)\/>/g;
+  let sheetMatch;
+  while ((sheetMatch = sheetRegex.exec(workbookXml)) !== null) {
+    const attrs = parseXmlAttributes(sheetMatch[1]);
+    const sheetName = attrs.name;
+    const relationId = attrs['r:id'];
+    const target = relationId ? relationById[relationId] : '';
+    if (!sheetName || !target) {
+      continue;
+    }
+
+    worksheetPathByName[sheetName] = target.startsWith('xl/') ? target : `xl/${target}`;
+  }
+
+  return worksheetPathByName;
+}
+
+function parseXmlAttributes(attributeText) {
+  const attributes = {};
+  const attrRegex = /(\S+)=['"]([^'"]*)['"]/g;
+  let match;
+  while ((match = attrRegex.exec(attributeText)) !== null) {
+    attributes[match[1]] = match[2];
+  }
+
+  return attributes;
+}
+
+function replaceCellValueInWorksheetXml(worksheetXml, cellAddress, value) {
+  const escapedAddress = escapeRegExp(cellAddress);
+  const openCloseRegex = new RegExp(`<c\\b([^>]*?\\br=["']${escapedAddress}["'][^>]*)>([\\s\\S]*?)<\\/c>`, 'i');
+  const selfClosingRegex = new RegExp(`<c\\b([^>]*?\\br=["']${escapedAddress}["'][^>]*)\\/>`, 'i');
+
+  const buildAttributes = (attributeText, forceInlineStr) => {
+    let attrs = String(attributeText || '')
+      .replace(/\s+t=["'][^"']*["']/i, '')
+      .replace(/\/\s*$/, '')
+      .trim();
+
+    if (forceInlineStr) {
+      attrs = `${attrs} t="inlineStr"`.trim();
+    }
+
+    return attrs ? ` ${attrs}` : '';
   };
+
+  const normalizedValue = toWorksheetValue(value);
+  const isNumeric = typeof normalizedValue === 'number' && Number.isFinite(normalizedValue);
+  const innerXml = isNumeric
+    ? `<v>${normalizedValue}</v>`
+    : `<is><t xml:space="preserve">${escapeXml(String(normalizedValue ?? ''))}</t></is>`;
+
+  if (openCloseRegex.test(worksheetXml)) {
+    return worksheetXml.replace(openCloseRegex, (_, attrs) => `<c${buildAttributes(attrs, !isNumeric)}>${innerXml}</c>`);
+  }
+
+  if (selfClosingRegex.test(worksheetXml)) {
+    return worksheetXml.replace(selfClosingRegex, (_, attrs) => `<c${buildAttributes(attrs, !isNumeric)}>${innerXml}</c>`);
+  }
+
+  return worksheetXml;
+}
+
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function readZipText(zip, filePath) {
+  const file = zip.getEntry(filePath);
+  if (!file) {
+    throw new Error(`未找到工作簿结构文件: ${filePath}`);
+  }
+
+  return file.getData().toString('utf8');
 }
 
 function resolveReportSheetUpdates(workbook, reportContext = {}) {
@@ -193,17 +237,6 @@ function resolveReportSheetUpdates(workbook, reportContext = {}) {
   }
 
   return updates;
-}
-
-function applyReportSheetUpdates(workbook, reportContext = {}) {
-  const reportSheet = workbook?.Sheets?.Report;
-  if (!reportSheet) {
-    return;
-  }
-
-  for (const update of resolveReportSheetUpdates(workbook, reportContext)) {
-    writeLegacyChecklistCell(reportSheet, update.cellAddress, update.value);
-  }
 }
 
 function normalizeReportNetworkValue(value) {
@@ -248,86 +281,8 @@ function normalizeBandwidthValue(value) {
   return normalized;
 }
 
-function stripWorksheetFormulas(workbook) {
-  for (const sheetName of getWorkbookSheetNames(workbook)) {
-    const worksheet = workbook.Sheets?.[sheetName];
-    if (!worksheet) {
-      continue;
-    }
-
-    for (const [cellAddress, cell] of Object.entries(worksheet)) {
-      if (cellAddress.startsWith('!') || !cell || typeof cell !== 'object') {
-        continue;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(cell, 'f')) {
-        delete cell.f;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(cell, 'F')) {
-        delete cell.F;
-      }
-
-      if (Object.prototype.hasOwnProperty.call(cell, 'D')) {
-        delete cell.D;
-      }
-    }
-  }
-}
-
-// 样式统一在第二阶段完成，边框、对齐和数字格式都由 ExcelJS 在内存里处理。
-async function applyChecklistStylesToOutput(outputPath, sheetName, decimalCells, percentCells, skippedCells, styleProfile) {
-  try {
-    const styleEngine = await styleChecklistWithCom({
-      outputPath,
-      sheetName,
-      decimalCells,
-      percentCells,
-      skippedCells
-    });
-    console.log(`[reportChecker] checklist styles applied via ${styleEngine}`);
-    return;
-  } catch (error) {
-    // COM/WPS 不可用时再回退到纯库方案，确保功能至少可用。
-    console.warn(`[reportChecker] COM checklist styling unavailable, falling back to ExcelJS: ${error.message}`);
-  }
-
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(outputPath);
-
-  const worksheet = workbook.getWorksheet(sheetName);
-
-  applySkippedCellStyles(worksheet, skippedCells, styleProfile);
-  applyNumericFormats(worksheet, decimalCells, '0.00');
-  applyNumericFormats(worksheet, percentCells, '0.00%');
-
-  await workbook.xlsx.writeFile(outputPath);
-}
-
 function shouldWriteItem(itemResult) {
   return Boolean(itemResult?.matched) && itemResult.value !== undefined && itemResult.value !== null && itemResult.value !== '';
-}
-
-function applySkippedCellStyles(worksheet, cellAddresses, styleProfile) {
-  if (!styleProfile?.skippedFill) {
-    return;
-  }
-
-  for (const cellAddress of new Set(cellAddresses || [])) {
-    if (!/^I\d+$/i.test(cellAddress)) {
-      continue;
-    }
-
-    const cell = worksheet.getCell(cellAddress);
-    cell.fill = styleProfile.skippedFill;
-  }
-}
-
-function applyNumericFormats(worksheet, cellAddresses, numFmt) {
-  for (const cellAddress of new Set(cellAddresses)) {
-    const cell = worksheet.getCell(cellAddress);
-    cell.numFmt = numFmt;
-  }
 }
 
 function resolveChecklistSheetName(sheetNames, reportPath, reportContext = {}) {
@@ -424,28 +379,6 @@ function normalizeSheetToken(value) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
-}
-
-function writeLegacyChecklistCell(worksheet, cellAddress, rawValue) {
-  const worksheetValue = toWorksheetValue(rawValue);
-  const templateCell = worksheet[cellAddress] || {};
-
-  if (typeof worksheetValue === 'number' && Number.isFinite(worksheetValue)) {
-    worksheet[cellAddress] = {
-      ...(templateCell || {}),
-      t: 'n',
-      v: worksheetValue
-    };
-    delete worksheet[cellAddress].w;
-    return;
-  }
-
-  worksheet[cellAddress] = {
-    ...(templateCell || {}),
-    t: 's',
-    v: String(worksheetValue ?? '')
-  };
-  delete worksheet[cellAddress].w;
 }
 
 function toWorksheetValue(value) {

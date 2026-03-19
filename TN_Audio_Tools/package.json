@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
+    "adm-zip": "^0.5.16",
     "antd": "^5.11.2",
     "axios": "^1.6.2",
     "cheerio": "^1.2.0",
