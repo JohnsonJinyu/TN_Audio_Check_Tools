@@ -81,6 +81,11 @@ async function applyChecklistWritePlan(writePlan) {
     zip.updateFile(worksheetPath, Buffer.from(worksheetXml, 'utf8'));
   }
 
+  const updatedWorkbookXml = enableWorkbookRecalculation(workbookXml);
+  if (updatedWorkbookXml !== workbookXml) {
+    zip.updateFile(workbookXmlPath, Buffer.from(updatedWorkbookXml, 'utf8'));
+  }
+
   zip.writeZip(writePlan.outputPath);
 }
 
@@ -104,7 +109,6 @@ function groupUpdatesBySheet(updates) {
       value: update.value
     });
   }
-
   return grouped;
 }
 
@@ -137,6 +141,23 @@ function resolveWorksheetPathByName(workbookXml, workbookRelsXml) {
   }
 
   return worksheetPathByName;
+}
+
+function enableWorkbookRecalculation(workbookXml) {
+  const calcPrMatch = /<calcPr\b([^>]*)\/>/i;
+  const recalcAttrs = ' fullCalcOnLoad="1" calcOnSave="1" forceFullCalc="1"';
+
+  if (calcPrMatch.test(workbookXml)) {
+    return workbookXml.replace(calcPrMatch, (full, attrs) => {
+      const cleanedAttrs = String(attrs || '')
+        .replace(/\s+fullCalcOnLoad="[^"]*"/i, '')
+        .replace(/\s+calcOnSave="[^"]*"/i, '')
+        .replace(/\s+forceFullCalc="[^"]*"/i, '');
+      return `<calcPr${cleanedAttrs}${recalcAttrs}/>`;
+    });
+  }
+
+  return workbookXml.replace('</workbook>', `<calcPr${recalcAttrs}/></workbook>`);
 }
 
 function parseXmlAttributes(attributeText) {
