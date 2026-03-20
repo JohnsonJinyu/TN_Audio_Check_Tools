@@ -50,48 +50,7 @@ function isHandsfreeChecklistLayout(worksheet) {
 }
 
 function resolveHandsfreeOutputCell(itemId, configuredCell) {
-  const explicitMap = {
-    26: 'I19',
-    27: 'I20',
-    28: 'I21',
-    29: 'I22',
-    30: 'I23',
-    31: 'I24',
-    32: 'I25',
-    33: 'I26',
-    34: 'I27',
-    36: 'I28',
-    37: 'I29',
-    38: 'I30',
-    39: 'I31',
-    40: 'I32',
-    41: 'I33',
-    42: 'I34',
-    43: 'I35',
-    44: 'I36',
-    45: 'I37',
-    46: 'I38',
-    47: 'I39',
-    48: 'I40',
-    49: 'I41',
-    50: 'I42',
-    51: 'I43',
-    52: 'I44',
-    53: 'I45',
-    54: 'I46',
-    55: 'I47',
-    56: 'I48',
-    57: 'I49',
-    58: 'I50',
-    59: 'I51',
-    60: 'I52',
-    65: 'I54',
-    66: 'I55',
-    67: 'I56',
-    68: 'I57'
-  };
-
-  return explicitMap[itemId] || configuredCell;
+  return configuredCell;
 }
 
 function resolveOutputCell(worksheet, itemResult) {
