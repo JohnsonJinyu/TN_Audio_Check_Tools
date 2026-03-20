@@ -7,15 +7,15 @@ const SKIPPED_FILL = {
 const STYLE_PROFILES = {
   handset: {
     key: 'handset',
-    skippedFill: SKIPPED_FILL
+    skippedFill: null
   },
   handsfree: {
     key: 'handsfree',
-    skippedFill: SKIPPED_FILL
+    skippedFill: null
   },
   headset: {
     key: 'headset',
-    skippedFill: SKIPPED_FILL
+    skippedFill: null
   }
 };
 

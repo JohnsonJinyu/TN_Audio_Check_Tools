@@ -540,6 +540,10 @@ function createReportExtractor({
     const applicableBandwidths = Array.isArray(item?.applicableBandwidths)
       ? item.applicableBandwidths.map(normalizeBandwidth).filter(Boolean)
       : [];
+    const excludedBandwidths = Array.isArray(item?.excludedBandwidths)
+      ? item.excludedBandwidths.map(normalizeBandwidth).filter(Boolean)
+      : [];
+
     if (applicableBandwidths.length > 0 && !applicableBandwidths.includes(reportBandwidth)) {
       return {
         applicable: false,
@@ -553,9 +557,6 @@ function createReportExtractor({
       };
     }
 
-    const excludedBandwidths = Array.isArray(item?.excludedBandwidths)
-      ? item.excludedBandwidths.map(normalizeBandwidth).filter(Boolean)
-      : [];
     if (excludedBandwidths.includes(reportBandwidth)) {
       return {
         applicable: false,

@@ -1,11 +1,11 @@
 {
   // ========== 规则文件基础信息 ==========
   "ruleBaseInfo": {
-    "ruleName": "3GPP音频测试报告ACQUA数据提取规则 - Handsfree",
+    "ruleName": "3GPP音频测试报告ACQUA数据提取规则 - Headset",
     "version": "1.0",
     "updateTime": "2026-03-17",
     "fitReportType": "HEAD acoustics ACQUA 6.0 音频测试报告",
-    "fitChecklist": "手机音频性能测试checklist - Handsfree"
+    "fitChecklist": "手机音频性能测试checklist - Headset"
   },
 
   // ========== 全局匹配配置（非开发人员仅需改这里的开关，无需动代码） ==========
@@ -289,7 +289,7 @@
     {
       "itemId": 20,
       "checklistDesc": "Sensitivity/frequency character - Receiving - min vol.",
-      "outputCell": "I25",
+      "outputCell": "I24",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sensitivity", "frequency", "RCV", "Binaural", "HASB"],
       "fallbackKeywords": ["Sensitivity", "frequency", "RCV", "HASB"],
@@ -299,9 +299,9 @@
     // 21. 侧音STMR MAX音量
     {
       "itemId": 21,
-      "excludedModes": ["HE"],
+      "excludedModes": ["HE", "HS"],
       "checklistDesc": "Sidetone characteristics - STMR - max vol.",
-      "outputCell": "I26",
+      "outputCell": "I25",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
@@ -313,9 +313,9 @@
     // 22. 侧音STMR NOM音量
     {
       "itemId": 22,
-      "excludedModes": ["HE"],
+      "excludedModes": ["HE", "HS"],
       "checklistDesc": "Sidetone characteristics - STMR - mon. vol.",
-      "outputCell": "I27",
+      "outputCell": "I26",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
@@ -327,9 +327,9 @@
     // 23. 侧音STMR MIN音量
     {
       "itemId": 23,
-      "excludedModes": ["HE"],
+      "excludedModes": ["HE", "HS"],
       "checklistDesc": "Sidetone characteristics - STMR - min vol.",
-      "outputCell": "I28",
+      "outputCell": "I27",
       "extractType": "summary_table_match",
       "coreKeywords": ["Sidetone", "STMR", "HASB"],
       "fallbackKeywords": ["STMR", "HASB"],
@@ -342,11 +342,11 @@
     {
       "itemId": 24,
       "checklistDesc": "Sidetone characteristics - Delay",
-      "outputCell": "I29",
+      "outputCell": "I28",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Delay", "RCV", "Loudspeaker", "DUT", "HHSB"],
-      "fallbackKeywords": ["Delay", "Cross", "HHSB"],
-      "exactRowKeywords": ["Delay (Cross)"],
+        "coreKeywords": ["Sidetone", "Delay"],
+        "fallbackKeywords": ["Sidetone", "Delay"],
+        "exactRowKeywords": ["Sidetone", "Delay"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -354,20 +354,22 @@
     {
       "itemId": 25,
       "checklistDesc": "Stability loss - max vol.",
-      "outputCell": "I30",
+      "outputCell": "I29",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Stability", "loss", "check", "HASB"],
-      "fallbackKeywords": ["Stability", "loss", "HASB"],
+        "coreKeywords": ["Stability", "loss", "check"],
+        "fallbackKeywords": ["Stability", "loss"],
+        "exactRowKeywords": ["Stability", "loss", "Min. dist. to tolerance scheme"],
       "forbiddenSuffix": [],
-      "requiredSuffix": []
+        "requiredSuffix": ["MAX"]
     },
     // 26. 回声损耗MAX音量
     {
       "itemId": 26,
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - max vol.",
-      "outputCell": "I31",
+      "outputCell": "I30",
       "extractType": "summary_table_match",
       "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
+      "exactRowKeywords": ["Echo", "Loss", "MAX", "VOL"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MAX"]
     },
@@ -375,9 +377,10 @@
     {
       "itemId": 27,
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - mon. vol.",
-      "outputCell": "I32",
+      "outputCell": "I31",
       "extractType": "summary_table_match",
       "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
+      "exactRowKeywords": ["Echo", "Loss", "NOM", "VOL"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["NOM"]
     },
@@ -385,9 +388,10 @@
     {
       "itemId": 28,
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - min vol.",
-      "outputCell": "I33",
+      "outputCell": "I32",
       "extractType": "summary_table_match",
       "coreKeywords": ["Acoustic", "echo", "control", "Compr", "HASB"],
+      "exactRowKeywords": ["Echo", "Loss", "MIN", "VOL"],
       "forbiddenSuffix": [],
       "requiredSuffix": ["MIN"]
     },
@@ -395,7 +399,7 @@
     {
       "itemId": 29,
       "checklistDesc": "Distortion - SND 1020Hz",
-      "outputCell": "I34",
+      "outputCell": "I33",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "SND", "1020", "Hz", "activation", "Average", "HASB"],
       "forbiddenSuffix": [],
@@ -405,7 +409,7 @@
     {
       "itemId": 30,
       "checklistDesc": "Distortion - SND -4.7dBPa",
-      "outputCell": "I35",
+      "outputCell": "I34",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "SND", "-4.7", "dBPa", "activation", "Average", "HASB"],
       "exactRowKeywords": ["Distortion", "-4.7", "dBPa"],
@@ -418,7 +422,7 @@
     {
       "itemId": 31,
       "checklistDesc": "Distortion - RCV 1020Hz - max. vol.",
-      "outputCell": "I36",
+      "outputCell": "I35",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
@@ -428,7 +432,7 @@
     {
       "itemId": 32,
       "checklistDesc": "Distortion - RCV 1020Hz - nom vol.",
-      "outputCell": "I37",
+      "outputCell": "I36",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
@@ -438,7 +442,7 @@
     {
       "itemId": 33,
       "checklistDesc": "Distortion - RCV -16dBm0 - max vol.",
-      "outputCell": "I38",
+      "outputCell": "I37",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "AVG", "HASB"],
       "forbiddenSuffix": [],
@@ -448,7 +452,7 @@
     {
       "itemId": 34,
       "checklistDesc": "Distortion - RCV -16dBm0 - nom vol.",
-      "outputCell": "I39",
+      "outputCell": "I38",
       "extractType": "status_judge",
       "acceptDoneAsPass": true,
       "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "AVG", "HASB"],
@@ -460,11 +464,11 @@
     {
       "itemId": 35,
       "checklistDesc": "Delay - Round-trip - TS+TR",
-      "outputCell": "I40",
+      "outputCell": "I39",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Calculation", "Echo", "Delay", "HASB"],
-      "fallbackKeywords": ["Calculation", "Delay", "HASB"],
-      "exactRowKeywords": ["Calculation", "Echo", "Delay", "Calculated Value"],
+        "coreKeywords": ["Check", "Delay"],
+        "fallbackKeywords": ["Check", "Delay", "DUT"],
+        "exactRowKeywords": ["Check", "Delay"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -472,6 +476,22 @@
     {
       "itemId": 36,
       "checklistDesc": "Echo control characteristics - Short DT Class - A1",
+      "outputCell": "I40",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
+      "exactRowKeywords": ["short", "1o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["1o2"],
+      "regexConfig": {
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [80, 100]
+      }
+    },
+    // 37. 短双讲DT Class A1+A2
+    {
+      "itemId": 37,
+      "checklistDesc": "Echo control characteristics - Short DT Class - A1 + A2",
       "outputCell": "I41",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
@@ -479,15 +499,15 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
-        "valueRange": [0, 100]
+        "valueRange": [80, 100]
       }
     },
-    // 37. 短双讲DT Class A1+A2
+    // 38. 短双讲ST Class A1+A2
     {
-      "itemId": 37,
-      "checklistDesc": "Echo control characteristics - Short DT Class - A1 + A2",
+      "itemId": 38,
+      "checklistDesc": "Echo control characteristics - Short ST Class - A1 + A2",
       "outputCell": "I42",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
@@ -495,32 +515,16 @@
       "forbiddenSuffix": [],
       "requiredSuffix": ["1o2"],
       "regexConfig": {
-        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
-        "valueGroupIndex": 1,
-        "valueRange": [0, 100]
-      }
-    },
-    // 38. 短双讲ST Class A1+A2
-    {
-      "itemId": 38,
-      "checklistDesc": "Echo control characteristics - Short ST Class - A1 + A2",
-      "outputCell": "I43",
-      "extractType": "regex_extract",
-      "coreKeywords": ["Echo", "Control", "Chara", "Speech", "short", "DT", "SND", "HASB"],
-      "exactRowKeywords": ["short", "1o2"],
-      "forbiddenSuffix": [],
-      "requiredSuffix": ["1o2"],
-      "regexConfig": {
         "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
-        "valueRange": [0, 100]
+        "valueRange": [80, 100]
       }
     },
     // 39. 长双讲DT Class A1
     {
       "itemId": 39,
       "checklistDesc": "Echo control characteristics - Long DT Class - A1",
-      "outputCell": "I44",
+      "outputCell": "I43",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
       "exactRowKeywords": ["long", "2o2"],
@@ -529,14 +533,14 @@
       "regexConfig": {
         "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
-        "valueRange": [0, 100]
+        "valueRange": [80, 100]
       }
     },
     // 40. 长双讲DT Class A1+A2
     {
       "itemId": 40,
       "checklistDesc": "Echo control characteristics - Long DT Class - A1 + A2",
-      "outputCell": "I45",
+      "outputCell": "I44",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
       "exactRowKeywords": ["long", "2o2"],
@@ -545,14 +549,14 @@
       "regexConfig": {
         "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
-        "valueRange": [0, 100]
+        "valueRange": [80, 100]
       }
     },
     // 41. 长双讲ST Class A1+A2
     {
       "itemId": 41,
       "checklistDesc": "Echo control characteristics - Long ST Class - A1 + A2",
-      "outputCell": "I46",
+      "outputCell": "I45",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "Speech", "long", "DT", "SND", "HASB"],
       "exactRowKeywords": ["long", "2o2"],
@@ -561,12 +565,13 @@
       "regexConfig": {
         "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
         "valueGroupIndex": 1,
-        "valueRange": [0, 100]
+        "valueRange": [80, 100]
       }
     },
     // 42. 环境噪声平均S-MOS
     {
       "itemId": 42,
+      "excludedModes": ["HE", "HS"],
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - average",
       "outputCell": "I47",
       "extractType": "summary_table_match",
@@ -578,6 +583,7 @@
     // 43. 环境噪声平均N-MOS
     {
       "itemId": 43,
+      "excludedModes": ["HE", "HS"],
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - average",
       "outputCell": "I48",
       "extractType": "summary_table_match",
@@ -911,7 +917,7 @@
     {
       "itemId": 65,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Sending",
-      "outputCell": "I72",
+      "outputCell": "I47",
       "extractType": "summary_table_match",
       "coreKeywords": ["MOS-LQO", "P.863", "SND", "informative"],
       "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "SND"],
@@ -923,7 +929,7 @@
     {
       "itemId": 66,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - max vol.",
-      "outputCell": "I73",
+      "outputCell": "I48",
       "extractType": "summary_table_match",
       "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],
@@ -935,7 +941,7 @@
     {
       "itemId": 67,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - nom vol.",
-      "outputCell": "I74",
+      "outputCell": "I49",
       "extractType": "summary_table_match",
       "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],
@@ -947,7 +953,7 @@
     {
       "itemId": 68,
       "checklistDesc": "POLQA v3.0 (MOS-LQOf) - Receiving - min vol.",
-      "outputCell": "I75",
+      "outputCell": "I50",
       "extractType": "summary_table_match",
       "coreKeywords": ["MOS-LQO", "P.863", "RCV", "informative"],
       "fallbackKeywords": ["POLQA", "MOS-LQO", "P.863", "RCV"],

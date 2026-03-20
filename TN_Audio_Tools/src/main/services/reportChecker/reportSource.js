@@ -159,57 +159,6 @@ function createReportSource({
   createSearchData,
   parseXlsxReport
 }) {
-  async function findSiblingWordReport(reportPath) {
-    const parsedPath = path.parse(reportPath);
-    const candidates = [
-      path.join(parsedPath.dir, `${parsedPath.name}.docx`),
-      path.join(parsedPath.dir, `${parsedPath.name}.doc`)
-    ];
-
-    for (const candidatePath of candidates) {
-      if (candidatePath.toLowerCase() === String(reportPath || '').toLowerCase()) {
-        continue;
-      }
-
-      try {
-        await fs.access(candidatePath);
-        return candidatePath;
-      } catch {
-        // Ignore missing sibling files.
-      }
-    }
-
-    return '';
-  }
-
-  function mergeXlsxAndWordReportData(xlsxData, wordData) {
-    if (!wordData) {
-      return xlsxData;
-    }
-
-    return {
-      ...xlsxData,
-      rawText: [xlsxData.rawText, wordData.rawText].filter(Boolean).join('\n'),
-      html: wordData.html || xlsxData.html || '',
-      lines: Array.from(new Set([...(xlsxData.lines || []), ...(wordData.lines || [])])),
-      ambientNoiseBlocks: (xlsxData.ambientNoiseBlocks && xlsxData.ambientNoiseBlocks.length > 0)
-        ? xlsxData.ambientNoiseBlocks
-        : (wordData.ambientNoiseBlocks || []),
-      tables: [...(xlsxData.tables || []), ...(wordData.tables || [])],
-      tableRows: [...(xlsxData.tableRows || []), ...(wordData.tableRows || [])],
-      fallbackRows: [...(xlsxData.fallbackRows || []), ...(wordData.fallbackRows || [])],
-      structuredData: wordData.structuredData || xlsxData.structuredData,
-      auxiliarySources: [
-        ...(xlsxData.auxiliarySources || []),
-        {
-          type: 'word-report',
-          reportFormat: wordData.reportFormat || 'docx',
-          reportPath: wordData.reportContext?.reportName || ''
-        }
-      ]
-    };
-  }
-
   async function normalizeRulesConfig(rulePath, rules) {
     if (isSingleRulesConfig(rules)) {
       return rules;
@@ -293,18 +242,6 @@ function createReportSource({
 
     if (reportExtension === '.xlsx' || reportExtension === '.xls') {
       let xlsxData = await parseXlsxReport(reportPath);
-
-      if (!Array.isArray(xlsxData?.ambientNoiseBlocks) || xlsxData.ambientNoiseBlocks.length === 0) {
-        const siblingWordReport = await findSiblingWordReport(reportPath);
-        if (siblingWordReport) {
-          try {
-            const wordData = await parseReport(siblingWordReport);
-            xlsxData = mergeXlsxAndWordReportData(xlsxData, wordData);
-          } catch {
-            // Keep xlsx-only parsing path when sibling Word parsing fails.
-          }
-        }
-      }
 
       return attachReportContext(xlsxData, reportPath);
     }
