@@ -142,7 +142,9 @@ function hasRequiredSuffixes(text, suffixes, textNormalizeConfig) {
     const normalizedSuffix = normalizeText(suffix, textNormalizeConfig);
 
     if (normalizedSuffix === 'max') {
-      return /(^|[^a-z0-9])max([^a-z0-9]|$)/i.test(normalizedText) && !/max-\d/i.test(normalizedText);
+        return /(^|[^a-z0-9])max([^a-z0-9]|$)/i.test(normalizedText)
+          && !/max-\d/i.test(normalizedText)
+          && !/max\s*\((?:min|nom|avg|average|max(?:-\d+)?)\)/i.test(normalizedText);
     }
 
     if (normalizedSuffix === 'min') {
