@@ -57,6 +57,7 @@ function createReportRunner({
     rulePath,
     customer,
     reportPanelSelections,
+    reportPanelSelectionsByPath,
     appPath,
     onProgress
   }) {
@@ -84,7 +85,8 @@ function createReportRunner({
           checklistPath,
           rules,
           customer,
-          reportPanelSelections
+          reportPanelSelections,
+          reportPanelSelectionsOverride: reportPanelSelectionsByPath?.[reportPath] || null
         });
         resultEntry = { status: 'success', ...result };
       } catch (error) {

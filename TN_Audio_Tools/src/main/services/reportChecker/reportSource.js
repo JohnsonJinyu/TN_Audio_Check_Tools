@@ -100,12 +100,13 @@ function deriveMeasurementObject(rawText) {
 
 function deriveReportMetadata(reportPath, rawText, reportData) {
   const reportName = path.parse(reportPath || '').name;
-  const combinedSource = `${reportName} ${rawText || ''}`;
   const reportContext = reportData?.reportContext || {};
+  const measurementObject = String(reportContext.measurementObject || '').trim() || deriveMeasurementObject(rawText) || reportName;
+  const combinedSource = `${reportName} ${measurementObject} ${rawText || ''}`;
 
   return {
     reportName,
-    measurementObject: String(reportContext.measurementObject || '').trim() || deriveMeasurementObject(rawText) || reportName,
+    measurementObject,
     bandwidth: normalizeReportBandwidth(reportContext.bandwidth) || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '',
     codec: String(reportContext.codec || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['EVS', 'AMR']),
     network: String(reportContext.network || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['VOLTE', 'VOWIFI', 'VONR', 'VOIP', 'WCDMA', 'GSM']),

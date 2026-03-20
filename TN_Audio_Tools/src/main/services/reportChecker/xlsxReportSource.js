@@ -26,6 +26,36 @@ function createXlsxReportSource() {
     return normalized;
   }
 
+  function normalizeTerminalMode(value) {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (!normalized) {
+      return '';
+    }
+
+    if (normalized.includes('HANDSET') || normalized === 'HA') {
+      return 'HA';
+    }
+
+    if (normalized.includes('HEADSET') || normalized === 'HE' || normalized === 'HS') {
+      return 'HE';
+    }
+
+    if (normalized.includes('HANDSFREE') || normalized.includes('HANDSFREE') || normalized === 'HH' || normalized === 'HF') {
+      return 'HH';
+    }
+
+    return '';
+  }
+
+  function extractTokenFromText(value, candidates) {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (!normalized) {
+      return '';
+    }
+
+    return candidates.find((candidate) => new RegExp(`(^|[_\\-\\s])${candidate}([_\\-\\s.#]|$)`, 'i').test(normalized)) || '';
+  }
+
   function resolveDominantValue(values, normalizer = (value) => stringifyCellValue(value)) {
     const counts = new Map();
 
@@ -38,6 +68,17 @@ function createXlsxReportSource() {
 
     const rankedEntries = Array.from(counts.entries()).sort((left, right) => right[1] - left[1]);
     return rankedEntries[0]?.[0] || '';
+  }
+
+  function resolveDominantToken(values, candidates, extraNormalizer) {
+    return resolveDominantValue(values, (value) => {
+      const normalizedByCustomRule = typeof extraNormalizer === 'function' ? extraNormalizer(value) : '';
+      if (normalizedByCustomRule) {
+        return normalizedByCustomRule;
+      }
+
+      return extractTokenFromText(value, candidates);
+    });
   }
 
   function normalizeCellValue(value) {
@@ -276,7 +317,34 @@ function createXlsxReportSource() {
       reportFormat: 'xlsx',
       reportContext: {
         measurementObject: resolveDominantValue(detailedRows.map((row) => row['Measurement Object'])),
-        bandwidth: resolveDominantValue(detailedRows.map((row) => row.Bandwidth), normalizeReportBandwidth)
+        bandwidth: resolveDominantValue(detailedRows.map((row) => row.Bandwidth), normalizeReportBandwidth),
+        network: resolveDominantToken(
+          [
+            ...detailedRows.map((row) => row['Measurement Object']),
+            ...detailedRows.map((row) => row.SMD),
+            ...detailedRows.map((row) => row.Description),
+            ...detailedRows.map((row) => row.Comment)
+          ],
+          ['VOLTE', 'VOWIFI', 'VONR', 'VOIP', 'WCDMA', 'GSM']
+        ),
+        codec: resolveDominantToken(
+          [
+            ...detailedRows.map((row) => row['Measurement Object']),
+            ...detailedRows.map((row) => row.SMD),
+            ...detailedRows.map((row) => row.Name),
+            ...detailedRows.map((row) => row.Description)
+          ],
+          ['EVS', 'AMR']
+        ),
+        terminalMode: resolveDominantToken(
+          [
+            ...detailedRows.map((row) => row.UseCase),
+            ...detailedRows.map((row) => row['Measurement Object']),
+            ...detailedRows.map((row) => row.SMD)
+          ],
+          ['HA', 'HF', 'HS', 'HE', 'HH'],
+          normalizeTerminalMode
+        )
       },
       rawText: lines.join('\n'),
       html: '',

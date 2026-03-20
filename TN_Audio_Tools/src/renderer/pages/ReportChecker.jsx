@@ -13,6 +13,204 @@ const REPORT_PANEL_FIELDS = [
   { cell: 'C15', label: 'Vocoder' },
   { cell: 'D15', label: 'Bitrate' }
 ];
+const EMPTY_REPORT_PANEL_SELECTIONS = {
+  B13: '',
+  B15: '',
+  C15: '',
+  D15: ''
+};
+
+function createEmptyReportPanelSelections() {
+  return { ...EMPTY_REPORT_PANEL_SELECTIONS };
+}
+
+function normalizePanelSelections(selections = {}) {
+  return {
+    B13: String(selections.B13 || '').trim(),
+    B15: String(selections.B15 || '').trim(),
+    C15: String(selections.C15 || '').trim(),
+    D15: String(selections.D15 || '').trim()
+  };
+}
+
+function arePanelSelectionsEmpty(selections = {}) {
+  const normalized = normalizePanelSelections(selections);
+  return !normalized.B13 && !normalized.B15 && !normalized.C15 && !normalized.D15;
+}
+
+function panelSelectionsEqual(left = {}, right = {}) {
+  const normalizedLeft = normalizePanelSelections(left);
+  const normalizedRight = normalizePanelSelections(right);
+  return REPORT_PANEL_FIELDS.every((field) => normalizedLeft[field.cell] === normalizedRight[field.cell]);
+}
+
+function dynamicOptionsEqual(left = {}, right = {}) {
+  const keys = Array.from(new Set([...Object.keys(left || {}), ...Object.keys(right || {})]));
+  return keys.every((key) => {
+    const leftValues = Array.isArray(left?.[key]) ? left[key] : [];
+    const rightValues = Array.isArray(right?.[key]) ? right[key] : [];
+    return leftValues.length === rightValues.length && leftValues.every((value, index) => value === rightValues[index]);
+  });
+}
+
+function getPanelField(reportPanelMeta, cell) {
+  return reportPanelMeta.fields.find((field) => field.cell === cell);
+}
+
+function getOptionsForCell(reportPanelMeta, cell, selections = {}) {
+  const field = getPanelField(reportPanelMeta, cell);
+  if (!field) {
+    return [];
+  }
+
+  if (cell === 'C15') {
+    return (field.cascadeMap || {})[String(selections.B15 || '').trim()] || field.options || [];
+  }
+
+  if (cell === 'D15') {
+    return (field.cascadeMap || {})[String(selections.C15 || '').trim()] || field.options || [];
+  }
+
+  return field.options || [];
+}
+
+function buildPanelState(reportPanelMeta, requestedSelections = {}) {
+  const nextSelections = normalizePanelSelections(requestedSelections);
+  const nextDynamicOptions = {};
+
+  const c15Options = getOptionsForCell(reportPanelMeta, 'C15', nextSelections);
+  if (c15Options.length > 0) {
+    nextDynamicOptions.C15 = c15Options;
+  }
+  if (nextSelections.C15 && c15Options.length > 0 && !c15Options.includes(nextSelections.C15)) {
+    nextSelections.C15 = '';
+  }
+
+  const d15Options = getOptionsForCell(reportPanelMeta, 'D15', nextSelections);
+  if (d15Options.length > 0) {
+    nextDynamicOptions.D15 = d15Options;
+  }
+  if (nextSelections.D15 && d15Options.length > 0 && !d15Options.includes(nextSelections.D15)) {
+    nextSelections.D15 = '';
+  }
+
+  return {
+    selections: nextSelections,
+    dynamicOptions: nextDynamicOptions
+  };
+}
+
+function applyManualPanelSelectionChange(reportPanelMeta, currentSelections = {}, cell, value) {
+  const nextSelections = normalizePanelSelections(currentSelections);
+  const nextDynamicOptions = {};
+  nextSelections[cell] = String(value || '').trim();
+
+  if (cell === 'B15') {
+    const c15Options = getOptionsForCell(reportPanelMeta, 'C15', nextSelections);
+    nextDynamicOptions.C15 = c15Options;
+    nextSelections.C15 = c15Options.includes(nextSelections.C15) ? nextSelections.C15 : (c15Options[0] || '');
+
+    const d15Options = getOptionsForCell(reportPanelMeta, 'D15', nextSelections);
+    nextDynamicOptions.D15 = d15Options;
+    nextSelections.D15 = d15Options.includes(nextSelections.D15) ? nextSelections.D15 : (d15Options[0] || '');
+    return {
+      selections: nextSelections,
+      dynamicOptions: nextDynamicOptions
+    };
+  }
+
+  if (cell === 'C15') {
+    const d15Options = getOptionsForCell(reportPanelMeta, 'D15', nextSelections);
+    nextDynamicOptions.D15 = d15Options;
+    nextSelections.D15 = d15Options.includes(nextSelections.D15) ? nextSelections.D15 : (d15Options[0] || '');
+    return {
+      selections: nextSelections,
+      dynamicOptions: nextDynamicOptions
+    };
+  }
+
+  return buildPanelState(reportPanelMeta, nextSelections);
+}
+
+function buildDetectedTags(reportContext = {}) {
+  return [
+    reportContext.network,
+    reportContext.codec && reportContext.bandwidth ? `${reportContext.codec}_${reportContext.bandwidth}` : reportContext.codec,
+    reportContext.terminalMode
+  ].filter(Boolean);
+}
+
+function getAutoDetectionMeta(record, isMultiExcelMode = false) {
+  if (record.reportKind !== 'excel') {
+    return {
+      color: 'default',
+      label: '跟随 Excel 参数',
+      detail: 'Word 不单独做 xlsx 参数识别',
+      missingFields: [],
+      tags: []
+    };
+  }
+
+  if (record.contextInspectionStatus === 'pending') {
+    return {
+      color: 'gold',
+      label: '识别中',
+      detail: '正在读取 xlsx 内容并生成推荐参数',
+      missingFields: [],
+      tags: []
+    };
+  }
+
+  if (record.contextInspectionStatus === 'error') {
+    return {
+      color: 'red',
+      label: '识别失败',
+      detail: record.contextInspectionError || '未能从 xlsx 读取稳定参数，请人工确认',
+      missingFields: REPORT_PANEL_FIELDS.map((field) => field.label),
+      tags: []
+    };
+  }
+
+  const selections = normalizePanelSelections(record.reportPanelSelections || record.reportContext?.reportPanelSelections || {});
+  const missingFields = REPORT_PANEL_FIELDS
+    .filter((field) => !selections[field.cell])
+    .map((field) => field.label);
+  const detectedTags = buildDetectedTags(record.reportContext || {});
+
+  if (missingFields.length === 0) {
+    return {
+      color: 'green',
+      label: '已自动识别',
+      detail: '已填入下方参数确认面板，可直接复核',
+      missingFields,
+      tags: detectedTags
+    };
+  }
+
+  if (detectedTags.length > 0 || !arePanelSelectionsEmpty(selections)) {
+    return {
+      color: 'gold',
+      label: '待人工确认',
+      detail: `已识别稳定项，缺少 ${missingFields.join(' / ')} 的稳定来源`,
+      missingFields,
+      tags: detectedTags
+    };
+  }
+
+  return {
+    color: 'orange',
+    label: '未识别',
+    detail: '当前未提取到稳定参数，请人工确认',
+    missingFields,
+    tags: detectedTags
+  };
+}
+
+function getParameterConfirmationMeta(record) {
+  return String(record?.parameterConfirmationStatus || '').trim().toLowerCase() === 'confirmed'
+    ? { color: 'green', label: '已确认' }
+    : { color: 'gold', label: '待确认' };
+}
 
 function getReportKind(fileName = '') {
   const normalized = String(fileName).toLowerCase();
@@ -157,10 +355,7 @@ function ReportChecker() {
     fields: []
   });
   const [reportPanelSelections, setReportPanelSelections] = useState({
-    B13: '',
-    B15: '',
-    C15: '',
-    D15: ''
+    ...EMPTY_REPORT_PANEL_SELECTIONS
   });
   const [reportPanelDynamicOptions, setReportPanelDynamicOptions] = useState({});
   const [processedConclusion, setProcessedConclusion] = useState(null);
@@ -175,6 +370,25 @@ function ReportChecker() {
     currentReportName: ''
   });
   const activeRunIdRef = useRef(null);
+
+  useEffect(() => {
+    const excelReports = files.filter((item) => item.reportKind === 'excel');
+    const suggestedSelections = excelReports.length === 1
+      ? normalizePanelSelections(excelReports[0].reportPanelSelections || excelReports[0].reportContext?.reportPanelSelections || {})
+      : null;
+    const baseSelections = suggestedSelections && arePanelSelectionsEmpty(reportPanelSelections)
+      ? suggestedSelections
+      : reportPanelSelections;
+    const nextPanelState = buildPanelState(reportPanelMeta, baseSelections);
+
+    if (!panelSelectionsEqual(reportPanelSelections, nextPanelState.selections)) {
+      setReportPanelSelections(nextPanelState.selections);
+    }
+
+    if (!dynamicOptionsEqual(reportPanelDynamicOptions, nextPanelState.dynamicOptions)) {
+      setReportPanelDynamicOptions(nextPanelState.dynamicOptions);
+    }
+  }, [files, reportPanelMeta]);
 
   useEffect(() => {
     if (!window.electron?.reportChecker?.onProgress) {
@@ -274,7 +488,7 @@ function ReportChecker() {
       const nextSelections = nextFields.reduce((acc, field) => {
         acc[field.cell] = field.currentValue || '';
         return acc;
-      }, { B13: '', B15: '', C15: '', D15: '' });
+      }, createEmptyReportPanelSelections());
 
       setReportPanelMeta({
         reportSheetName: result?.reportSheetName || 'Report',
@@ -289,36 +503,65 @@ function ReportChecker() {
       }
     } catch (error) {
       setReportPanelMeta({ reportSheetName: 'Report', fields: [] });
-      setReportPanelSelections({ B13: '', B15: '', C15: '', D15: '' });
+      setReportPanelSelections(createEmptyReportPanelSelections());
       setReportPanelDynamicOptions({});
       message.warning(error?.message || '读取 checklist Report 参数失败，将使用报告自动识别值。');
     }
   };
 
-  const updateReportPanelSelection = (cell, value) => {
-    const newSelections = { ...reportPanelSelections, [cell]: value || '' };
-    const newDynamicOptions = { ...reportPanelDynamicOptions };
-
-    if (cell === 'B15') {
-      const c15Field = reportPanelMeta.fields.find((f) => f.cell === 'C15');
-      const c15Options = (c15Field?.cascadeMap || {})[value] || c15Field?.options || [];
-      newDynamicOptions['C15'] = c15Options;
-      const firstC15 = c15Options[0] || '';
-      newSelections['C15'] = firstC15;
-
-      const d15Field = reportPanelMeta.fields.find((f) => f.cell === 'D15');
-      const d15Options = (d15Field?.cascadeMap || {})[firstC15] || d15Field?.options || [];
-      newDynamicOptions['D15'] = d15Options;
-      newSelections['D15'] = d15Options[0] || '';
-    } else if (cell === 'C15') {
-      const d15Field = reportPanelMeta.fields.find((f) => f.cell === 'D15');
-      const d15Options = (d15Field?.cascadeMap || {})[value] || d15Field?.options || [];
-      newDynamicOptions['D15'] = d15Options;
-      newSelections['D15'] = d15Options[0] || '';
+  const inspectUploadedReport = async (filePath) => {
+    if (!window.electron?.reportChecker?.inspectReportContext) {
+      return null;
     }
 
-    setReportPanelSelections(newSelections);
-    setReportPanelDynamicOptions(newDynamicOptions);
+    return window.electron.reportChecker.inspectReportContext({
+      reportPath: filePath,
+      customer: selectedCustomer
+    });
+  };
+
+  const updateReportPanelSelection = (cell, value) => {
+    const nextPanelState = applyManualPanelSelectionChange(reportPanelMeta, reportPanelSelections, cell, value);
+    setReportPanelSelections(nextPanelState.selections);
+    setReportPanelDynamicOptions(nextPanelState.dynamicOptions);
+  };
+
+  const updateFileReportPanelSelection = (reportPath, cell, value) => {
+    setFiles((prev) => prev.map((item) => {
+      if (item.path !== reportPath) {
+        return item;
+      }
+
+      const nextPanelState = applyManualPanelSelectionChange(
+        reportPanelMeta,
+        item.reportPanelSelections || item.reportContext?.reportPanelSelections || createEmptyReportPanelSelections(),
+        cell,
+        value
+      );
+
+      return {
+        ...item,
+        parameterConfirmationStatus: 'pending',
+        reportPanelSelections: nextPanelState.selections,
+        reportContext: {
+          ...(item.reportContext || {}),
+          reportPanelSelections: nextPanelState.selections
+        }
+      };
+    }));
+  };
+
+  const confirmFileReportPanelSelection = (reportPath) => {
+    setFiles((prev) => prev.map((item) => {
+      if (item.path !== reportPath) {
+        return item;
+      }
+
+      return {
+        ...item,
+        parameterConfirmationStatus: 'confirmed'
+      };
+    }));
   };
 
   const handleUpload = (file, target, onSuccess) => {
@@ -341,6 +584,10 @@ function ReportChecker() {
         bundleKey: getBundleKey(file.name),
         reportKind: getReportKind(file.name),
         reportContext: detectReportContext(file.name),
+        reportPanelSelections: createEmptyReportPanelSelections(),
+        parameterConfirmationStatus: getReportKind(file.name) === 'excel' ? 'pending' : 'not_required',
+        contextInspectionStatus: getReportKind(file.name) === 'excel' ? 'pending' : 'not_applicable',
+        contextInspectionError: '',
         status: 'pending',
         items: 0,
         ruleProfileKey: '',
@@ -357,6 +604,49 @@ function ReportChecker() {
         const exists = prev.some((item) => item.path === file.path);
         return exists ? prev : [newItem, ...prev];
       });
+
+      if (newItem.reportKind === 'excel') {
+        inspectUploadedReport(file.path)
+          .then((inspection) => {
+            if (!inspection) {
+              return;
+            }
+
+            setFiles((prev) => prev.map((item) => {
+              if (item.path !== file.path) {
+                return item;
+              }
+
+              return {
+                ...item,
+                reportContext: inspection.reportContext || item.reportContext,
+                contextInspectionStatus: 'success',
+                contextInspectionError: '',
+                parameterConfirmationStatus: 'pending',
+                reportPanelSelections: normalizePanelSelections(
+                  inspection.suggestedReportPanelSelections
+                  || inspection.reportContext?.reportPanelSelections
+                  || item.reportPanelSelections
+                )
+              };
+            }));
+          })
+          .catch((error) => {
+            setFiles((prev) => prev.map((item) => {
+              if (item.path !== file.path) {
+                return item;
+              }
+
+              return {
+                ...item,
+                contextInspectionStatus: 'error',
+                contextInspectionError: error?.message || '读取参数上下文失败'
+              };
+            }));
+            message.warning(error?.message || `读取 ${file.name} 的参数上下文失败，将保留手动选择。`);
+          });
+      }
+
       message.success(`已添加报告: ${file.name}`);
     }
 
@@ -390,6 +680,8 @@ function ReportChecker() {
 
   setProcessedConclusion(null);
     setFiles([]);
+    setReportPanelSelections(createEmptyReportPanelSelections());
+    setReportPanelDynamicOptions({});
     setProgressState({
       active: false,
       total: 0,
@@ -414,8 +706,17 @@ function ReportChecker() {
     }
   };
 
-  const showDetails = (record) => {
+  const openInfoModal = (config) => {
     Modal.info({
+      closable: true,
+      keyboard: true,
+      maskClosable: true,
+      ...config
+    });
+  };
+
+  const showDetails = (record) => {
+    openInfoModal({
       title: record.name,
       width: 860,
       content: (
@@ -439,8 +740,8 @@ function ReportChecker() {
           <Paragraph>
             <Text strong>Report 参数：</Text>
             {' '}
-            {record.reportContext?.reportPanelSelections
-              ? `B13=${record.reportContext.reportPanelSelections.B13 || '-'} / B15=${record.reportContext.reportPanelSelections.B15 || '-'} / C15=${record.reportContext.reportPanelSelections.C15 || '-'} / D15=${record.reportContext.reportPanelSelections.D15 || '-'}`
+            {(record.reportPanelSelections || record.reportContext?.reportPanelSelections)
+              ? `B13=${(record.reportPanelSelections || record.reportContext?.reportPanelSelections).B13 || '-'} / B15=${(record.reportPanelSelections || record.reportContext?.reportPanelSelections).B15 || '-'} / C15=${(record.reportPanelSelections || record.reportContext?.reportPanelSelections).C15 || '-'} / D15=${(record.reportPanelSelections || record.reportContext?.reportPanelSelections).D15 || '-'}`
               : '未指定'}
           </Paragraph>
           <Paragraph>
@@ -539,7 +840,7 @@ function ReportChecker() {
   };
 
   const showExcelCoverageSummary = (conclusionData) => {
-    Modal.info({
+    openInfoModal({
       title: 'Excel 填表与覆盖性',
       width: 940,
       content: (
@@ -598,7 +899,7 @@ function ReportChecker() {
   };
 
   const showWordAuditSummary = (conclusionData) => {
-    Modal.info({
+    openInfoModal({
       title: 'Word 曲线与文档审查',
       width: 940,
       content: (
@@ -636,7 +937,7 @@ function ReportChecker() {
   };
 
   const showConsistencySummary = (conclusionData) => {
-    Modal.info({
+    openInfoModal({
       title: '跨报告一致性审查',
       width: 940,
       content: (
@@ -678,7 +979,7 @@ function ReportChecker() {
   };
 
   const showBundleSummary = (bundle) => {
-    Modal.info({
+    openInfoModal({
       title: `报告包：${bundle.key}`,
       width: 940,
       content: (
@@ -744,6 +1045,14 @@ function ReportChecker() {
       return;
     }
 
+    const unconfirmedExcelReports = files.filter(
+      (item) => item.reportKind === 'excel' && item.parameterConfirmationStatus !== 'confirmed'
+    );
+    if (unconfirmedExcelReports.length > 0) {
+      message.warning(`还有 ${unconfirmedExcelReports.length} 份 Excel 报告未确认参数，请先确认后再开始处理。`);
+      return;
+    }
+
     const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     activeRunIdRef.current = runId;
     setProcessedConclusion(null);
@@ -765,7 +1074,14 @@ function ReportChecker() {
         checklistPath: checklistFile?.path || null,
         rulePath: ruleFile?.path || null,
         customer: selectedCustomer,
-        reportPanelSelections
+        reportPanelSelections: null,
+        reportPanelSelectionsByPath: uploadSummary.excelCount > 0
+          ? Object.fromEntries(
+            files
+              .filter((item) => item.reportKind === 'excel')
+              .map((item) => [item.path, normalizePanelSelections(item.reportPanelSelections || {})])
+          )
+          : null
       });
 
       const resultMap = new Map(response.results.map((item) => [item.reportPath, item]));
@@ -837,6 +1153,9 @@ function ReportChecker() {
     ? Math.min(100, Math.round((progressState.completed / progressState.total) * 100))
     : 0;
   const uploadSummary = useMemo(() => buildUploadSummary(files, checklistFile), [files, checklistFile]);
+  const excelReportRecords = useMemo(() => files.filter((item) => item.reportKind === 'excel'), [files]);
+  const isMultiExcelMode = excelReportRecords.length > 1;
+  const hasExcelSource = excelReportRecords.length > 0;
   const conclusionData = useMemo(() => buildConclusionData(uploadSummary, processedConclusion), [uploadSummary, processedConclusion]);
 
   const exportRules = async () => {
@@ -885,6 +1204,72 @@ function ReportChecker() {
       }
     },
     {
+      title: '自动识别状态',
+      key: 'autoDetectionStatus',
+      width: 320,
+      render: (_, record) => {
+        const autoDetectionMeta = getAutoDetectionMeta(record, isMultiExcelMode);
+
+        return (
+          <div>
+            <div style={{ marginBottom: 6 }}>
+              <Tag color={autoDetectionMeta.color}>{autoDetectionMeta.label}</Tag>
+            </div>
+            <Text type="secondary" className="report-checker-table-text">
+              {autoDetectionMeta.detail}
+            </Text>
+            {autoDetectionMeta.tags.length > 0 ? (
+              <div style={{ marginTop: 8 }}>
+                <Space size={[4, 4]} wrap>
+                  {autoDetectionMeta.tags.map((tag) => <Tag key={`${record.id}-${tag}`}>{tag}</Tag>)}
+                </Space>
+              </div>
+            ) : null}
+          </div>
+        );
+      }
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      render: (_, record) => (
+        <Space wrap={false}>
+          <Button danger size="small" icon={<DeleteOutlined />} onClick={() => removeReport(record.id)}>删除</Button>
+        </Space>
+      )
+    }
+  ];
+
+  const resultColumns = [
+    {
+      title: '文件名',
+      dataIndex: 'name',
+      key: 'name',
+      width: 260,
+      ellipsis: true,
+      render: (text) => (
+        <Text className="report-checker-table-text" ellipsis={{ tooltip: text }}>
+          {text}
+        </Text>
+      )
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status) => {
+        const colors = {
+          success: 'green',
+          error: 'red',
+          pending: 'blue',
+          processing: 'gold'
+        };
+        return <Tag color={colors[status] || 'default'}>{getStatusMeta(status).label}</Tag>;
+      }
+    },
+    {
       title: '检查项',
       dataIndex: 'items',
       key: 'items',
@@ -895,7 +1280,7 @@ function ReportChecker() {
       title: '输出文件名',
       dataIndex: 'outputName',
       key: 'outputName',
-      width: 420,
+      width: 360,
       ellipsis: true,
       render: (_, record) => {
         if (!record.outputName) {
@@ -910,18 +1295,22 @@ function ReportChecker() {
       }
     },
     {
-      title: '操作',
-      key: 'action',
+      title: '结果操作',
+      key: 'resultAction',
       width: 220,
       render: (_, record) => (
         <Space wrap={false}>
           <Button type="primary" size="small" onClick={() => showDetails(record)}>详情</Button>
           <Button size="small" disabled={!record.outputPath} onClick={() => openOutputFolder(record)}>打开目录</Button>
-          <Button danger size="small" icon={<DeleteOutlined />} onClick={() => removeReport(record.id)}>删除</Button>
         </Space>
       )
     }
   ];
+
+  const resultRecords = useMemo(
+    () => files.filter((item) => item.status === 'success' || item.status === 'error' || item.status === 'processing'),
+    [files]
+  );
 
   return (
     <div className="page-container">
@@ -933,25 +1322,6 @@ function ReportChecker() {
           <Paragraph style={{ marginBottom: 0 }}>响度、频响和 Word 文档审查会输出证据入口，但最终正确性仍需音频工程师确认。</Paragraph>
         </div>
       </Card>
-
-      <div className="report-checker-top-grid">
-        <div className="report-checker-top-card">
-          <span className="report-checker-top-label">报告总数</span>
-          <strong>{uploadSummary.totalReports}</strong>
-        </div>
-        <div className="report-checker-top-card">
-          <span className="report-checker-top-label">已上传 Excel</span>
-          <strong>{uploadSummary.excelCount}</strong>
-        </div>
-        <div className="report-checker-top-card">
-          <span className="report-checker-top-label">已上传 Word</span>
-          <strong>{uploadSummary.wordCount}</strong>
-        </div>
-        <div className="report-checker-top-card">
-          <span className="report-checker-top-label">已上传 checklist</span>
-          <strong>{uploadSummary.checklistCount}</strong>
-        </div>
-      </div>
 
       <div className="report-checker-upload-stack">
         <Card 
@@ -1133,6 +1503,25 @@ function ReportChecker() {
         </div>
       </div>
 
+      <div className="report-checker-top-grid">
+        <div className="report-checker-top-card">
+          <span className="report-checker-top-label">报告总数</span>
+          <strong>{uploadSummary.totalReports}</strong>
+        </div>
+        <div className="report-checker-top-card">
+          <span className="report-checker-top-label">已上传 Excel</span>
+          <strong>{uploadSummary.excelCount}</strong>
+        </div>
+        <div className="report-checker-top-card">
+          <span className="report-checker-top-label">已上传 Word</span>
+          <strong>{uploadSummary.wordCount}</strong>
+        </div>
+        <div className="report-checker-top-card">
+          <span className="report-checker-top-label">已上传 checklist</span>
+          <strong>{uploadSummary.checklistCount}</strong>
+        </div>
+      </div>
+
       <Card className="report-checker-card report-checker-section-card" title="任务参数">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(240px, 1fr))', gap: 16 }}>
           <div>
@@ -1153,34 +1542,94 @@ function ReportChecker() {
                 ? `${checklistFile.name} / ${reportPanelMeta.reportSheetName || 'Report'} 页`
                 : '先上传 checklist 后读取参数'}
             </Text>
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary">
+                {hasExcelSource
+                  ? 'Excel 参数统一在下方确认面板中逐个确认；未确认前不能开始解析，避免误用自动识别结果。'
+                  : '当前未形成可自动预填的 Excel 源。'}
+              </Text>
+            </div>
           </div>
-          {REPORT_PANEL_FIELDS.map((field) => {
-            const panelField = reportPanelMeta.fields.find((item) => item.cell === field.cell);
-            const options = reportPanelDynamicOptions[field.cell] || panelField?.options || [];
-            const currentValue = reportPanelSelections[field.cell] || panelField?.currentValue || '';
-
-            return (
-              <div key={field.cell}>
-                <Text strong style={{ display: 'block', marginBottom: 8 }}>
-                  {field.label} ({field.cell})
-                </Text>
-                <Select
-                  showSearch
-                  allowClear
-                  value={currentValue || undefined}
-                  style={{ width: '100%' }}
-                  placeholder="请选择参数值"
-                  onChange={(value) => updateReportPanelSelection(field.cell, value)}
-                  options={options.map((item) => ({ label: item, value: item }))}
-                  notFoundContent={options.length === 0 ? '暂无候选值' : null}
-                />
-              </div>
-            );
-          })}
         </div>
         <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          客户与 Report 参数会随本次任务提交后端，用于规则分发、动态工作表切换与 Report 页回写。
+          客户与已确认的 Excel 参数会随本次任务提交后端，用于规则分发、动态工作表切换与 Report 页回写。
         </Paragraph>
+
+        {hasExcelSource ? (
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #f0f0f0' }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>Excel 参数确认</Text>
+            <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              已先从每份 xlsx 中读取初步参数。无论单个还是多个 Excel，都需要在这里逐个确认；如果自动识别不对，直接修改后再点击确认。
+            </Paragraph>
+
+            <div style={{ display: 'grid', gap: 16 }}>
+              {excelReportRecords.map((record) => {
+                const rowSelections = normalizePanelSelections(record.reportPanelSelections || record.reportContext?.reportPanelSelections || {});
+                const detectedTags = buildDetectedTags(record.reportContext || {});
+                const confirmationMeta = getParameterConfirmationMeta(record);
+
+                return (
+                  <div
+                    key={record.id}
+                    style={{
+                      padding: 16,
+                      border: '1px solid #e6ebf5',
+                      borderRadius: 14,
+                      background: '#fbfcff'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <Text strong style={{ display: 'block', marginBottom: 8 }}>{record.name}</Text>
+                        <Space size={[8, 8]} wrap>
+                          {detectedTags.length > 0
+                            ? detectedTags.map((tag) => <Tag key={`${record.id}-${tag}`} color="blue">{tag}</Tag>)
+                            : <Tag>未识别到上下文</Tag>}
+                          {record.reportContext?.measurementObject ? <Tag color="default">{record.reportContext.measurementObject}</Tag> : null}
+                        </Space>
+                      </div>
+                      <Space size={8}>
+                        <Tag color={confirmationMeta.color}>{confirmationMeta.label}</Tag>
+                        <Button
+                          type={record.parameterConfirmationStatus === 'confirmed' ? 'default' : 'primary'}
+                          size="small"
+                          disabled={record.parameterConfirmationStatus === 'confirmed'}
+                          onClick={() => confirmFileReportPanelSelection(record.path)}
+                        >
+                          {record.parameterConfirmationStatus === 'confirmed' ? '已确认' : '确认'}
+                        </Button>
+                      </Space>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))', gap: 12 }}>
+                      {REPORT_PANEL_FIELDS.map((field) => {
+                        const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
+
+                        return (
+                          <div key={`${record.id}-${field.cell}`}>
+                            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                              {field.label} ({field.cell})
+                            </Text>
+                            <Select
+                              showSearch
+                              allowClear
+                              value={rowSelections[field.cell] || undefined}
+                              style={{ width: '100%' }}
+                              placeholder="请选择参数值"
+                              onChange={(value) => updateFileReportPanelSelection(record.path, field.cell, value)}
+                              options={fieldOptions.map((item) => ({ label: item, value: item }))}
+                              notFoundContent={fieldOptions.length === 0 ? '暂无候选值' : null}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="report-checker-card report-checker-action-card">
@@ -1226,6 +1675,22 @@ function ReportChecker() {
           </div>
         </Card>
       )}
+
+      {resultRecords.length > 0 ? (
+        <Card className="report-checker-card report-checker-section-card" title="处理结果">
+          <Paragraph type="secondary" style={{ marginBottom: 16 }}>
+            这里集中展示报告处理后的检查项、输出文件和结果操作。处理完成后可直接查看详情或打开输出目录，不需要再回到上传列表。
+          </Paragraph>
+          <Table
+            className="report-checker-table report-checker-report-table"
+            columns={resultColumns}
+            dataSource={resultRecords}
+            rowKey="id"
+            scroll={{ x: 1120 }}
+            pagination={{ pageSize: 8 }}
+          />
+        </Card>
+      ) : null}
 
       <Card className="report-checker-card report-checker-conclusion-card" title="结论输出">
         <div className="report-checker-conclusion-actions" style={{ marginBottom: 16 }}>
@@ -1303,7 +1768,7 @@ function ReportChecker() {
             </span>
           </button>
 
-          <button type="button" className="report-checker-insight-card" onClick={() => Modal.info({ title: '当前建议', width: 760, content: (<div style={{ marginTop: 16 }}>{conclusionData.suggestedActions.length > 0 ? conclusionData.suggestedActions.map((item) => <Paragraph key={item} style={{ marginBottom: 8 }}>{item}</Paragraph>) : <Paragraph style={{ marginBottom: 0 }}>当前没有新增建议。</Paragraph>}</div>) })}>
+          <button type="button" className="report-checker-insight-card" onClick={() => openInfoModal({ title: '当前建议', width: 760, content: (<div style={{ marginTop: 16 }}>{conclusionData.suggestedActions.length > 0 ? conclusionData.suggestedActions.map((item) => <Paragraph key={item} style={{ marginBottom: 8 }}>{item}</Paragraph>) : <Paragraph style={{ marginBottom: 0 }}>当前没有新增建议。</Paragraph>}</div>) })}>
             <div className="report-checker-insight-header">
               <span className="report-checker-insight-title">人工复核建议</span>
               <Tag color={conclusionData.suggestedActions.length > 0 ? 'gold' : 'green'}>{conclusionData.suggestedActions.length > 0 ? '关注' : '稳定'}</Tag>

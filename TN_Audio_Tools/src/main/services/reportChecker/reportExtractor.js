@@ -47,6 +47,46 @@ function createReportExtractor({
     return normalized;
   }
 
+  function mergePanelSelections(primarySelections, fallbackSelections) {
+    const primary = normalizeReportPanelSelections(primarySelections) || {};
+    const fallback = normalizeReportPanelSelections(fallbackSelections) || {};
+
+    const merged = {
+      B13: primary.B13 || fallback.B13 || '',
+      B15: primary.B15 || fallback.B15 || '',
+      C15: primary.C15 || fallback.C15 || '',
+      D15: primary.D15 || fallback.D15 || ''
+    };
+
+    return normalizeReportPanelSelections(merged);
+  }
+
+  function formatNetworkLabel(value) {
+    const normalized = String(value || '').trim().toUpperCase();
+    const networkMap = {
+      VOLTE: 'VoLTE',
+      VOWIFI: 'VoWiFi',
+      VONR: 'VoNR',
+      VOIP: 'VoIP',
+      WCDMA: 'WCDMA',
+      GSM: 'GSM'
+    };
+
+    return networkMap[normalized] || '';
+  }
+
+  function buildAutoReportPanelSelections(reportContext = {}) {
+    const vocoder = buildNormalizedVocoder(reportContext);
+    const selections = {
+      B13: String(reportContext.headsetInterface || '').trim(),
+      B15: formatNetworkLabel(reportContext.network),
+      C15: vocoder.full || '',
+      D15: String(reportContext.bitrate || '').trim()
+    };
+
+    return normalizeReportPanelSelections(selections);
+  }
+
   function mergeReportContext(baseReportContext = {}, { customer, reportPanelSelections } = {}) {
     const merged = {
       ...baseReportContext
@@ -57,7 +97,7 @@ function createReportExtractor({
       merged.customer = normalizedCustomer;
     }
 
-    const normalizedSelections = normalizeReportPanelSelections(reportPanelSelections);
+    const normalizedSelections = mergePanelSelections(reportPanelSelections, buildAutoReportPanelSelections(baseReportContext));
     if (!normalizedSelections) {
       return merged;
     }
@@ -92,6 +132,10 @@ function createReportExtractor({
     }
 
     return merged;
+  }
+
+  function inspectReportContext(baseReportContext = {}, { customer, reportPanelSelections } = {}) {
+    return mergeReportContext(baseReportContext, { customer, reportPanelSelections });
   }
 
   function resolveTerminalModeKey(value) {
@@ -573,11 +617,11 @@ function createReportExtractor({
     return { applicable: true };
   }
 
-  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections }) {
+  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride }) {
     const reportData = await parseReport(reportPath);
     const mergedReportContext = mergeReportContext(reportData?.reportContext || {}, {
       customer,
-      reportPanelSelections
+      reportPanelSelections: reportPanelSelectionsOverride || reportPanelSelections
     });
     const normalizedReportData = {
       ...reportData,
@@ -692,7 +736,8 @@ function createReportExtractor({
   }
 
   return {
-    processSingleReport
+    processSingleReport,
+    inspectReportContext
   };
 }
 

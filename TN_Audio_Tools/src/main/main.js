@@ -8,7 +8,8 @@ const {
   processReports,
   DEFAULT_RULES_RELATIVE_PATH,
   buildExportableRulesContent,
-  parseChecklistReportOptions
+  parseChecklistReportOptions,
+  inspectReport
 } = require('./services/reportCheckerService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
@@ -171,6 +172,13 @@ ipcMain.handle('report-checker:show-output-in-folder', async (_, filePath) => {
 
 ipcMain.handle('report-checker:get-checklist-report-options', async (_, checklistPath) => {
   return parseChecklistReportOptions(checklistPath);
+});
+
+ipcMain.handle('report-checker:inspect-report-context', async (_, payload) => {
+  return inspectReport(payload?.reportPath, {
+    customer: payload?.customer,
+    reportPanelSelections: payload?.reportPanelSelections
+  });
 });
 
 ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {

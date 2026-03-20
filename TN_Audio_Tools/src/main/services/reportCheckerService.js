@@ -59,6 +59,17 @@ const { processSingleReport } = createReportExtractor({
   analyzeWordReport
 });
 
+const { inspectReportContext } = createReportExtractor({
+  parseReport,
+  applyResultsToChecklist,
+  resolveRowBasedValue,
+  resolveAnchorValue,
+  resolveTableValue,
+  resolveRegexValue,
+  analyzeExcelReport,
+  analyzeWordReport
+});
+
 const { processReports } = createReportRunner({
   supportedChecklistExtensions: SUPPORTED_CHECKLIST_EXTENSIONS,
   defaultRulesRelativePath: DEFAULT_RULES_RELATIVE_PATH,
@@ -67,9 +78,26 @@ const { processReports } = createReportRunner({
   buildBatchConclusion
 });
 
+async function inspectReport(reportPath, options = {}) {
+  if (!reportPath) {
+    throw new Error('缺少报告路径');
+  }
+
+  const reportData = await parseReport(reportPath);
+  const mergedReportContext = inspectReportContext(reportData?.reportContext || {}, options);
+
+  return {
+    reportPath,
+    reportFormat: reportData?.reportFormat || '',
+    reportContext: mergedReportContext,
+    suggestedReportPanelSelections: mergedReportContext.reportPanelSelections || null
+  };
+}
+
 module.exports = {
   processReports,
   DEFAULT_RULES_RELATIVE_PATH,
   buildExportableRulesContent,
-  parseChecklistReportOptions
+  parseChecklistReportOptions,
+  inspectReport
 };
