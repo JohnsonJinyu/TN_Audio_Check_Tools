@@ -2,9 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Card, Row, Col, Statistic, Button, Space, Tag, Divider, Modal, Table, Empty, message } from 'antd';
 import {
   FileTextOutlined,
-  AudioOutlined,
   LineChartOutlined,
-  SwapOutlined,
+  SearchOutlined,
   ArrowRightOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons';
@@ -16,20 +15,20 @@ function Dashboard({ onNavigate }) {
   const [historyVisible, setHistoryVisible] = useState(false);
   const tools = [
     {
-      title: '音频报告检查',
-      description: '检查和验证音频测试报告的完整性和有效性',
+      title: '测试数据收集',
+      description: '上传报告、checklist 和规则文件，统一收集测试数据并生成结论',
       icon: <FileTextOutlined />,
       color: '#ff7a45',
-      stats: `${dashboardData.checkedReports} 个报告`,
+      stats: `${dashboardData.checkedReports} 份报告`,
       pageKey: 'report-checker'
     },
     {
-      title: '音频播放器',
-      description: '播放各种格式的音频文件，并进行基础分析',
-      icon: <AudioOutlined />,
-      color: '#13c2c2',
-      stats: '支持多种格式',
-      pageKey: 'audio-player'
+      title: '报告审查',
+      description: '查看审查范围、最近处理结果和输出文件历史',
+      icon: <SearchOutlined />,
+      color: '#1677ff',
+      stats: `${dashboardData.reportHistory.length} 条记录`,
+      pageKey: 'report-review'
     },
     {
       title: '频谱分析',
@@ -38,14 +37,6 @@ function Dashboard({ onNavigate }) {
       color: '#722ed1',
       stats: '实时分析',
       pageKey: 'spectrum'
-    },
-    {
-      title: '音频转换',
-      description: '转换音频格式，调整采样率和码率',
-      icon: <SwapOutlined />,
-      color: '#faad14',
-      stats: '多格式支持',
-      pageKey: 'converter'
     }
   ];
 
@@ -76,7 +67,7 @@ function Dashboard({ onNavigate }) {
     }
 
     try {
-      await window.electron.reportChecker.showOutputInFolder(record.outputPath);
+      await window.electron.testDataCollection.showOutputInFolder(record.outputPath);
     } catch (error) {
       message.error(error?.message || '打开输出目录失败');
     }
@@ -88,51 +79,43 @@ function Dashboard({ onNavigate }) {
     }
 
     Modal.confirm({
-      title: '清空检查历史记录',
-      content: '清空后将删除当前本地保存的报告检查历史，且不可恢复。',
+      title: '清空数据收集历史',
+      content: '清空后将删除当前本地保存的数据收集历史，且不可恢复。',
       okText: '确认清空',
       cancelText: '取消',
       okButtonProps: { danger: true },
       onOk: () => {
         clearReportHistory();
         setDashboardData(readDashboardData());
-        message.success('已清空检查历史记录');
+        message.success('已清空数据收集历史');
       }
     });
   };
 
   const quickStats = [
     {
-      key: 'processedAudio',
-      title: '已处理音频',
-      value: dashboardData.processedAudio,
-      prefix: <AudioOutlined />,
-      color: '#1890ff',
-      pageKey: 'audio-player'
-    },
-    {
       key: 'checkedReports',
-      title: '已检查报告',
+      title: '已收集报告',
       value: dashboardData.checkedReports,
       prefix: <FileTextOutlined />,
       color: '#ff7a45',
       pageKey: 'report-checker'
     },
     {
+      key: 'reviewHistory',
+      title: '审查记录',
+      value: dashboardData.reportHistory.length,
+      prefix: <SearchOutlined />,
+      color: '#1677ff',
+      pageKey: 'report-review'
+    },
+    {
       key: 'analysisSuccess',
-      title: '分析成功',
+      title: '成功处理',
       value: dashboardData.analysisSuccess,
       prefix: <LineChartOutlined />,
       color: '#722ed1',
-      pageKey: 'spectrum'
-    },
-    {
-      key: 'conversionsCompleted',
-      title: '转换完成',
-      value: dashboardData.conversionsCompleted,
-      prefix: <SwapOutlined />,
-      color: '#faad14',
-      pageKey: 'converter'
+      pageKey: 'report-review'
     }
   ];
 
@@ -208,14 +191,14 @@ function Dashboard({ onNavigate }) {
               欢迎使用 TN Audio Toolkit
             </h1>
             <p style={{ fontSize: '16px', opacity: 0.9, marginBottom: 0 }}>
-              一站式音频处理和分析解决方案。选择下方的工具开始使用。
+              面向音频测试场景的数据收集、报告审查与频谱分析工作台。
             </p>
           </Card>
         </Col>
 
         {/* 快速统计 */}
         {quickStats.map((stat) => (
-          <Col key={stat.title} xs={24} sm={12} md={6}>
+          <Col key={stat.title} xs={24} sm={12} md={8}>
             <Card
               className="dashboard-stat-card"
               hoverable
@@ -240,7 +223,7 @@ function Dashboard({ onNavigate }) {
         </Col>
 
         {tools.map((tool, index) => (
-          <Col key={index} xs={24} sm={12} md={12} lg={6}>
+          <Col key={index} xs={24} sm={12} md={12} lg={8}>
             <Card 
               className="tool-card"
               hoverable
@@ -309,8 +292,8 @@ function Dashboard({ onNavigate }) {
             style={{ backgroundColor: '#f6f8fb', border: '1px solid #e6f7ff' }}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
-              <p>• 使用 Ctrl+I 快速打开音频导入对话框</p>
-              <p>• 在左侧菜单中选择相应工具开始使用</p>
+              <p>• 先进入“测试数据收集”上传报告、checklist 和规则文件</p>
+              <p>• 在“报告审查”面板查看最近批次结果和输出目录</p>
               <p>• 点击 Settings（设置）配置应用偏好</p>
             </Space>
           </Card>
@@ -318,7 +301,7 @@ function Dashboard({ onNavigate }) {
       </Row>
 
       <Modal
-        title="已检查报告历史记录"
+        title="测试数据收集历史记录"
         open={historyVisible}
         onCancel={() => setHistoryVisible(false)}
         width={900}
@@ -335,7 +318,7 @@ function Dashboard({ onNavigate }) {
             setHistoryVisible(false);
             handleNavigate('report-checker');
           }}>
-            前往报告检查
+            前往测试数据收集
           </Button>,
           <Button key="close-history" type="primary" onClick={() => setHistoryVisible(false)}>
             关闭
@@ -352,7 +335,7 @@ function Dashboard({ onNavigate }) {
             scroll={{ x: 820 }}
           />
         ) : (
-          <Empty description="暂无检查历史记录" style={{ margin: '24px 0' }} />
+          <Empty description="暂无数据收集历史记录" style={{ margin: '24px 0' }} />
         )}
       </Modal>
     </div>

@@ -24,11 +24,9 @@ src/
     │
     ├── pages/         # 页面组件
     │   ├── Dashboard.jsx          # 仪表盘
-    │   ├── ReportChecker.jsx      # 报告检查（核心功能）
-    │   ├── AudioPlayer.jsx        # 音频播放器
+    │   ├── TestDataCollectionPage.jsx # 测试数据收集（核心功能）
+    │   ├── ReportReview.jsx       # 报告审查
     │   ├── SpectrumAnalyzer.jsx   # 频谱分析
-    │   ├── AudioConverter.jsx     # 格式转换
-    │   ├── BatchProcessor.jsx     # 批量处理
     │   └── Settings.jsx           # 设置页面
     │
     └── styles/        # 样式文件

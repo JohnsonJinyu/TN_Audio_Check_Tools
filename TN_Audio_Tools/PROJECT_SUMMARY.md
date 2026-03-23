@@ -167,13 +167,11 @@ TN_Audio_Tools/
 │       ├── App.css                 # 应用全局样式
 │       ├── index.jsx               # React 入口
 │       ├── index.css               # 全局样式
-│       ├── pages/                  # 7个页面组件
+│       ├── pages/                  # 5个页面组件
 │       │   ├── Dashboard.jsx
-│       │   ├── ReportChecker.jsx
-│       │   ├── AudioPlayer.jsx
+│       │   ├── TestDataCollectionPage.jsx
+│       │   ├── ReportReview.jsx
 │       │   ├── SpectrumAnalyzer.jsx
-│       │   ├── AudioConverter.jsx
-│       │   ├── BatchProcessor.jsx
 │       │   └── Settings.jsx
 │       └── styles/
 │           └── pages.css           # 页面样式

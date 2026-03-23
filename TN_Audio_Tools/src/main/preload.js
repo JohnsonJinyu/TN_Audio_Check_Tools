@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('electron', {
     on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
     send: (channel, ...args) => ipcRenderer.send(channel, ...args)
   },
-  reportChecker: {
+  testDataCollection: {
     processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload),
     onProgress: (listener) => subscribeToChannel('report-checker:progress', listener),
     showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath),

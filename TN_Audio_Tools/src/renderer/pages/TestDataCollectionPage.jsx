@@ -391,11 +391,11 @@ function TestDataCollectionPage() {
   }, [files, reportPanelMeta]);
 
   useEffect(() => {
-    if (!window.electron?.reportChecker?.onProgress) {
+    if (!window.electron?.testDataCollection?.onProgress) {
       return undefined;
     }
 
-    const unsubscribe = window.electron.reportChecker.onProgress((payload) => {
+    const unsubscribe = window.electron.testDataCollection.onProgress((payload) => {
       if (!payload || payload.runId !== activeRunIdRef.current) {
         return;
       }
@@ -478,12 +478,12 @@ function TestDataCollectionPage() {
   }, []);
 
   const loadChecklistReportPanelOptions = async (checklistPath) => {
-    if (!checklistPath || !window.electron?.reportChecker?.getChecklistReportOptions) {
+    if (!checklistPath || !window.electron?.testDataCollection?.getChecklistReportOptions) {
       return;
     }
 
     try {
-      const result = await window.electron.reportChecker.getChecklistReportOptions(checklistPath);
+      const result = await window.electron.testDataCollection.getChecklistReportOptions(checklistPath);
       const nextFields = Array.isArray(result?.fields) ? result.fields : [];
       const nextSelections = nextFields.reduce((acc, field) => {
         acc[field.cell] = field.currentValue || '';
@@ -510,11 +510,11 @@ function TestDataCollectionPage() {
   };
 
   const inspectUploadedReport = async (filePath) => {
-    if (!window.electron?.reportChecker?.inspectReportContext) {
+    if (!window.electron?.testDataCollection?.inspectReportContext) {
       return null;
     }
 
-    return window.electron.reportChecker.inspectReportContext({
+    return window.electron.testDataCollection.inspectReportContext({
       reportPath: filePath,
       customer: selectedCustomer
     });
@@ -700,7 +700,7 @@ function TestDataCollectionPage() {
     }
 
     try {
-      await window.electron.reportChecker.showOutputInFolder(record.outputPath);
+      await window.electron.testDataCollection.showOutputInFolder(record.outputPath);
     } catch (error) {
       message.error(error?.message || '打开输出目录失败');
     }
@@ -1068,7 +1068,7 @@ function TestDataCollectionPage() {
     });
 
     try {
-      const response = await window.electron.reportChecker.processReports({
+      const response = await window.electron.testDataCollection.processReports({
         runId,
         reportPaths: files.map((item) => item.path),
         checklistPath: checklistFile?.path || null,
@@ -1162,7 +1162,7 @@ function TestDataCollectionPage() {
     setExportingRules(true);
 
     try {
-      const result = await window.electron.reportChecker.exportRules(ruleFile?.path || null);
+      const result = await window.electron.testDataCollection.exportRules(ruleFile?.path || null);
       if (result?.canceled) {
         return;
       }

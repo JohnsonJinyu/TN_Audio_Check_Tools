@@ -95,7 +95,7 @@ npm run react-build
 以"报告检查"功能为例：
 
 ### 1. 设计 UI（已完成）
-文件：`src/renderer/pages/ReportChecker.jsx`
+文件：`src/renderer/pages/TestDataCollectionPage.jsx`
 - 已有上传区域、表格、操作按钮
 
 ### 2. 添加状态管理

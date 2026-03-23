@@ -1,6 +1,6 @@
 # TN Audio Toolkit
 
-一站式专业音频处理和分析工具集，基于 Electron + React + Node.js 构建。
+面向音频测试场景的数据收集、报告审查与频谱分析工具，基于 Electron + React + Node.js 构建。
 
 ## 功能模块
 
@@ -9,25 +9,21 @@
 - 快速统计信息
 - 最近使用记录
 
-### 2. 📋 音频报告检查 (Report Checker)
-- 导入和检查音频测试报告
-- 自动验证报告完整性
-- 详细的检查结果展示
+### 2. 📋 测试数据收集 (Report Checker)
+- 导入测试报告、checklist 和规则文件
+- 执行测试数据收集并生成结论
+- 展示处理结果与输出文件
 
-### 3. 🔊 音频播放器 (Audio Player)
-- 支持多种音频格式
-- 实时播放控制
-- 音频信息显示
+### 3. 🔎 报告审查 (Report Review)
+- 汇总文档完整性与曲线章节审查范围
+- 查看最近处理记录
+- 快速打开输出目录
 
 ### 4. 📊 频谱分析 (Spectrum Analyzer)
 - 实时频谱分析
 - 多种分析类型支持
 - FFT、小波变换等算法
 - 详细的分析参数配置
-
-### 5. 🔄 音频转换 (Audio Converter)
-- 格式转换 (MP3, WAV, FLAC, AAC, OGG)
-- 比特率和采样率调整
 - 批量转换支持
 
 ### 6. ⚙️ 批量处理 (Batch Processor)
@@ -67,11 +63,9 @@
 │   │   ├── index.css      # 全局样式
 │   │   ├── pages/         # 页面组件
 │   │   │   ├── Dashboard.jsx
-│   │   │   ├── ReportChecker.jsx
-│   │   │   ├── AudioPlayer.jsx
+│   │   │   ├── TestDataCollectionPage.jsx
+│   │   │   ├── ReportReview.jsx
 │   │   │   ├── SpectrumAnalyzer.jsx
-│   │   │   ├── AudioConverter.jsx
-│   │   │   ├── BatchProcessor.jsx
 │   │   │   └── Settings.jsx
 │   │   └── styles/        # 样式文件
 │   │       └── pages.css

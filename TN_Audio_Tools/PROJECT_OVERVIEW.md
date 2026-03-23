@@ -2,7 +2,7 @@
 
 ## 概览
 
-已成功将 .NET WinForm 项目重构为现代的 **Electron + React + Node.js** 音频工具集应用。
+已成功将 .NET WinForm 项目重构为现代的 **Electron + React + Node.js** 音频测试工具应用。
 
 **项目状态**: ✅ **UI 框架 100% 完成**，业务逻辑待实现
 
@@ -12,8 +12,8 @@
 
 | 指标 | 数据 |
 |------|------|
-| **总文件数** | 23 |
-| **页面组件** | 7 |
+| **总文件数** | 21 |
+| **页面组件** | 5 |
 | **代码行数** | 2000+ |
 | **UI 组件** | 60+ (Ant Design) |
 | **npm 依赖** | 15 |
@@ -27,8 +27,8 @@
 **路径**: `src/renderer/pages/Dashboard.jsx`
 
 - 欢迎卡片（紫色渐变背景）
-- 4 个快速统计卡片（已处理音频、检查报告、分析成功、转换完成）
-- 4 个工具导航卡片（报告检查、音频播放、频谱分析、音频转换）
+- 3 个快速统计卡片（已收集报告、审查记录、成功处理）
+- 3 个工具导航卡片（测试数据收集、报告审查、频谱分析）
 - 最近使用记录区域
 - 快速提示面板
 
@@ -36,35 +36,34 @@
 
 ---
 
-### 2️⃣ ReportChecker（音频报告检查）⭐ 核心功能
-**路径**: `src/renderer/pages/ReportChecker.jsx`
+### 2️⃣ ReportChecker（测试数据收集）⭐ 核心功能
+**路径**: `src/renderer/pages/TestDataCollectionPage.jsx`
 
-- 文件上传区域（支持 Excel、CSV、PDF）
+- 文件上传区域（支持 Excel、Word、规则文件）
 - 报告列表表格
 - 状态标记（成功、错误、待处理）
-- 检查项统计
-- 详情/删除操作
+- 任务进度与结果汇总
+- 结论输出与详情查看
 
 **待实现**: 
-- 报告检查算法
-- Excel/PDF 解析
+- 数据收集算法深化
+- Excel/Word 解析优化
 - 验证规则引擎
 
 ---
 
-### 3️⃣ AudioPlayer（音频播放器）
-**路径**: `src/renderer/pages/AudioPlayer.jsx`
+### 3️⃣ ReportReview（报告审查）
+**路径**: `src/renderer/pages/ReportReview.jsx`
 
-- 播放控制面板（播放/暂停）
-- 进度条和时间显示
-- 音量控制滑块
-- 播放列表
-- 音频信息展示
+- 审查面板总览
+- 最近处理记录表格
+- 输出目录快捷打开
+- 前往测试数据收集入口
 
 **待实现**:
-- Web Audio API 集成
-- 播放控制逻辑
-- 音频格式支持
+- 审查维度细分
+- 结论过滤与检索
+- 历史记录联动
 
 ---
 
@@ -87,49 +86,7 @@
 
 ---
 
-### 5️⃣ AudioConverter（音频转换）
-**路径**: `src/renderer/pages/AudioConverter.jsx`
-
-**转换设置**:
-- 输出格式选择（MP3、WAV、FLAC、AAC、OGG）
-- 比特率设置（32-320 kbps）
-- 采样率配置（44.1kHz、48kHz、96kHz）
-- 声道选择（单声道、立体声）
-
-**队列管理**:
-- 文件上传
-- 转换进度条
-- 操作按钮（下载、删除）
-
-**待实现**:
-- FFmpeg 集成
-- 格式转换逻辑
-- 进度跟踪
-
----
-
-### 6️⃣ BatchProcessor（批量处理）
-**路径**: `src/renderer/pages/BatchProcessor.jsx`
-
-**处理选项**:
-- 操作类型（批量转换、检查、分析、编码）
-- 输出格式和比特率
-- 并发控制（覆盖、删除、多线程）
-
-**统计面板**:
-- 总文件数
-- 已完成数
-- 处理中数
-- 失败数
-
-**待实现**:
-- 队列管理
-- 多线程处理
-- 进度统计
-
----
-
-### 7️⃣ Settings（应用设置）
+### 5️⃣ Settings（应用设置）
 **路径**: `src/renderer/pages/Settings.jsx`
 
 **外观设置**:
@@ -246,13 +203,11 @@ TN_Audio_Tools/
             ├── index.jsx               # React 入口点
             ├── index.css               # 全局基础样式
             │
-            ├── pages/                  # 页面组件（7个）
+            ├── pages/                  # 页面组件（5个）
             │   ├── Dashboard.jsx       # 仪表盘
-            │   ├── ReportChecker.jsx   # 报告检查
-            │   ├── AudioPlayer.jsx     # 音频播放器
+            │   ├── TestDataCollectionPage.jsx   # 测试数据收集
+            │   ├── ReportReview.jsx    # 报告审查
             │   ├── SpectrumAnalyzer.jsx # 频谱分析
-            │   ├── AudioConverter.jsx  # 音频转换
-            │   ├── BatchProcessor.jsx  # 批量处理
             │   └── Settings.jsx        # 设置页面
             │
             └── styles/                 # 样式文件

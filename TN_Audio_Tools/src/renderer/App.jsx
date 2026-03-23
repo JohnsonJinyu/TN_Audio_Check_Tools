@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Tooltip } from 'antd';
+import { Layout, Menu } from 'antd';
 import {
   FileTextOutlined,
-  AudioOutlined,
   LineChartOutlined,
-  SwapOutlined,
-  BgColorsOutlined,
+  SearchOutlined,
   SettingOutlined,
   HomeOutlined
 } from '@ant-design/icons';
 import './App.css';
 import Dashboard from './pages/Dashboard';
-import ReportChecker from './pages/ReportChecker';
-import AudioPlayer from './pages/AudioPlayer';
+import TestDataCollectionPage from './pages/TestDataCollectionPage';
+import ReportReview from './pages/ReportReview';
 import SpectrumAnalyzer from './pages/SpectrumAnalyzer';
-import AudioConverter from './pages/AudioConverter';
-import BatchProcessor from './pages/BatchProcessor';
 import Settings from './pages/Settings';
 
 const { Header, Sider, Content } = Layout;
@@ -27,27 +23,19 @@ function App() {
   const pageMeta = {
     dashboard: {
       title: '仪表盘',
-      description: '快速进入各个音频工具模块。'
+      description: '快速进入测试数据收集、报告审查和分析模块。'
     },
     'report-checker': {
-      title: '音频测试报告检查',
-      description: '上传报告、checklist 与规则文件后，统一执行检查并生成 Excel 结果。'
+      title: '测试数据收集',
+      description: '上传报告、checklist 与规则文件后，统一执行数据收集并生成结论。'
     },
-    'audio-player': {
-      title: '音频播放',
-      description: '播放音频文件并进行基础分析。'
+    'report-review': {
+      title: '报告审查',
+      description: '集中查看审查范围、处理结果和历史输出记录。'
     },
     spectrum: {
       title: '频谱分析',
       description: '实时查看音频频谱与波形特性。'
-    },
-    converter: {
-      title: '音频转换',
-      description: '转换音频格式并调整采样参数。'
-    },
-    batch: {
-      title: '批量处理',
-      description: '集中执行批量转换和处理任务。'
     },
     settings: {
       title: '设置',
@@ -70,32 +58,20 @@ function App() {
     {
       key: 'report-checker',
       icon: <FileTextOutlined />,
-      label: '报告检查',
-      title: '音频测试报告检查'
+      label: '测试数据收集',
+      title: '测试报告数据收集'
     },
     {
-      key: 'audio-player',
-      icon: <AudioOutlined />,
-      label: '音频播放',
-      title: '播放和分析音频文件'
+      key: 'report-review',
+      icon: <SearchOutlined />,
+      label: '报告审查',
+      title: '查看报告审查面板'
     },
     {
       key: 'spectrum',
       icon: <LineChartOutlined />,
       label: '频谱分析',
       title: '音频频谱分析工具'
-    },
-    {
-      key: 'converter',
-      icon: <SwapOutlined />,
-      label: '音频转换',
-      title: '音频格式转换和处理'
-    },
-    {
-      key: 'batch',
-      icon: <BgColorsOutlined />,
-      label: '批量处理',
-      title: '批量转换和处理音频'
     },
     {
       type: 'divider'
@@ -113,19 +89,15 @@ function App() {
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentPage} />;
       case 'report-checker':
-        return <ReportChecker />;
-      case 'audio-player':
-        return <AudioPlayer />;
+        return <TestDataCollectionPage />;
+      case 'report-review':
+        return <ReportReview onNavigate={setCurrentPage} />;
       case 'spectrum':
         return <SpectrumAnalyzer />;
-      case 'converter':
-        return <AudioConverter />;
-      case 'batch':
-        return <BatchProcessor />;
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentPage} />;
     }
   };
 

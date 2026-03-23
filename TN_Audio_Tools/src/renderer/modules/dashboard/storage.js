@@ -4,10 +4,8 @@ const REPORT_HISTORY_LIMIT = 100;
 
 function createDefaultDashboardData() {
   return {
-    processedAudio: 0,
     checkedReports: 0,
     analysisSuccess: 0,
-    conversionsCompleted: 0,
     reportHistory: []
   };
 }
@@ -22,10 +20,8 @@ function getSafeLocalStorage() {
 
 function normalizeDashboardData(rawValue) {
   return {
-    processedAudio: Number(rawValue?.processedAudio) || 0,
     checkedReports: Number(rawValue?.checkedReports) || 0,
     analysisSuccess: Number(rawValue?.analysisSuccess) || 0,
-    conversionsCompleted: Number(rawValue?.conversionsCompleted) || 0,
     reportHistory: Array.isArray(rawValue?.reportHistory) ? rawValue.reportHistory : []
   };
 }
@@ -68,7 +64,7 @@ function getFileNameFromPath(filePath) {
   return segments[segments.length - 1] || filePath;
 }
 
-export function recordReportCheckResults(resultList) {
+export function recordDataCollectionResults(resultList) {
   if (!Array.isArray(resultList) || resultList.length === 0) {
     return;
   }
