@@ -20,7 +20,7 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   await applyChecklistWritePlan(writePlan);
   await applyChecklistStyles(writePlan, extractedItems, reportContext);
 
-  console.log('[reportChecker] checklist values applied via library-only template-preserving pipeline');
+  console.log('[testDataExtraction] checklist values applied via library-only template-preserving pipeline');
   return writePlan.outputPath;
 }
 

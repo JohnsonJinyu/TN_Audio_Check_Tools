@@ -26,5 +26,9 @@ contextBridge.exposeInMainWorld('electron', {
     getChecklistReportOptions: (checklistPath) => ipcRenderer.invoke('report-checker:get-checklist-report-options', checklistPath),
     inspectReportContext: (payload) => ipcRenderer.invoke('report-checker:inspect-report-context', payload),
     exportRules: (rulePath) => ipcRenderer.invoke('report-checker:export-rules', rulePath)
+  },
+  reportReview: {
+    reviewWordReport: (payload) => ipcRenderer.invoke('report-review:review-word-report', payload),
+    uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload)
   }
 });

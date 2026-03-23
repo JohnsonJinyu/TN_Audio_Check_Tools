@@ -1,4 +1,4 @@
-require('./services/reportChecker/runtimePolyfills');
+require('./services/testDataExtraction/runtimePolyfills');
 
 const fs = require('fs/promises');
 const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
@@ -10,7 +10,8 @@ const {
   buildExportableRulesContent,
   parseChecklistReportOptions,
   inspectReport
-} = require('./services/reportCheckerService');
+} = require('./services/testDataExtraction');
+const { reviewWordReport } = require('./services/reportReview');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
@@ -209,6 +210,51 @@ ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {
     canceled: false,
     filePath: outputPath
   };
+});
+
+ipcMain.handle('report-review:review-word-report', async (_, payload) => {
+  if (!payload?.reportPath) {
+    throw new Error('缺少报告路径');
+  }
+
+  const result = await reviewWordReport(payload.reportPath);
+  return result;
+});
+
+ipcMain.handle('dialog:open-file', async (_, options = {}) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: options.title || '选择文件',
+    filters: options.filters || [{ name: '所有文件', extensions: ['*'] }],
+    properties: options.properties || ['openFile']
+  });
+
+  return {
+    canceled,
+    filePath: filePaths
+  };
+});
+
+ipcMain.handle('report-review:upload-word-report', async (_, payload) => {
+  if (!payload?.filePath) {
+    throw new Error('缺少上传的报告文件路径');
+  }
+
+  // 验证文件是否存在
+  try {
+    await fs.access(payload.filePath);
+  } catch (err) {
+    throw new Error(`上传的报告文件不存在: ${payload.filePath}`);
+  }
+
+  // 验证文件扩展名
+  const ext = path.extname(payload.filePath).toLowerCase();
+  if (!['.doc', '.docx'].includes(ext)) {
+    throw new Error(`不支持的文件格式: ${ext}，仅支持 .doc 和 .docx`);
+  }
+
+  // 直接调用审查函数
+  const result = await reviewWordReport(payload.filePath);
+  return result;
 });
 
 // 创建菜单

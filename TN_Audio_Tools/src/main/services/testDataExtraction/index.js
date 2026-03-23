@@ -1,26 +1,26 @@
-require('./reportChecker/runtimePolyfills');
+require('./runtimePolyfills');
 
 const path = require('path');
-const { applyResultsToChecklist } = require('./reportChecker/checklistWriter');
-const { createReportRunner } = require('./reportChecker/reportRunner');
-const { createReportSource } = require('./reportChecker/reportSource');
-const { createReportExtractor } = require('./reportChecker/reportExtractor');
-const { createReportConverter } = require('./reportChecker/reportConverter');
-const { createXlsxReportSource } = require('./reportChecker/xlsxReportSource');
-const { parseChecklistReportOptions } = require('./reportChecker/checklistReportPanel');
+const WordExtractor = require('word-extractor');
+const { applyResultsToChecklist } = require('./checklistWriter');
+const { createReportRunner } = require('./reportRunner');
+const { createReportSource } = require('./reportSource');
+const { createReportExtractor } = require('./reportExtractor');
+const { createReportConverter } = require('./reportConverter');
+const { createXlsxReportSource } = require('./xlsxReportSource');
+const { parseChecklistReportOptions } = require('./checklistReportPanel');
 const {
   analyzeExcelReport,
   analyzeWordReport,
   buildBatchConclusion
-} = require('./reportChecker/reportConclusion');
+} = require('./reportConclusion');
 const {
   createSearchData,
   resolveRowBasedValue,
   resolveAnchorValue,
   resolveTableValue,
   resolveRegexValue
-} = require('./reportChecker/reportAnalysis');
-const WordExtractor = require('word-extractor');
+} = require('./reportAnalysis');
 
 const SUPPORTED_REPORT_EXTENSIONS = new Set(['.doc', '.docx', '.xlsx', '.xls']);
 const SUPPORTED_CHECKLIST_EXTENSIONS = new Set(['.xlsx', '.xls']);
@@ -28,7 +28,7 @@ const DEFAULT_RULES_RELATIVE_PATH = path.join(
   'src',
   'renderer',
   'modules',
-  'reportChecker',
+  'testDataExtraction',
   'config',
   'moto_rules_for_analysis.json5'
 );
@@ -48,18 +48,7 @@ const { loadRules, buildExportableRulesContent, parseReport } = createReportSour
   parseXlsxReport
 });
 
-const { processSingleReport } = createReportExtractor({
-  parseReport,
-  applyResultsToChecklist,
-  resolveRowBasedValue,
-  resolveAnchorValue,
-  resolveTableValue,
-  resolveRegexValue,
-  analyzeExcelReport,
-  analyzeWordReport
-});
-
-const { inspectReportContext } = createReportExtractor({
+const { processSingleReport, inspectReportContext } = createReportExtractor({
   parseReport,
   applyResultsToChecklist,
   resolveRowBasedValue,
@@ -99,5 +88,6 @@ module.exports = {
   DEFAULT_RULES_RELATIVE_PATH,
   buildExportableRulesContent,
   parseChecklistReportOptions,
-  inspectReport
+  inspectReport,
+  parseReport
 };

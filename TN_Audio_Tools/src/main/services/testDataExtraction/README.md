@@ -1,12 +1,12 @@
-# reportChecker 模块说明
+# testDataExtraction 模块说明
 
 ## 目录定位
 
-`reportChecker` 目录负责测试报告检查填写的主流程拆分。现在的设计目标是把“入口编排、报告解析、规则提取、Excel 写入、样式处理、文档转换”分开，避免所有逻辑继续堆在 `reportCheckerService.js` 里。
+`testDataExtraction` 目录负责测试数据提取与 checklist 回填的主流程拆分。现在的设计目标是把“入口编排、报告解析、规则提取、Excel 写入、样式处理、文档转换”分开，避免所有逻辑继续堆在 `index.js` 之外的单个大文件里。
 
 ## 模块职责
 
-### `reportCheckerService.js`
+### `index.js`
 
 - 组合入口。
 - 负责装配各个子模块并导出 `processReports`。
@@ -71,7 +71,7 @@
 
 主入口调用顺序如下：
 
-1. `reportCheckerService.js` 组装依赖。
+1. `index.js` 组装依赖。
 2. `reportRunner.js` 接收批量报告并校验参数。
 3. `reportSource.js` 读取规则并解析单份报告。
 4. `reportExtractor.js` 按规则驱动 `reportAnalysis.js` 提取值。
