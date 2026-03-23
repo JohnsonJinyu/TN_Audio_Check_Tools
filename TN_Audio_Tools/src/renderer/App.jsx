@@ -19,6 +19,7 @@ const { Header, Sider, Content } = Layout;
 function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [mountedPages, setMountedPages] = useState(() => new Set(['dashboard']));
 
   const pageMeta = {
     dashboard: {
@@ -84,22 +85,35 @@ function App() {
     }
   ];
 
-  const renderContent = () => {
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard onNavigate={setCurrentPage} />;
-      case 'report-checker':
-        return <TestDataCollectionPage />;
-      case 'report-review':
-        return <ReportReview onNavigate={setCurrentPage} />;
-      case 'spectrum':
-        return <SpectrumAnalyzer />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard onNavigate={setCurrentPage} />;
-    }
+  const navigateToPage = (pageKey) => {
+    setCurrentPage(pageKey);
+    setMountedPages((prev) => {
+      if (prev.has(pageKey)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.add(pageKey);
+      return next;
+    });
   };
+
+  const pageComponents = {
+    dashboard: <Dashboard onNavigate={navigateToPage} />,
+    'report-checker': <TestDataCollectionPage />,
+    'report-review': <ReportReview onNavigate={navigateToPage} />,
+    spectrum: <SpectrumAnalyzer />,
+    settings: <Settings />
+  };
+
+  const renderContent = () => Array.from(mountedPages).map((pageKey) => (
+    <div
+      key={pageKey}
+      style={{ display: currentPage === pageKey ? 'block' : 'none', height: '100%' }}
+    >
+      {pageComponents[pageKey]}
+    </div>
+  ));
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -124,7 +138,7 @@ function App() {
             }
             return {
               ...item,
-              onClick: () => setCurrentPage(item.key),
+              onClick: () => navigateToPage(item.key),
               title: undefined // Ant Design Menu 中去掉 title
             };
           })}
