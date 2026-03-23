@@ -549,6 +549,263 @@
   line-height: 1.7;
 }
 
+.review-digest-card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  box-shadow: 0 12px 24px rgba(36, 56, 99, 0.08);
+}
+
+.review-digest-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 30px rgba(36, 56, 99, 0.14);
+}
+
+.review-digest-card__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+}
+
+.review-digest-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.review-digest-card__meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.review-digest-card__name {
+  margin-bottom: 6px;
+  color: #262626;
+  font-size: 15px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.review-digest-card__time {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.review-digest-card__headline {
+  font-weight: 700;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+}
+
+.review-digest-card__detail {
+  flex: 1;
+  min-height: 44px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.review-digest-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-digest-card__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f5f5f5;
+  color: #595959;
+}
+
+.review-digest-card__pill--interactive {
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.review-digest-card__pill--interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(36, 56, 99, 0.1);
+  filter: saturate(1.05);
+}
+
+.review-digest-card__pill--warning {
+  background: #fff7e6;
+  border-color: #ffd591;
+  color: #ad6800;
+}
+
+.review-digest-card__pill--review {
+  background: #f0f5ff;
+  border-color: #adc6ff;
+  color: #1d39c4;
+}
+
+.review-digest-card__pill--error {
+  background: #fff1f0;
+  border-color: #ffa39e;
+  color: #a8071a;
+}
+
+.review-digest-card__hint {
+  margin-top: auto;
+  padding-top: 4px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.review-table-digest {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+  border-radius: 12px;
+}
+
+.review-table-digest__bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+}
+
+.review-table-digest__content {
+  padding: 10px 12px 10px 14px;
+}
+
+.review-table-digest__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.review-table-digest__stats-text {
+  color: #8c8c8c;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.review-table-digest__headline {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.review-table-digest__detail {
+  margin-bottom: 8px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.review-table-digest__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-table-digest__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f5f5f5;
+  color: #595959;
+}
+
+.review-table-digest__pill--warning {
+  background: #fff7e6;
+  border-color: #ffd591;
+  color: #ad6800;
+}
+
+.review-table-digest__pill--review {
+  background: #f0f5ff;
+  border-color: #adc6ff;
+  color: #1d39c4;
+}
+
+.review-table-digest__pill--error {
+  background: #fff1f0;
+  border-color: #ffa39e;
+  color: #a8071a;
+}
+
+.review-area-section-title {
+  margin: 8px 0 16px;
+  color: #44506b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.review-area-card {
+  cursor: pointer;
+}
+
+.review-area-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-area-card__link {
+  color: #1677ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.review-area-card__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.review-area-modal__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e8eefc;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #44506b;
+  line-height: 1.7;
+}
+
+.review-area-modal__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #1677ff;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* 按钮样式 */
 .ant-btn {
   border-radius: 6px;
@@ -655,6 +912,16 @@
   .report-checker-upload-action.ant-btn {
     width: 100%;
     min-width: 0;
+  }
+
+  .review-digest-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .review-area-card__top {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

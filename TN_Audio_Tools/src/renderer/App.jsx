@@ -162,7 +162,7 @@ function App() {
             </div>
           </div>
           <div className="header-right">
-            <span className="version">v1.0.0</span>
+            <span className="version">v1.1.0</span>
           </div>
         </Header>
 

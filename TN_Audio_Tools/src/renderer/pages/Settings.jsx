@@ -135,7 +135,7 @@ function Settings() {
             <Col xs={24} md={12}>
               <Card type="inner">
                 <p><strong>应用名称：</strong>TN Audio Toolkit</p>
-                <p><strong>版本：</strong>1.0.0</p>
+                <p><strong>版本：</strong>1.1.0</p>
                 <p><strong>构建日期：</strong>2026-03-10</p>
               </Card>
             </Col>

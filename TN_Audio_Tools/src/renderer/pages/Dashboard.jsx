@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, Row, Col, Statistic, Button, Space, Tag, Divider, Modal, Table, Empty, message } from 'antd';
 import {
   FileTextOutlined,
@@ -7,12 +7,48 @@ import {
   ArrowRightOutlined,
   FolderOpenOutlined
 } from '@ant-design/icons';
-import { clearReportHistory, readDashboardData } from '../modules/dashboard/storage';
+import {
+  clearReportHistory,
+  DASHBOARD_STATS_UPDATED_EVENT,
+  readDashboardData
+} from '../modules/dashboard/storage';
+import {
+  readWordReviewHistory,
+  WORD_REVIEW_HISTORY_UPDATED_EVENT
+} from '../modules/reportReview/storage';
 import '../styles/pages.css';
 
+function buildDashboardSnapshot() {
+  const collectionData = readDashboardData();
+  const reviewHistory = readWordReviewHistory();
+  const safeReviewHistory = Array.isArray(reviewHistory) ? reviewHistory : [];
+  const passedReviewCount = safeReviewHistory.filter((item) => item?.result?.reviewResult?.overallStatus === 'pass').length;
+
+  return {
+    ...collectionData,
+    reviewHistoryCount: safeReviewHistory.length,
+    passedReviewCount
+  };
+}
+
 function Dashboard({ onNavigate }) {
-  const [dashboardData, setDashboardData] = useState(readDashboardData);
+  const [dashboardData, setDashboardData] = useState(buildDashboardSnapshot);
   const [historyVisible, setHistoryVisible] = useState(false);
+
+  useEffect(() => {
+    const refreshDashboardData = () => {
+      setDashboardData(buildDashboardSnapshot());
+    };
+
+    window.addEventListener(DASHBOARD_STATS_UPDATED_EVENT, refreshDashboardData);
+    window.addEventListener(WORD_REVIEW_HISTORY_UPDATED_EVENT, refreshDashboardData);
+
+    return () => {
+      window.removeEventListener(DASHBOARD_STATS_UPDATED_EVENT, refreshDashboardData);
+      window.removeEventListener(WORD_REVIEW_HISTORY_UPDATED_EVENT, refreshDashboardData);
+    };
+  }, []);
+
   const tools = [
     {
       title: '测试数据收集',
@@ -27,7 +63,7 @@ function Dashboard({ onNavigate }) {
       description: '查看审查范围、最近处理结果和输出文件历史',
       icon: <SearchOutlined />,
       color: '#1677ff',
-      stats: `${dashboardData.reportHistory.length} 条记录`,
+      stats: `${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 已通过`,
       pageKey: 'report-review'
     },
     {
@@ -47,7 +83,7 @@ function Dashboard({ onNavigate }) {
   };
 
   const openReportHistory = () => {
-    setDashboardData(readDashboardData());
+    setDashboardData(buildDashboardSnapshot());
     setHistoryVisible(true);
   };
 
@@ -86,7 +122,7 @@ function Dashboard({ onNavigate }) {
       okButtonProps: { danger: true },
       onOk: () => {
         clearReportHistory();
-        setDashboardData(readDashboardData());
+        setDashboardData(buildDashboardSnapshot());
         message.success('已清空数据收集历史');
       }
     });
@@ -104,7 +140,7 @@ function Dashboard({ onNavigate }) {
     {
       key: 'reviewHistory',
       title: '审查记录',
-      value: dashboardData.reportHistory.length,
+      value: dashboardData.reviewHistoryCount,
       prefix: <SearchOutlined />,
       color: '#1677ff',
       pageKey: 'report-review'

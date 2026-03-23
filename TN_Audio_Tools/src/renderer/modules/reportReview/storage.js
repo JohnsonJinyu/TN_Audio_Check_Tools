@@ -1,4 +1,5 @@
 export const WORD_REVIEW_HISTORY_STORAGE_KEY = 'tn-audio-word-review-history';
+export const WORD_REVIEW_HISTORY_UPDATED_EVENT = 'tn-audio-word-review-history-updated';
 
 const WORD_REVIEW_HISTORY_LIMIT = 100;
 
@@ -55,6 +56,10 @@ export function writeWordReviewHistory(historyList) {
       WORD_REVIEW_HISTORY_STORAGE_KEY,
       JSON.stringify(safeHistoryList.slice(0, WORD_REVIEW_HISTORY_LIMIT))
     );
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(WORD_REVIEW_HISTORY_UPDATED_EVENT));
+    }
   } catch (error) {
     // Ignore local persistence failures.
   }

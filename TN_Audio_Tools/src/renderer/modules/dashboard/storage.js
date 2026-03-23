@@ -1,4 +1,5 @@
 export const DASHBOARD_STATS_STORAGE_KEY = 'tn-audio-dashboard-stats';
+export const DASHBOARD_STATS_UPDATED_EVENT = 'tn-audio-dashboard-stats-updated';
 
 const REPORT_HISTORY_LIMIT = 100;
 
@@ -49,6 +50,10 @@ export function writeDashboardData(nextValue) {
 
   try {
     storage.setItem(DASHBOARD_STATS_STORAGE_KEY, JSON.stringify(normalizeDashboardData(nextValue)));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(DASHBOARD_STATS_UPDATED_EVENT));
+    }
   } catch (error) {
     // Ignore local persistence failures.
   }

@@ -1,6 +1,6 @@
 {
   "name": "tn-audio-toolkit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TN Audio Toolkit - 专业音频工具集",
   "main": "src/main/main.js",
   "homepage": "./",
