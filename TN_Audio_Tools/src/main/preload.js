@@ -22,6 +22,15 @@ contextBridge.exposeInMainWorld('electron', {
   appInfo: {
     getVersion: () => ipcRenderer.invoke('get-version')
   },
+  settings: {
+    get: () => ipcRenderer.invoke('app-settings:get'),
+    getDefaults: () => ipcRenderer.invoke('app-settings:defaults'),
+    save: (payload) => ipcRenderer.invoke('app-settings:save', payload),
+    reset: () => ipcRenderer.invoke('app-settings:reset'),
+    chooseOutputDirectory: () => ipcRenderer.invoke('app-settings:choose-output-directory'),
+    clearCache: () => ipcRenderer.invoke('app-settings:clear-cache'),
+    onChanged: (listener) => subscribeToChannel('app-settings:changed', listener)
+  },
   updates: {
     getState: () => ipcRenderer.invoke('app-update:get-state'),
     checkForUpdates: () => ipcRenderer.invoke('app-update:check-for-updates'),

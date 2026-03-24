@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Collapse, Empty, Progress, message, Modal, Row, Space, Table, Tag } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Col, Collapse, Empty, Modal, Progress, Row, Space, Table, Tag } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { clearWordReviewHistory, readWordReviewHistory, recordWordReviewResult } from '../../modules/reportReview/storage';
 import { reviewAreas } from './constants';
@@ -30,6 +30,15 @@ function getReportName(filePath) {
 }
 
 export default function ReportReviewPage() {
+  const { message, modal } = AntdApp.useApp();
+  const isDarkTheme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark';
+  const reviewDropzoneBaseColor = isDarkTheme ? '#24314a' : '#f5f7fa';
+  const reviewDropzoneHoverColor = isDarkTheme ? '#2a3955' : '#e6f7ff';
+  const reviewDropzoneTitleColor = isDarkTheme ? '#f4f7ff' : '#262626';
+  const reviewDropzoneTextColor = isDarkTheme ? '#c8d3e8' : '#8c8c8c';
+  const reviewSelectionPanelColor = isDarkTheme
+    ? { backgroundColor: '#24314a', border: '1px solid #425272', textColor: '#dbe5f7', accentColor: '#9ab1ff', metaColor: '#b8c7e6' }
+    : { backgroundColor: '#e6f7ff', border: '1px solid #91d5ff', textColor: '#0050b3', accentColor: '#0050b3', metaColor: '#4b6381' };
   const [wordReviewHistory, setWordReviewHistory] = useState(() => readWordReviewHistory() || []);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [selectedReportPaths, setSelectedReportPaths] = useState([]);
@@ -174,7 +183,7 @@ export default function ReportReviewPage() {
       if (failedReports.length === 0) {
         message.success(`批量审查完成，共处理 ${successCount} 份报告`);
       } else {
-        Modal.warning({
+        modal.warning({
           title: '批量审查完成，部分报告失败',
           width: 680,
           content: (
@@ -211,7 +220,7 @@ export default function ReportReviewPage() {
           <Card
             className="report-checker-card"
             style={{ borderColor: '#d6e4ff' }}
-            bodyStyle={{ padding: '10px 24px' }}
+            styles={{ body: { padding: '10px 24px' } }}
           >
             <Row gutter={[24, 8]} align="middle" justify="center">
               <Col xs={0} lg={4} />
@@ -221,15 +230,15 @@ export default function ReportReviewPage() {
                     onClick={handleSelectFile}
                     onDragOver={(event) => {
                       event.preventDefault();
-                      event.currentTarget.style.backgroundColor = '#e6f7ff';
+                      event.currentTarget.style.backgroundColor = reviewDropzoneHoverColor;
                     }}
                     onDragLeave={(event) => {
                       event.preventDefault();
-                      event.currentTarget.style.backgroundColor = '#f5f7fa';
+                      event.currentTarget.style.backgroundColor = reviewDropzoneBaseColor;
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
-                      event.currentTarget.style.backgroundColor = '#f5f7fa';
+                      event.currentTarget.style.backgroundColor = reviewDropzoneBaseColor;
                       const files = Array.from(event.dataTransfer.files || []);
                       const filePaths = files.map((file) => file.path).filter(Boolean);
                       if (filePaths.length > 0) {
@@ -241,7 +250,7 @@ export default function ReportReviewPage() {
                       borderRadius: 16,
                       padding: '28px 28px',
                       textAlign: 'center',
-                      backgroundColor: '#f5f7fa',
+                      backgroundColor: reviewDropzoneBaseColor,
                       width: '100%',
                       minHeight: 150,
                       display: 'flex',
@@ -259,8 +268,8 @@ export default function ReportReviewPage() {
                     }}
                   >
                     <div style={{ fontSize: 32, marginBottom: 10 }}>📁</div>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: '#262626', marginBottom: 6 }}>点击或拖拽选择多个文件</div>
-                    <div style={{ fontSize: 13, color: '#8c8c8c' }}>支持一次选择或拖入多个 .doc / .docx 报告</div>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: reviewDropzoneTitleColor, marginBottom: 6 }}>点击或拖拽选择多个文件</div>
+                    <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx 报告</div>
                   </div>
 
                   {selectedReportPaths.length > 0 && (
@@ -268,14 +277,14 @@ export default function ReportReviewPage() {
                       style={{
                         width: '100%',
                         padding: '12px 16px',
-                        backgroundColor: '#e6f7ff',
-                        border: '1px solid #91d5ff',
+                        backgroundColor: reviewSelectionPanelColor.backgroundColor,
+                        border: reviewSelectionPanelColor.border,
                         borderRadius: 12,
                         fontSize: 13
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ color: '#0050b3', fontWeight: 600 }}>✓ 已选择 {selectedReportPaths.length} 份报告</div>
+                        <div style={{ color: reviewSelectionPanelColor.accentColor, fontWeight: 600 }}>✓ 已选择 {selectedReportPaths.length} 份报告</div>
                         <Button size="small" onClick={() => setSelectedReportPaths([])} disabled={reviewLoading}>清空已选</Button>
                       </div>
 
@@ -297,7 +306,7 @@ export default function ReportReviewPage() {
 
                       {batchProgress && (
                         <div style={{ marginTop: 14 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6, color: '#0050b3', fontWeight: 500 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6, color: reviewSelectionPanelColor.accentColor, fontWeight: 500 }}>
                             <span>
                               {reviewLoading ? `正在处理：${batchProgress.currentFileName || '-'}` : '本轮批量审查已结束'}
                             </span>
@@ -308,7 +317,7 @@ export default function ReportReviewPage() {
                             status={reviewLoading ? 'active' : 'normal'}
                             strokeColor="#1677ff"
                           />
-                          <div style={{ display: 'flex', gap: 16, color: '#4b6381', fontSize: 12 }}>
+                          <div style={{ display: 'flex', gap: 16, color: reviewSelectionPanelColor.metaColor, fontSize: 12 }}>
                             <span>成功 {batchProgress.successCount}</span>
                             <span>失败 {batchProgress.failedCount}</span>
                           </div>
@@ -362,7 +371,7 @@ export default function ReportReviewPage() {
                         borderColor: record.digest.theme.border,
                         background: `linear-gradient(180deg, #ffffff 0%, ${record.digest.theme.soft} 100%)`
                       }}
-                      bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}
+                      styles={{ body: { display: 'flex', flexDirection: 'column', gap: 10, height: '100%' } }}
                     >
                       <div className="review-digest-card__bar" style={{ backgroundColor: record.digest.theme.accent }} />
 
@@ -448,7 +457,7 @@ export default function ReportReviewPage() {
                 danger
                 size="small"
                 onClick={() => {
-                  Modal.confirm({
+                  modal.confirm({
                     title: '清空审查历史',
                     content: '确定要清空所有审查记录吗？此操作无法撤销。',
                     okText: '确定',

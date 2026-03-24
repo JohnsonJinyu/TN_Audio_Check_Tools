@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Card, Button, Upload, Table, Space, Tag, Modal, Progress, message, Typography, Select } from 'antd';
+import { App as AntdApp, Button, Card, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordDataCollectionResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
@@ -346,6 +346,7 @@ function getOutputFileName(outputPath) {
 }
 
 function TestDataCollectionPage() {
+  const { message, modal } = AntdApp.useApp();
   const [files, setFiles] = useState([]);
   const [ruleFile, setRuleFile] = useState(null);
   const [checklistFile, setChecklistFile] = useState(null);
@@ -707,7 +708,7 @@ function TestDataCollectionPage() {
   };
 
   const openInfoModal = (config) => {
-    Modal.info({
+    modal.info({
       closable: true,
       keyboard: true,
       maskClosable: true,
@@ -1388,11 +1389,11 @@ function TestDataCollectionPage() {
               className="report-checker-upload report-checker-upload-report"
               style={{ padding: '16px 18px', minHeight: '108px' }}
             >
-              <UploadOutlined style={{ fontSize: '36px', color: '#bfbfbf', marginBottom: '10px' }} />
-              <p style={{ fontSize: '15px', color: '#262626', marginBottom: '6px' }}>
+              <UploadOutlined className="report-checker-upload-placeholder__icon report-checker-upload-placeholder__icon--large" />
+              <p className="report-checker-upload-placeholder__title report-checker-upload-placeholder__title--large">
                 拖拽报告文件到此处，或点击上方按钮上传
               </p>
-              <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+              <p className="report-checker-upload-placeholder__subtitle">
                 当前支持格式: Excel (.xlsx, .xls) 优先，兼容 Word (.doc, .docx)
               </p>
             </Upload.Dragger>
@@ -1433,20 +1434,20 @@ function TestDataCollectionPage() {
             >
               {checklistFile ? (
                 <div style={{ padding: '8px 0' }}>
-                  <Text strong style={{ display: 'block', fontSize: '16px', color: '#262626', marginBottom: '6px' }}>
+                  <Text strong className="report-checker-upload-placeholder__title" style={{ display: 'block', fontSize: '16px', marginBottom: '6px' }}>
                     已选择 checklist
                   </Text>
-                  <Text style={{ fontSize: '14px', color: '#595959', wordBreak: 'break-all' }}>
+                  <Text className="report-checker-upload-placeholder__file" style={{ fontSize: '14px', wordBreak: 'break-all' }}>
                     {checklistFile.name}
                   </Text>
                 </div>
               ) : (
                 <>
-                  <UploadOutlined style={{ fontSize: '24px', color: '#bfbfbf', marginBottom: '6px' }} />
-                  <p style={{ fontSize: '14px', color: '#262626', marginBottom: '3px' }}>
+                  <UploadOutlined className="report-checker-upload-placeholder__icon" />
+                  <p className="report-checker-upload-placeholder__title">
                     拖拽 checklist 文件到此处，或点击上传
                   </p>
-                  <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+                  <p className="report-checker-upload-placeholder__subtitle">
                     支持格式: Excel (.xlsx, .xls)
                   </p>
                 </>
@@ -1486,16 +1487,16 @@ function TestDataCollectionPage() {
               className="report-checker-upload"
               style={compactUploadDraggerStyle}
             >
-              <UploadOutlined style={{ fontSize: '24px', color: '#bfbfbf', marginBottom: '6px' }} />
-              <p style={{ fontSize: '14px', color: '#262626', marginBottom: '3px' }}>
+              <UploadOutlined className="report-checker-upload-placeholder__icon" />
+              <p className="report-checker-upload-placeholder__title">
                 拖拽规则文件到此处，或点击上传
               </p>
-              <p style={{ color: '#8c8c8c', fontSize: '12px' }}>
+              <p className="report-checker-upload-placeholder__subtitle">
                 支持格式: JSON / JSON5；不上传时默认使用内置规则
               </p>
             </Upload.Dragger>
             {ruleFile && (
-              <p style={{ marginTop: '12px', color: '#595959' }}>
+              <p className="report-checker-upload-placeholder__file" style={{ marginTop: '12px' }}>
                 已选择: {ruleFile.name}
               </p>
             )}

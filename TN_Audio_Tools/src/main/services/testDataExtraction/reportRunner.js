@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const { clampMaxConcurrentTasks } = require('./concurrency');
 
 function emitProgress(onProgress, payload) {
   if (typeof onProgress !== 'function') {
@@ -58,6 +59,8 @@ function createReportRunner({
     customer,
     reportPanelSelections,
     reportPanelSelectionsByPath,
+    maxConcurrentTasks,
+    outputDirectory,
     appPath,
     onProgress
   }) {
@@ -65,8 +68,11 @@ function createReportRunner({
     await validatePaths({ reportPaths, checklistPath, rulePath: resolvedRulePath });
 
     const rules = await loadRules(resolvedRulePath);
-    const results = [];
+    const results = new Array(reportPaths.length);
     const total = reportPaths.length;
+    const resolvedMaxConcurrentTasks = Math.min(total, clampMaxConcurrentTasks(maxConcurrentTasks, 1));
+    let completed = 0;
+    let successCount = 0;
 
     emitProgress(onProgress, {
       type: 'batch-start',
@@ -76,7 +82,10 @@ function createReportRunner({
       errorCount: 0
     });
 
-    for (const reportPath of reportPaths) {
+    let nextIndex = 0;
+
+    async function processReportAtIndex(reportIndex) {
+      const reportPath = reportPaths[reportIndex];
       let resultEntry;
 
       try {
@@ -86,9 +95,11 @@ function createReportRunner({
           rules,
           customer,
           reportPanelSelections,
-          reportPanelSelectionsOverride: reportPanelSelectionsByPath?.[reportPath] || null
+          reportPanelSelectionsOverride: reportPanelSelectionsByPath?.[reportPath] || null,
+          outputDirectory
         });
         resultEntry = { status: 'success', ...result };
+        successCount += 1;
       } catch (error) {
         resultEntry = {
           status: 'error',
@@ -97,27 +108,42 @@ function createReportRunner({
         };
       }
 
-      results.push(resultEntry);
-      const completed = results.length;
-      const successCount = results.filter((item) => item.status === 'success').length;
-      const errorCount = completed - successCount;
+      results[reportIndex] = resultEntry;
+      completed += 1;
 
       emitProgress(onProgress, {
         type: 'report-complete',
         total,
         completed,
         successCount,
-        errorCount,
+        errorCount: completed - successCount,
         result: resultEntry
       });
     }
 
+    async function workerLoop() {
+      while (true) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+
+        if (currentIndex >= total) {
+          return;
+        }
+
+        await processReportAtIndex(currentIndex);
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: resolvedMaxConcurrentTasks }, () => workerLoop())
+    );
+
     emitProgress(onProgress, {
       type: 'batch-complete',
       total,
-      completed: results.length,
-      successCount: results.filter((item) => item.status === 'success').length,
-      errorCount: results.filter((item) => item.status === 'error').length
+      completed,
+      successCount,
+      errorCount: completed - successCount
     });
 
     return {

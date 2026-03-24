@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Layout, Menu } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, App as AntdApp, ConfigProvider, Layout, Menu, theme as antdTheme } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import zhTW from 'antd/locale/zh_TW';
+import enUS from 'antd/locale/en_US';
 import {
   FileTextOutlined,
   LineChartOutlined,
@@ -15,32 +18,153 @@ import SpectrumAnalyzer from './pages/SpectrumAnalyzer';
 import Settings from './pages/Settings';
 
 const { Header, Sider, Content } = Layout;
+const languageLocaleMap = {
+  'zh-cn': zhCN,
+  'zh-tw': zhTW,
+  'en-us': enUS
+};
+const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
+const fallbackAppearanceSettings = {
+  theme: 'auto',
+  language: 'zh-cn'
+};
+
+function appearanceEqual(left = fallbackAppearanceSettings, right = fallbackAppearanceSettings) {
+  return left?.theme === right?.theme && left?.language === right?.language;
+}
 
 function App() {
+  const electronApi = typeof window !== 'undefined' ? window.electron : null;
+  const hasSettingsBridge = Boolean(electronApi?.settings?.get && electronApi?.settings?.onChanged);
+  const hasAppInfoBridge = Boolean(electronApi?.appInfo?.getVersion);
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [mountedPages, setMountedPages] = useState(() => new Set(['dashboard']));
   const [appVersion, setAppVersion] = useState('');
+  const [appearanceSettings, setAppearanceSettings] = useState(fallbackAppearanceSettings);
+  const [prefersDarkMode, setPrefersDarkMode] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
 
   useEffect(() => {
     let mounted = true;
 
-    window.electron.appInfo.getVersion()
-      .then((version) => {
-        if (mounted) {
-          setAppVersion(version || '');
+    Promise.all([
+      hasAppInfoBridge ? electronApi.appInfo.getVersion() : Promise.resolve(''),
+      hasSettingsBridge ? electronApi.settings.get() : Promise.resolve(null)
+    ])
+      .then(([version, settings]) => {
+        if (!mounted) {
+          return;
         }
+
+        setAppVersion(version || '');
+        setAppearanceSettings(settings?.appearance || fallbackAppearanceSettings);
       })
       .catch(() => {
-        if (mounted) {
-          setAppVersion('');
+        if (!mounted) {
+          return;
         }
+
+        setAppVersion('');
+        setAppearanceSettings(fallbackAppearanceSettings);
       });
+
+    const unsubscribe = hasSettingsBridge
+      ? electronApi.settings.onChanged((nextSettings) => {
+        if (!mounted || !nextSettings?.appearance) {
+          return;
+        }
+
+        setAppearanceSettings((currentValue) => (
+          appearanceEqual(currentValue, nextSettings.appearance)
+            ? currentValue
+            : nextSettings.appearance
+        ));
+      })
+      : () => {};
 
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return () => {};
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (event) => {
+      setPrefersDarkMode(event.matches);
+    };
+
+    setPrefersDarkMode(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleThemeChange);
+      return () => mediaQuery.removeEventListener('change', handleThemeChange);
+    }
+
+    mediaQuery.addListener(handleThemeChange);
+    return () => mediaQuery.removeListener(handleThemeChange);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const handleAppearancePreview = (event) => {
+      const nextAppearance = event?.detail;
+      if (!nextAppearance) {
+        return;
+      }
+
+      setAppearanceSettings((currentValue) => (
+        appearanceEqual(currentValue, nextAppearance)
+          ? currentValue
+          : {
+            theme: nextAppearance.theme || fallbackAppearanceSettings.theme,
+            language: nextAppearance.language || fallbackAppearanceSettings.language
+          }
+      ));
+    };
+
+    window.addEventListener(APPEARANCE_PREVIEW_EVENT, handleAppearancePreview);
+    return () => window.removeEventListener(APPEARANCE_PREVIEW_EVENT, handleAppearancePreview);
+  }, []);
+
+  const language = appearanceSettings?.language || fallbackAppearanceSettings.language;
+  const selectedTheme = appearanceSettings?.theme || fallbackAppearanceSettings.theme;
+  const resolvedTheme = selectedTheme === 'auto'
+    ? (prefersDarkMode ? 'dark' : 'light')
+    : selectedTheme;
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.lang = language;
+  }, [language, resolvedTheme]);
+
+  const configProviderLocale = useMemo(
+    () => languageLocaleMap[language] || zhCN,
+    [language]
+  );
+
+  const themeConfig = useMemo(
+    () => ({
+      algorithm: resolvedTheme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+      token: {
+        borderRadius: 10,
+        colorPrimary: resolvedTheme === 'dark' ? '#7ab8ff' : '#4c6ef5'
+      }
+    }),
+    [resolvedTheme]
+  );
 
   const pageMeta = {
     dashboard: {
@@ -137,61 +261,74 @@ function App() {
   ));
 
   return (
-    <Layout style={{ height: '100vh' }}>
-      <Sider 
-        trigger={null} 
-        collapsible 
-        collapsed={collapsed}
-        width={220}
-        className="sider"
-      >
-        <div className="logo">
-          <span className="logo-icon">🎵</span>
-          {!collapsed && <span className="logo-text">音频工具集</span>}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[currentPage]}
-          items={menuItems.map(item => {
-            if (item.type === 'divider') {
-              return item;
-            }
-            return {
-              ...item,
-              onClick: () => navigateToPage(item.key),
-              title: undefined // Ant Design Menu 中去掉 title
-            };
-          })}
-          style={{ marginTop: '10px' }}
-        />
-      </Sider>
-
-      <Layout>
-        <Header className="header">
-          <div className="header-left">
-            <button 
-              className="trigger-btn"
-              onClick={() => setCollapsed(!collapsed)}
-              title={collapsed ? '展开菜单' : '收起菜单'}
-            >
-              {collapsed ? '▶' : '◀'}
-            </button>
-            <div className="header-meta">
-              <h1 className="header-title">{currentPageMeta.title}</h1>
-              <p className="header-description">{currentPageMeta.description}</p>
+    <ConfigProvider locale={configProviderLocale} theme={themeConfig}>
+      <AntdApp>
+        <Layout style={{ height: '100vh' }}>
+          <Sider 
+            trigger={null} 
+            collapsible 
+            collapsed={collapsed}
+            width={220}
+            className="sider"
+          >
+            <div className="logo">
+              <span className="logo-icon">🎵</span>
+              {!collapsed && <span className="logo-text">音频工具集</span>}
             </div>
-          </div>
-          <div className="header-right">
-            <span className="version">{appVersion ? `v${appVersion}` : '版本读取中'}</span>
-          </div>
-        </Header>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[currentPage]}
+              items={menuItems.map(item => {
+                if (item.type === 'divider') {
+                  return item;
+                }
+                return {
+                  ...item,
+                  onClick: () => navigateToPage(item.key),
+                  title: undefined
+                };
+              })}
+              style={{ marginTop: '10px' }}
+            />
+          </Sider>
 
-        <Content className="content">
-          {renderContent()}
-        </Content>
-      </Layout>
-    </Layout>
+          <Layout>
+            <Header className="header">
+              <div className="header-left">
+                <button 
+                  className="trigger-btn"
+                  onClick={() => setCollapsed(!collapsed)}
+                  title={collapsed ? '展开菜单' : '收起菜单'}
+                >
+                  {collapsed ? '▶' : '◀'}
+                </button>
+                <div className="header-meta">
+                  <h1 className="header-title">{currentPageMeta.title}</h1>
+                  <p className="header-description">{currentPageMeta.description}</p>
+                </div>
+              </div>
+              <div className="header-right">
+                <span className="version">{appVersion ? `v${appVersion}` : '版本读取中'}</span>
+              </div>
+            </Header>
+
+            <Content className="content">
+              {!hasSettingsBridge ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="桌面端桥接未加载，设置与本地文件能力暂不可用。"
+                  description="页面已切换为安全降级模式，因此不会因为 window.electron.settings 缺失而白屏。请从 Electron 桌面端入口启动应用，或检查 preload 是否成功加载。"
+                />
+              ) : null}
+              {renderContent()}
+            </Content>
+          </Layout>
+        </Layout>
+      </AntdApp>
+    </ConfigProvider>
   );
 }
 

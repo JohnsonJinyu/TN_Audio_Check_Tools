@@ -6,16 +6,18 @@ const { resolveOutputCell, usesPercentNumberFormat } = require('./checklistLayou
 const { styleChecklistWithLibraries } = require('./checklistLibraryStyler');
 const { resolveChecklistStyleProfile } = require('./checklistStyleProfiles');
 
-async function applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportContext = {}) {
+async function applyResultsToChecklist(checklistPath, reportPath, extractedItems, reportContext = {}, options = {}) {
   const resolvedChecklistPath = path.resolve(checklistPath);
   const resolvedReportPath = path.resolve(reportPath);
   const writePlan = buildChecklistWritePlan(
     resolvedChecklistPath,
     resolvedReportPath,
     extractedItems,
-    reportContext
+    reportContext,
+    options
   );
 
+  await fs.mkdir(path.dirname(writePlan.outputPath), { recursive: true });
   await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
   await applyChecklistWritePlan(writePlan);
   await applyChecklistStyles(writePlan, extractedItems, reportContext);
@@ -24,7 +26,7 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   return writePlan.outputPath;
 }
 
-function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}) {
+function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}, options = {}) {
   const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
@@ -49,8 +51,9 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
     });
   }
 
+  const resolvedOutputDirectory = String(options?.outputDirectory || '').trim() || path.dirname(reportPath);
   const outputPath = path.join(
-    path.dirname(reportPath),
+    resolvedOutputDirectory,
     buildOutputFileName(path.parse(reportPath).name)
   );
 

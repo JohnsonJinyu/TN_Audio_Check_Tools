@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1890ff" />
+    <meta name="theme-color" content="#667eea" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob: http://localhost:3123 ws://localhost:3123; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3123; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:3123; font-src 'self' data:; connect-src 'self' http://localhost:3123 ws://localhost:3123 https:; worker-src 'self' blob:;"
+    />
     <meta
       name="description"
       content="TN Audio Toolkit - 专业音频处理和分析工具集"

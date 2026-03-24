@@ -617,7 +617,7 @@ function createReportExtractor({
     return { applicable: true };
   }
 
-  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride }) {
+  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride, outputDirectory }) {
     const reportData = await parseReport(reportPath);
     const mergedReportContext = mergeReportContext(reportData?.reportContext || {}, {
       customer,
@@ -701,7 +701,13 @@ function createReportExtractor({
       return itemResult;
     });
 
-    const outputPath = await applyResultsToChecklist(checklistPathForReport, reportPath, extractedItems, mergedReportContext);
+    const outputPath = await applyResultsToChecklist(
+      checklistPathForReport,
+      reportPath,
+      extractedItems,
+      mergedReportContext,
+      { outputDirectory }
+    );
     const matchedItems = extractedItems.filter((item) => item.matched).length;
     const skippedItems = extractedItems.filter((item) => item.skipped).map((item) => ({
       itemId: item.itemId,

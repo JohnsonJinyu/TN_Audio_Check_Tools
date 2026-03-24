@@ -1,7 +1,12 @@
+if (process.env.NODE_ENV === 'development') {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+}
+
 require('./services/testDataExtraction/runtimePolyfills');
 
 const fs = require('fs/promises');
-const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
+const os = require('os');
+const { app, BrowserWindow, Menu, Tray, ipcMain, shell, dialog, nativeImage } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
 const {
@@ -19,25 +24,149 @@ const {
   inspectReport
 } = require('./services/testDataExtraction');
 const { reviewWordReport } = require('./services/reportReview');
+const {
+  DEFAULT_APP_SETTINGS,
+  getSettings,
+  normalizeSettings,
+  resetSettings,
+  saveSettings
+} = require('./services/settingsService');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.setAppUserModelId('com.tnaudio.toolkit');
 
 let mainWindow;
+let tray = null;
+let isQuitting = false;
+
+function getIconPath() {
+  return path.join(__dirname, '../../assets/icon.ico');
+}
+
+function emitSettingsChanged(settings) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send('app-settings:changed', settings);
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function hideMainWindowToTray() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.hide();
+}
+
+function destroyTray() {
+  if (!tray) {
+    return;
+  }
+
+  tray.destroy();
+  tray = null;
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => showMainWindow() },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+}
+
+function ensureTray() {
+  const appSettings = getSettings();
+  if (!appSettings.system.enableTray) {
+    destroyTray();
+    return;
+  }
+
+  if (!tray) {
+    const trayIcon = nativeImage.createFromPath(getIconPath());
+    tray = new Tray(trayIcon);
+    tray.setToolTip('TN Audio Toolkit');
+    tray.on('click', () => {
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+        hideMainWindowToTray();
+      } else {
+        showMainWindow();
+      }
+    });
+    tray.on('double-click', () => showMainWindow());
+  }
+
+  tray.setContextMenu(buildTrayMenu());
+}
+
+function applyDesktopBehavior() {
+  const appSettings = getSettings();
+  ensureTray();
+
+  if (!appSettings.system.enableTray && mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+    showMainWindow();
+  }
+}
+
+async function clearRuntimeCache() {
+  const windowRef = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  if (windowRef) {
+    await windowRef.webContents.session.clearCache();
+  }
+
+  const tempRoot = os.tmpdir();
+  const entries = await fs.readdir(tempRoot, { withFileTypes: true }).catch(() => []);
+  const removableDirectories = entries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('tn-audio-report-'))
+    .map((entry) => fs.rm(path.join(tempRoot, entry.name), { recursive: true, force: true }));
+
+  await Promise.all(removableDirectories);
+
+  return {
+    clearedBrowserCache: Boolean(windowRef),
+    removedTempDirectories: removableDirectories.length
+  };
+}
 
 function createWindow() {
+  const appSettings = getSettings();
+  const shouldStartHidden = appSettings.system.enableTray && appSettings.system.launchMinimizedToTray;
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1000,
     minHeight: 600,
+    show: !shouldStartHidden,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, '../../assets/icon.ico')
+    icon: getIconPath()
   });
 
   const startUrl = isDev
@@ -127,6 +256,24 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   }
 
+  mainWindow.on('minimize', (event) => {
+    if (!getSettings().system.enableTray) {
+      return;
+    }
+
+    event.preventDefault();
+    hideMainWindowToTray();
+  });
+
+  mainWindow.on('close', (event) => {
+    if (isQuitting || !getSettings().system.enableTray) {
+      return;
+    }
+
+    event.preventDefault();
+    hideMainWindowToTray();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -135,6 +282,7 @@ function createWindow() {
 function initializeApp() {
   createWindow();
   createMenu();
+  applyDesktopBehavior();
   initializeUpdateService({
     getMainWindow: () => mainWindow
   });
@@ -146,6 +294,10 @@ function initializeApp() {
 
 app.on('ready', initializeApp);
 
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
@@ -155,12 +307,54 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
+    applyDesktopBehavior();
+    return;
   }
+
+  showMainWindow();
 });
 
 // IPC 处理程序示例
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('app-settings:get', () => {
+  return getSettings();
+});
+
+ipcMain.handle('app-settings:defaults', () => {
+  return DEFAULT_APP_SETTINGS;
+});
+
+ipcMain.handle('app-settings:save', async (_, payload) => {
+  const savedSettings = saveSettings(normalizeSettings(payload || {}));
+  applyDesktopBehavior();
+  emitSettingsChanged(savedSettings);
+  return savedSettings;
+});
+
+ipcMain.handle('app-settings:reset', async () => {
+  const resetValue = resetSettings();
+  applyDesktopBehavior();
+  emitSettingsChanged(resetValue);
+  return resetValue;
+});
+
+ipcMain.handle('app-settings:choose-output-directory', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: '选择默认输出目录',
+    properties: ['openDirectory', 'createDirectory']
+  });
+
+  return {
+    canceled,
+    filePath: canceled ? '' : (filePaths[0] || '')
+  };
+});
+
+ipcMain.handle('app-settings:clear-cache', async () => {
+  return clearRuntimeCache();
 });
 
 ipcMain.handle('app-update:get-state', () => {
@@ -181,9 +375,12 @@ ipcMain.handle('app-update:quit-and-install', () => {
 
 ipcMain.handle('report-checker:process-reports', async (_, payload) => {
   const runId = payload?.runId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const appSettings = getSettings();
 
   return processReports({
     ...payload,
+    maxConcurrentTasks: payload?.maxConcurrentTasks || appSettings.files.maxConcurrentTasks,
+    outputDirectory: payload?.outputDirectory || appSettings.files.defaultOutputDirectory || '',
     appPath: app.getAppPath(),
     onProgress: (progressPayload) => {
       if (_.sender.isDestroyed()) {

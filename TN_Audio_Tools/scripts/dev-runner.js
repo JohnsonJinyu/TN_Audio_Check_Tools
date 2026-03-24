@@ -71,7 +71,7 @@ async function resolveDevServerContext() {
   if (await checkDevServer(DEFAULT_PORT)) {
     return {
       port: DEFAULT_PORT,
-      url: `http://localhost:${DEFAULT_PORT}`,
+      url: `http://${HOST}:${DEFAULT_PORT}`,
       hasRunningServer: true
     };
   }
@@ -79,7 +79,7 @@ async function resolveDevServerContext() {
   const port = await findAvailablePort(DEFAULT_PORT);
   return {
     port,
-    url: `http://localhost:${port}`,
+    url: `http://${HOST}:${port}`,
     hasRunningServer: false
   };
 }
@@ -186,7 +186,11 @@ async function startDev() {
         env: {
           ...process.env,
           BROWSER: 'none',
-          PORT: String(devServerContext.port)
+          HOST,
+          PORT: String(devServerContext.port),
+          WDS_SOCKET_HOST: HOST,
+          WDS_SOCKET_PORT: String(devServerContext.port),
+          WDS_SOCKET_PATH: '/ws'
         }
       });
 
@@ -203,6 +207,7 @@ async function startDev() {
     const electronProcess = spawnCommand(npmCommand, ['run', 'electron-dev'], {
       env: {
         ...process.env,
+        ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
         ELECTRON_RENDERER_URL: devServerContext.url
       }
     });

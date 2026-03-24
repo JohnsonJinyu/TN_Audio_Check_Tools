@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, Row, Col, Statistic, Button, Space, Tag, Divider, Modal, Table, Empty, message } from 'antd';
+import { App as AntdApp, Button, Card, Col, Divider, Empty, Modal, Row, Space, Statistic, Table, Tag } from 'antd';
 import {
   FileTextOutlined,
   LineChartOutlined,
@@ -32,6 +32,7 @@ function buildDashboardSnapshot() {
 }
 
 function Dashboard({ onNavigate }) {
+  const { message, modal } = AntdApp.useApp();
   const [dashboardData, setDashboardData] = useState(buildDashboardSnapshot);
   const [historyVisible, setHistoryVisible] = useState(false);
 
@@ -114,7 +115,7 @@ function Dashboard({ onNavigate }) {
       return;
     }
 
-    Modal.confirm({
+    modal.confirm({
       title: '清空数据收集历史',
       content: '清空后将删除当前本地保存的数据收集历史，且不可恢复。',
       okText: '确认清空',
@@ -323,9 +324,9 @@ function Dashboard({ onNavigate }) {
         {/* 快速提示 */}
         <Col xs={24}>
           <Card 
+            className="dashboard-tip-card"
             type="inner"
             title="💡 快速提示"
-            style={{ backgroundColor: '#f6f8fb', border: '1px solid #e6f7ff' }}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
               <p>• 先进入“测试数据收集”上传报告、checklist 和规则文件</p>
