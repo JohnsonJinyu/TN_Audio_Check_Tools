@@ -14,7 +14,8 @@ const {
   checkForUpdates,
   downloadUpdate,
   quitAndInstallUpdate,
-  getUpdateState
+  getUpdateState,
+  getExternalDownloadUrl
 } = require('./services/updater/updateService');
 const {
   processReports,
@@ -367,6 +368,18 @@ ipcMain.handle('app-update:check-for-updates', async () => {
 
 ipcMain.handle('app-update:download-update', async () => {
   return downloadUpdate({ source: 'manual' });
+});
+
+ipcMain.handle('app-update:open-external-download', async (_, payload) => {
+  const preferMirror = payload?.preferMirror !== false;
+  const targetUrl = getExternalDownloadUrl(preferMirror);
+
+  if (!targetUrl) {
+    return { ok: false, message: '当前没有可用的外部下载地址。' };
+  }
+
+  await shell.openExternal(targetUrl);
+  return { ok: true, url: targetUrl };
 });
 
 ipcMain.handle('app-update:quit-and-install', () => {

@@ -1,12 +1,86 @@
-const { app, dialog } = require('electron');
+const { app, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+
+const UPDATE_PROVIDER = Object.freeze({
+  owner: 'JohnsonJinyu',
+  repo: 'TN_Audio_Check_Tools'
+});
+const DEFAULT_DOWNLOAD_MIRROR = process.env.TN_AUDIO_UPDATE_MIRROR || 'https://ghfast.top/';
 
 let initialized = false;
 let getMainWindow = () => null;
 let currentCheckSource = 'idle';
 let promptedAvailableVersion = null;
 let promptedDownloadedVersion = null;
+let promptedExternalDownloadVersion = null;
+
+function normalizeMirrorPrefix(prefix) {
+  if (typeof prefix !== 'string') {
+    return '';
+  }
+
+  const trimmed = prefix.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+}
+
+function buildMirrorUrl(rawUrl) {
+  if (!rawUrl) {
+    return null;
+  }
+
+  const prefix = normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR);
+  return prefix ? `${prefix}${rawUrl}` : rawUrl;
+}
+
+function getReleaseTag(version) {
+  if (!version) {
+    return null;
+  }
+
+  return String(version).startsWith('v') ? String(version) : `v${version}`;
+}
+
+function encodePathSegment(value) {
+  return encodeURIComponent(value).replace(/%2F/g, '/');
+}
+
+function resolveAssetName(info = {}) {
+  return info?.files?.[0]?.url || info?.path || null;
+}
+
+function buildUpdateLinks(info = {}) {
+  const version = info.version || null;
+  const tag = getReleaseTag(version);
+  const assetName = resolveAssetName(info);
+
+  if (!tag) {
+    return {
+      assetName: null,
+      githubDownloadUrl: null,
+      externalDownloadUrl: null,
+      releasePageUrl: null,
+      mirrorName: normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR) ? 'ghfast' : null
+    };
+  }
+
+  const releasePageUrl = `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/tag/${encodePathSegment(tag)}`;
+  const githubDownloadUrl = assetName
+    ? `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/download/${encodePathSegment(tag)}/${encodePathSegment(assetName)}`
+    : null;
+
+  return {
+    assetName,
+    githubDownloadUrl,
+    externalDownloadUrl: buildMirrorUrl(githubDownloadUrl),
+    releasePageUrl,
+    mirrorName: normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR) ? 'ghfast' : null
+  };
+}
 
 function isPortableApp() {
   return Boolean(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR);
@@ -47,6 +121,11 @@ function createInitialState() {
     transferred: 0,
     total: 0,
     bytesPerSecond: 0,
+    assetName: null,
+    githubDownloadUrl: null,
+    externalDownloadUrl: null,
+    releasePageUrl: null,
+    mirrorName: null,
     lastCheckedAt: null,
     lastCheckSource: null,
     lastDownloadedAt: null,
@@ -117,6 +196,41 @@ function getErrorMessage(error) {
   return error.message || '检查更新时发生未知错误。';
 }
 
+async function promptForExternalDownload() {
+  const targetUrl = updateState.externalDownloadUrl || updateState.githubDownloadUrl || updateState.releasePageUrl;
+  const targetVersion = updateState.latestVersion || null;
+
+  if (!targetUrl) {
+    return false;
+  }
+
+  if (targetVersion && promptedExternalDownloadVersion === targetVersion) {
+    return false;
+  }
+
+  promptedExternalDownloadVersion = targetVersion;
+
+  const result = await dialog.showMessageBox(getWindow(), {
+    type: 'warning',
+    buttons: ['打开镜像下载', '稍后'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+    title: '应用内下载失败',
+    message: '当前应用内下载速度较慢或已失败。',
+    detail: updateState.externalDownloadUrl
+      ? `是否改为在浏览器中打开镜像下载 ${updateState.assetName || '安装包'}？`
+      : '是否改为在浏览器中打开发布页继续下载？'
+  });
+
+  if (result.response === 0) {
+    await shell.openExternal(targetUrl);
+    return true;
+  }
+
+  return false;
+}
+
 async function promptForDownload(info) {
   if (promptedAvailableVersion === info.version) {
     return;
@@ -165,14 +279,26 @@ async function promptForInstall(info) {
 
 function handleUpdaterError(error) {
   const message = getErrorMessage(error);
+  const shouldOfferExternalDownload = Boolean(
+    updateState.downloading && (updateState.externalDownloadUrl || updateState.githubDownloadUrl || updateState.releasePageUrl)
+  );
   log.error('[updater] update failed:', message);
   setState({
     status: updateState.available ? 'available' : 'idle',
     checking: false,
     downloading: false,
-    error: message
+    error: updateState.externalDownloadUrl
+      ? `${message}。可改用镜像下载获取安装包。`
+      : message
   });
   currentCheckSource = 'idle';
+
+  if (shouldOfferExternalDownload) {
+    promptForExternalDownload().catch((promptError) => {
+      log.error('[updater] failed to show external download prompt:', promptError);
+    });
+  }
+
   return { ok: false, error: message };
 }
 
@@ -191,6 +317,7 @@ function registerAutoUpdaterEvents() {
 
   autoUpdater.on('update-available', (info) => {
     log.info('[updater] update available:', info.version);
+    const downloadLinks = buildUpdateLinks(info);
     setState({
       status: 'available',
       checking: false,
@@ -202,6 +329,11 @@ function registerAutoUpdaterEvents() {
       releaseName: info.releaseName || null,
       releaseDate: info.releaseDate || null,
       releaseNotes: normalizeReleaseNotes(info.releaseNotes),
+      assetName: downloadLinks.assetName,
+      githubDownloadUrl: downloadLinks.githubDownloadUrl,
+      externalDownloadUrl: downloadLinks.externalDownloadUrl,
+      releasePageUrl: downloadLinks.releasePageUrl,
+      mirrorName: downloadLinks.mirrorName,
       progressPercent: 0,
       transferred: 0,
       total: 0,
@@ -221,6 +353,7 @@ function registerAutoUpdaterEvents() {
 
   autoUpdater.on('update-not-available', (info) => {
     log.info('[updater] update not available');
+    const downloadLinks = buildUpdateLinks(info || {});
     setState({
       status: 'up-to-date',
       checking: false,
@@ -232,6 +365,11 @@ function registerAutoUpdaterEvents() {
       releaseName: info?.releaseName || null,
       releaseDate: info?.releaseDate || null,
       releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
+      assetName: downloadLinks.assetName,
+      githubDownloadUrl: downloadLinks.githubDownloadUrl,
+      externalDownloadUrl: downloadLinks.externalDownloadUrl,
+      releasePageUrl: downloadLinks.releasePageUrl,
+      mirrorName: downloadLinks.mirrorName,
       progressPercent: 0,
       transferred: 0,
       total: 0,
@@ -258,6 +396,7 @@ function registerAutoUpdaterEvents() {
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('[updater] update downloaded:', info.version);
+    const downloadLinks = buildUpdateLinks(info);
     setState({
       status: 'downloaded',
       checking: false,
@@ -269,6 +408,11 @@ function registerAutoUpdaterEvents() {
       releaseName: info.releaseName || null,
       releaseDate: info.releaseDate || null,
       releaseNotes: normalizeReleaseNotes(info.releaseNotes),
+      assetName: downloadLinks.assetName,
+      githubDownloadUrl: downloadLinks.githubDownloadUrl,
+      externalDownloadUrl: downloadLinks.externalDownloadUrl,
+      releasePageUrl: downloadLinks.releasePageUrl,
+      mirrorName: downloadLinks.mirrorName,
       progressPercent: 100,
       lastDownloadedAt: new Date().toISOString(),
       error: null
@@ -393,10 +537,19 @@ function getUpdateState() {
   return updateState;
 }
 
+function getExternalDownloadUrl(preferMirror = true) {
+  if (preferMirror && updateState.externalDownloadUrl) {
+    return updateState.externalDownloadUrl;
+  }
+
+  return updateState.githubDownloadUrl || updateState.releasePageUrl || null;
+}
+
 module.exports = {
   initializeUpdateService,
   checkForUpdates,
   downloadUpdate,
   quitAndInstallUpdate,
-  getUpdateState
+  getUpdateState,
+  getExternalDownloadUrl
 };

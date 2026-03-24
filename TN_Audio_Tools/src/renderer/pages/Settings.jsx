@@ -184,6 +184,10 @@ function Settings() {
   const canCheckForUpdates = currentStatus !== 'checking' && currentStatus !== 'downloading' && currentStatus !== 'installing';
   const canDownload = updateState?.available && !updateState?.downloaded && currentStatus !== 'downloading' && !updateState?.unsupported;
   const canInstall = Boolean(updateState?.downloaded);
+  const canOpenExternalDownload = Boolean(
+    (updateState?.externalDownloadUrl || updateState?.githubDownloadUrl || updateState?.releasePageUrl)
+    && !updateState?.unsupported
+  );
   const effectiveSettings = normalizeSettings(appSettings || fallbackSettings);
   const selectedLanguage = draftSettings?.appearance?.language || effectiveSettings.appearance.language;
   const trayEnabled = Boolean(draftSettings?.system?.enableTray);
@@ -256,6 +260,21 @@ function Settings() {
     } finally {
       setDownloadingManually(false);
     }
+  };
+
+  const handleOpenExternalDownload = async () => {
+    if (!hasUpdatesBridge || typeof electronApi?.updates?.openExternalDownload !== 'function') {
+      message.warning('当前环境不支持外部下载。');
+      return;
+    }
+
+    const result = await electronApi.updates.openExternalDownload({ preferMirror: true });
+    if (!result?.ok) {
+      message.warning(result?.message || '当前没有可用的外部下载地址。');
+      return;
+    }
+
+    message.success('已在浏览器中打开镜像下载地址。');
   };
 
   const handleInstallUpdate = async () => {
@@ -579,7 +598,7 @@ function Settings() {
 
           <SettingSection
             title="版本更新"
-            description="查看当前版本状态，手动触发检查、下载和安装。安装版支持在线更新，开发模式与便携版不支持。"
+            description="查看当前版本状态，手动触发检查、下载和安装。国内网络较慢时，可优先使用镜像下载在浏览器中获取安装包。"
           >
             <Card type="inner" className="settings-update-card">
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -609,7 +628,10 @@ function Settings() {
                     loading={downloadingManually || currentStatus === 'downloading'}
                     disabled={!canDownload}
                   >
-                    下载更新
+                    应用内下载
+                  </Button>
+                  <Button onClick={handleOpenExternalDownload} disabled={!canOpenExternalDownload}>
+                    镜像下载
                   </Button>
                   <Button type="primary" ghost onClick={handleInstallUpdate} disabled={!canInstall}>
                     重启安装
@@ -664,6 +686,19 @@ function Settings() {
                 </div>
               ) : null}
 
+              {canOpenExternalDownload ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="下载加速建议"
+                  description={
+                    updateState?.externalDownloadUrl
+                      ? `如果应用内下载速度偏慢，可点击“镜像下载”并使用浏览器直接下载 ${updateState?.assetName || '安装包'}。当前镜像源：${updateState?.mirrorName || '自定义镜像'}。`
+                      : '如果应用内下载速度偏慢，可点击“镜像下载”在浏览器中打开发布页。'
+                  }
+                />
+              ) : null}
+
               {releaseNotes ? (
                 <Alert
                   type="info"
@@ -685,7 +720,7 @@ function Settings() {
                 <Card type="inner">
                   <p><strong>应用名称：</strong>TN Audio Toolkit</p>
                   <p><strong>版本：</strong>{appVersion || '读取中'}</p>
-                  <p><strong>构建日期：</strong>2026-03-10</p>
+                  <p><strong>构建日期：</strong>2026-03-24</p>
                 </Card>
               </Col>
               <Col xs={24} md={12}>

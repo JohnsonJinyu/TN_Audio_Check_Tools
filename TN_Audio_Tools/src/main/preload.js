@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electron', {
     getState: () => ipcRenderer.invoke('app-update:get-state'),
     checkForUpdates: () => ipcRenderer.invoke('app-update:check-for-updates'),
     downloadUpdate: () => ipcRenderer.invoke('app-update:download-update'),
+    openExternalDownload: (payload) => ipcRenderer.invoke('app-update:open-external-download', payload),
     quitAndInstall: () => ipcRenderer.invoke('app-update:quit-and-install'),
     onStateChanged: (listener) => subscribeToChannel('app-update:state-changed', listener)
   },
