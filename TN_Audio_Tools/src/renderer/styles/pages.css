@@ -419,6 +419,60 @@
   font-weight: 600;
 }
 
+.settings-update-card {
+  border-radius: 14px;
+  border-color: #dce8fb;
+  box-shadow: 0 10px 24px rgba(43, 84, 160, 0.08);
+}
+
+.settings-update-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-update-metric {
+  height: 100%;
+  border-radius: 12px;
+  border: 1px solid #e3ebfb;
+  background: linear-gradient(135deg, rgba(51, 102, 204, 0.08) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.settings-update-metric strong {
+  display: block;
+  color: #1f3d8f;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.settings-update-label {
+  margin-bottom: 6px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.settings-update-hint {
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.settings-update-release-notes {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .settings-update-header {
+    flex-direction: column;
+  }
+}
+
 .report-checker-progress-footer {
   display: flex;
   align-items: center;

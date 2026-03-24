@@ -5,6 +5,13 @@ const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron')
 const isDev = require('electron-is-dev');
 const path = require('path');
 const {
+  initializeUpdateService,
+  checkForUpdates,
+  downloadUpdate,
+  quitAndInstallUpdate,
+  getUpdateState
+} = require('./services/updater/updateService');
+const {
   processReports,
   DEFAULT_RULES_RELATIVE_PATH,
   buildExportableRulesContent,
@@ -15,6 +22,7 @@ const { reviewWordReport } = require('./services/reportReview');
 
 // Avoid GPU process crashes on some Windows drivers/VM environments.
 app.disableHardwareAcceleration();
+app.setAppUserModelId('com.tnaudio.toolkit');
 
 let mainWindow;
 
@@ -124,7 +132,19 @@ function createWindow() {
   });
 }
 
-app.on('ready', createWindow);
+function initializeApp() {
+  createWindow();
+  createMenu();
+  initializeUpdateService({
+    getMainWindow: () => mainWindow
+  });
+
+  setTimeout(() => {
+    checkForUpdates({ manual: false }).catch(() => {});
+  }, 5000);
+}
+
+app.on('ready', initializeApp);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -141,6 +161,22 @@ app.on('activate', () => {
 // IPC 处理程序示例
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('app-update:get-state', () => {
+  return getUpdateState();
+});
+
+ipcMain.handle('app-update:check-for-updates', async () => {
+  return checkForUpdates({ manual: true });
+});
+
+ipcMain.handle('app-update:download-update', async () => {
+  return downloadUpdate({ source: 'manual' });
+});
+
+ipcMain.handle('app-update:quit-and-install', () => {
+  return quitAndInstallUpdate();
 });
 
 ipcMain.handle('report-checker:process-reports', async (_, payload) => {
@@ -280,6 +316,7 @@ const createMenu = () => {
     {
       label: '帮助',
       submenu: [
+        { label: '检查更新', click: () => checkForUpdates({ manual: true }) },
         { label: '关于', click: () => console.log('About') }
       ]
     }
@@ -287,5 +324,3 @@ const createMenu = () => {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };
-
-app.on('ready', createMenu);

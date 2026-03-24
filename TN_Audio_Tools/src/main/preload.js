@@ -19,6 +19,16 @@ contextBridge.exposeInMainWorld('electron', {
     on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
     send: (channel, ...args) => ipcRenderer.send(channel, ...args)
   },
+  appInfo: {
+    getVersion: () => ipcRenderer.invoke('get-version')
+  },
+  updates: {
+    getState: () => ipcRenderer.invoke('app-update:get-state'),
+    checkForUpdates: () => ipcRenderer.invoke('app-update:check-for-updates'),
+    downloadUpdate: () => ipcRenderer.invoke('app-update:download-update'),
+    quitAndInstall: () => ipcRenderer.invoke('app-update:quit-and-install'),
+    onStateChanged: (listener) => subscribeToChannel('app-update:state-changed', listener)
+  },
   testDataCollection: {
     processReports: (payload) => ipcRenderer.invoke('report-checker:process-reports', payload),
     onProgress: (listener) => subscribeToChannel('report-checker:progress', listener),

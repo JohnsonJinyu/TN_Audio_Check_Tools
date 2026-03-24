@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Menu } from 'antd';
 import {
   FileTextOutlined,
@@ -20,6 +20,27 @@ function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [mountedPages, setMountedPages] = useState(() => new Set(['dashboard']));
+  const [appVersion, setAppVersion] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    window.electron.appInfo.getVersion()
+      .then((version) => {
+        if (mounted) {
+          setAppVersion(version || '');
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setAppVersion('');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const pageMeta = {
     dashboard: {
@@ -162,7 +183,7 @@ function App() {
             </div>
           </div>
           <div className="header-right">
-            <span className="version">v1.1.0</span>
+            <span className="version">{appVersion ? `v${appVersion}` : '版本读取中'}</span>
           </div>
         </Header>
 

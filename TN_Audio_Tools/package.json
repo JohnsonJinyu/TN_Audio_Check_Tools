@@ -1,15 +1,20 @@
 {
   "name": "tn-audio-toolkit",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "TN Audio Toolkit - 专业音频工具集",
   "main": "src/main/main.js",
   "homepage": "./",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools.git"
+  },
   "scripts": {
     "dev": "node scripts/dev-runner.js",
     "react-start": "react-scripts start",
     "react-build": "react-scripts build",
     "electron-dev": "electron .",
     "electron-build": "npm run react-build && electron-builder",
+    "release": "npm run react-build && electron-builder --publish always",
     "start": "npm run dev",
     "build": "npm run electron-build",
     "test": "react-scripts test",
@@ -25,6 +30,7 @@
     "electron-is-dev": "^2.0.0",
     "electron-log": "^4.4.8",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.3.9",
     "exceljs": "^4.4.0",
     "json5": "^2.2.3",
     "jszip": "^3.10.1",
@@ -60,9 +66,18 @@
   "build": {
     "appId": "com.tnaudio.toolkit",
     "productName": "TN Audio Toolkit",
+    "electronUpdaterCompatibility": ">=2.16",
     "extraMetadata": {
       "main": "src/main/main.js"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JohnsonJinyu",
+        "repo": "TN_Audio_Check_Tools",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "build/**/*",
       "src/main/**/*",
