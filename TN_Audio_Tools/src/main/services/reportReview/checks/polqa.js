@@ -1,26 +1,15 @@
-function checkPolqaConfiguration(wordData) {
+const { buildReviewFacts } = require('../reportFacts');
+
+function checkPolqaConfiguration(wordData, reviewFacts = buildReviewFacts('', wordData)) {
   const issues = [];
   const evidence = [];
 
-  const reportText = (wordData.paragraphs || []).join(' ');
+  const polqaFacts = reviewFacts.polqa || { algorithm: [], version: [], reference: [] };
+  const foundPolqa = polqaFacts.algorithm.length > 0;
 
-  const polqaPatterns = [
-    { regex: /POLQA|MOS-LQO|P\.863/i, label: 'POLQA 算法' },
-    { regex: /algorithm\s+version|algo.*version|算法.*版本|版本[\s:：]*[\d.]+/i, label: '算法版本' },
-    { regex: /reference.*signal|ref.*source|参考.*音源|音源[\s:：]*[^,.;。，；]*[a-zA-Z]+/i, label: '参考音源' }
-  ];
-
-  let foundPolqa = false;
-
-  polqaPatterns.forEach((pattern) => {
-    const matches = reportText.match(pattern.regex);
-    if (matches) {
-      evidence.push(`✓ 找到 ${pattern.label}：${matches[0]}`);
-      if (pattern.label === 'POLQA 算法') {
-        foundPolqa = true;
-      }
-    }
-  });
+  polqaFacts.algorithm.slice(0, 3).forEach((item) => evidence.push(`✓ 找到 POLQA 算法线索：${item}`));
+  polqaFacts.version.slice(0, 3).forEach((item) => evidence.push(`✓ 找到算法版本线索：${item}`));
+  polqaFacts.reference.slice(0, 3).forEach((item) => evidence.push(`✓ 找到参考音源线索：${item}`));
 
   if (!foundPolqa) {
     issues.push({
@@ -29,12 +18,20 @@ function checkPolqaConfiguration(wordData) {
     });
     evidence.push('POLQA 配置：未确认');
   } else {
-    if (!reportText.match(/version|版本/i)) {
+    if (polqaFacts.version.length === 0) {
       issues.push({
         severity: 'warning',
         message: 'POLQA 相关信息不完整，未找到算法版本说明'
       });
       evidence.push('缺少版本信息');
+    }
+
+    if (polqaFacts.reference.length === 0) {
+      issues.push({
+        severity: 'review',
+        message: 'POLQA 相关信息中未找到明确的参考音源说明，需要人工复核'
+      });
+      evidence.push('缺少参考音源信息');
     }
   }
 
@@ -43,7 +40,7 @@ function checkPolqaConfiguration(wordData) {
     return { issues, evidence, status: 'pass' };
   }
 
-  return { issues, evidence, status: 'review' };
+  return { issues, evidence, status: issues.some((item) => item.severity === 'review') ? 'review' : 'warning' };
 }
 
 module.exports = {

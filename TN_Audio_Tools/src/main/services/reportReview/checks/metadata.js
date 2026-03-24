@@ -1,13 +1,34 @@
 const path = require('path');
 
 const { normalizeText, normalizeUpperText } = require('../utils');
+const {
+  MODE_ALIASES,
+  CODEC_ALIASES,
+  BANDWIDTH_ALIASES,
+  collectMentionEvidence,
+  buildReviewFacts,
+  tokenizeMeaningfulText,
+  normalizeTerminalMode
+} = require('../reportFacts');
 
-function checkReportBasicInfo(reportPath, wordData) {
+function computeOverlapRatio(leftValue, rightValue) {
+  const leftTokens = tokenizeMeaningfulText(leftValue);
+  const rightTokens = tokenizeMeaningfulText(rightValue);
+
+  if (leftTokens.length === 0 || rightTokens.length === 0) {
+    return 0;
+  }
+
+  const commonTokens = leftTokens.filter((token) => rightTokens.includes(token));
+  return commonTokens.length / Math.max(leftTokens.length, rightTokens.length);
+}
+
+function checkReportBasicInfo(reportPath, wordData, reviewFacts = buildReviewFacts(reportPath, wordData)) {
   const issues = [];
   const evidence = [];
 
-  const fileName = path.parse(reportPath).name.toUpperCase();
-  const fileNameTokens = fileName.split(/[_\-\s]+/).filter(Boolean);
+  const { metadata } = reviewFacts;
+  const fileName = metadata.fileNameUpper;
 
   evidence.push(`报告文件名：${fileName}`);
 
@@ -16,29 +37,7 @@ function checkReportBasicInfo(reportPath, wordData) {
 
   evidence.push(`检测到页眉段落数：${headers.length}，页脚段落数：${footers.length}`);
 
-  let measurementObject = '';
-
-  wordData.paragraphs.forEach((para, index) => {
-    const upperText = normalizeUpperText(para);
-
-    if (
-      upperText.includes('MEASUREMENT OBJECT') ||
-      (upperText.includes('OBJECT') && (upperText.includes('MEAS') || upperText.includes('MEASUREMENT')))
-    ) {
-      const valuePart = para.split(/[:：]/)[1];
-      if (valuePart) {
-        measurementObject = normalizeText(valuePart);
-        evidence.push(`第 ${index + 1} 行：识别到 Measurement Object = "${measurementObject}"`);
-      }
-    }
-
-    if (!measurementObject && /^[^:：]*(?:object|对象)[^:：]*[:：]/i.test(para)) {
-      const match = para.match(/[:：]\s*(.+)$/);
-      if (match) {
-        measurementObject = normalizeText(match[1]);
-      }
-    }
-  });
+  const measurementObject = metadata.measurementObject.value;
 
   if (!measurementObject) {
     issues.push({
@@ -47,17 +46,34 @@ function checkReportBasicInfo(reportPath, wordData) {
     });
     evidence.push('Measurement Object：未找到');
   } else {
-    evidence.push('Measurement Object 与文件名匹配度分析中...');
+    evidence.push(`Measurement Object：${measurementObject}`);
+    metadata.measurementObject.evidences.slice(0, 3).forEach((item) => evidence.push(`识别证据：${item}`));
 
-    const moTokens = normalizeUpperText(measurementObject).split(/[_\-\s]+/).filter(Boolean);
-    const commonTokens = moTokens.filter((t) => fileNameTokens.includes(t));
-
-    if (commonTokens.length < Math.min(moTokens.length, fileNameTokens.length) * 0.5) {
+    const objectFileOverlap = computeOverlapRatio(measurementObject, metadata.fileName);
+    if (objectFileOverlap < 0.35) {
       issues.push({
         severity: 'warning',
         message: `Measurement Object 与报告文件名的关键信息不够吻合：${measurementObject} vs ${fileName}`
       });
-      evidence.push(`关键词重合度较低：${commonTokens.length}/${Math.max(moTokens.length, fileNameTokens.length)}`);
+      evidence.push(`Measurement Object 与文件名重合度偏低：${objectFileOverlap.toFixed(2)}`);
+    }
+  }
+
+  const headerSource = metadata.headerText || metadata.footerText;
+  if (!headerSource) {
+    issues.push({
+      severity: 'review',
+      message: '未提取到页眉或页脚文本，无法自动完成命名一致性校验'
+    });
+  } else {
+    evidence.push(`页眉页脚摘要：${headerSource.slice(0, 120)}`);
+    const headerOverlap = computeOverlapRatio(metadata.fileName, headerSource);
+    if (headerOverlap < 0.25) {
+      issues.push({
+        severity: 'warning',
+        message: '报告文件名与页眉页脚文本重合度偏低，建议人工确认命名一致性'
+      });
+      evidence.push(`文件名与页眉页脚重合度：${headerOverlap.toFixed(2)}`);
     }
   }
 
@@ -66,61 +82,34 @@ function checkReportBasicInfo(reportPath, wordData) {
     return { issues, evidence, status: 'pass' };
   }
 
-  return { issues, evidence, status: 'warning' };
+  return { issues, evidence, status: issues.some((item) => item.severity === 'review') ? 'review' : 'warning' };
 }
 
-function checkTestItemConsistency(reportPath, wordData) {
+function checkTestItemConsistency(reportPath, wordData, reviewFacts = buildReviewFacts(reportPath, wordData)) {
   const issues = [];
   const evidence = [];
 
-  const fileName = normalizeUpperText(path.parse(reportPath).name);
-  evidence.push(`报告文件名：${fileName}`);
+  const { metadata, lines } = reviewFacts;
 
-  const codecMatch = fileName.match(/\b(AMR|AMR-WB|EVS|OPUS|SILK|G729|G711)\b/i);
-  const bandwidthMatch = fileName.match(/\b(NB|WB|SWB|FB)\b/);
-  const modeMatch = fileName.match(/\b(HA|HE|HH|HANDSET|HEADSET|HANDSFREE)\b/i);
-
-  const extractedCodec = codecMatch ? codecMatch[1].toUpperCase() : null;
-  const extractedBandwidth = bandwidthMatch ? bandwidthMatch[1].toUpperCase() : null;
-  const extractedMode = modeMatch ? normalizeUpperText(modeMatch[1]) : null;
+  const extractedCodec = metadata.codec || null;
+  const extractedBandwidth = metadata.bandwidth || null;
+  const extractedMode = metadata.terminalMode || null;
 
   evidence.push(`文件名提取 - Codec: ${extractedCodec}, Bandwidth: ${extractedBandwidth}, Mode: ${extractedMode}`);
 
-  const reportText = (wordData.paragraphs || []).join(' ').toUpperCase();
-
-  const codecMentions = [];
-  const bandwidthMentions = [];
-  const modeMentions = [];
-
-  if (extractedCodec && reportText.includes(extractedCodec)) {
-    codecMentions.push(extractedCodec);
-  }
-
-  if (extractedBandwidth && reportText.includes(extractedBandwidth)) {
-    bandwidthMentions.push(extractedBandwidth);
-  }
-
-  const modeAliases = {
-    HANDSET: ['HA', 'HANDSET'],
-    HEADSET: ['HE', 'HEADSET'],
-    HANDSFREE: ['HH', 'HANDSFREE', 'HANDS-FREE']
-  };
-
-  if (extractedMode) {
-    for (const aliases of Object.values(modeAliases)) {
-      if (aliases.some((a) => normalizeUpperText(extractedMode).includes(a))) {
-        if (aliases.some((a) => reportText.includes(a))) {
-          modeMentions.push(extractedMode);
-        }
-      }
-    }
-  }
+  const codecMentions = extractedCodec ? collectMentionEvidence(lines, CODEC_ALIASES[extractedCodec] || [extractedCodec]) : [];
+  const bandwidthMentions = extractedBandwidth ? collectMentionEvidence(lines, BANDWIDTH_ALIASES[extractedBandwidth] || [extractedBandwidth]) : [];
+  const modeMentions = extractedMode ? collectMentionEvidence(lines, MODE_ALIASES[normalizeTerminalMode(extractedMode)] || [extractedMode]) : [];
 
   evidence.push(
     `报告正文中找到 Codec 提及：${codecMentions.length > 0 ? '✓' : '✗'}, Bandwidth：${
       bandwidthMentions.length > 0 ? '✓' : '✗'
     }, Mode：${modeMentions.length > 0 ? '✓' : '✗'}`
   );
+
+  codecMentions.slice(0, 2).forEach((item) => evidence.push(`Codec 证据：${item}`));
+  bandwidthMentions.slice(0, 2).forEach((item) => evidence.push(`Bandwidth 证据：${item}`));
+  modeMentions.slice(0, 2).forEach((item) => evidence.push(`Mode 证据：${item}`));
 
   if (codecMentions.length === 0 && extractedCodec) {
     issues.push({
@@ -186,46 +175,25 @@ function checkNamePollution(reportPath) {
   return { issues, evidence, status: issues.some((i) => i.severity === 'error') ? 'error' : 'warning' };
 }
 
-function findEngineerNames(wordData) {
+function findEngineerNames(wordData, reviewFacts = buildReviewFacts('', wordData)) {
   const evidence = [];
-  const foundNames = [];
-
-  const namePatterns = [
-    /(?:tested by|tester|engineer|测试人员|工程师)[\s:：]+([a-zA-Z\u4e00-\u9fff\s]+)/i,
-    /(?:prepared by|author|作者|编写者)[\s:：]+([a-zA-Z\u4e00-\u9fff\s]+)/i,
-    /(?:reviewed by|reviewer|审核人|复核者)[\s:：]+([a-zA-Z\u4e00-\u9fff\s]+)/i,
-    /(?:signed by|signature|签署人)[\s:：]+([a-zA-Z\u4e00-\u9fff\s]+)/i
-  ];
-
-  if (wordData.paragraphs) {
-    wordData.paragraphs.forEach((para, index) => {
-      const text = normalizeText(para);
-      const upperText = normalizeUpperText(para);
-
-      namePatterns.forEach((pattern) => {
-        const match = text.match(pattern);
-        if (match && match[1]) {
-          const name = normalizeText(match[1]);
-          foundNames.push({ name, context: upperText.slice(0, 80), lineIndex: index + 1 });
-        }
-      });
-    });
-  }
+  const foundNames = reviewFacts.engineers || [];
 
   if (foundNames.length === 0) {
     evidence.push('未在报告中找到明确的测试人员/工程师信息');
     return { engineers: [], evidence, status: 'review' };
   }
 
-  const uniqueNames = Array.from(new Map(foundNames.map((n) => [normalizeUpperText(n.name), n])).values());
-
-  uniqueNames.forEach((n) => {
-    evidence.push(`第 ${n.lineIndex} 行：${n.name}`);
+  foundNames.forEach((item) => {
+    evidence.push(`${item.source}: ${item.name}`);
+    if (item.evidence) {
+      evidence.push(`证据：${item.evidence}`);
+    }
   });
 
-  evidence.push(`✓ 识别到 ${uniqueNames.length} 个测试人员信息`);
+  evidence.push(`✓ 识别到 ${foundNames.length} 个测试人员信息`);
 
-  return { engineers: uniqueNames, evidence, status: 'pass' };
+  return { engineers: foundNames, evidence, status: 'pass' };
 }
 
 module.exports = {

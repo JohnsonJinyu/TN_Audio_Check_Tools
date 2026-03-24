@@ -11,7 +11,10 @@ function buildWordData(reportData) {
     paragraphs: reportData.rawLines || reportData.lines || [],
     headers: reportData.structuredData?.headers || [],
     footers: reportData.structuredData?.footers || [],
-    pageCount: reportData.pageCount || null
+    tables: reportData.structuredData?.tables || [],
+    pageCount: reportData.pageCount || null,
+    reportContext: reportData.reportContext || {},
+    reportFormat: reportData.reportFormat || ''
   };
 }
 

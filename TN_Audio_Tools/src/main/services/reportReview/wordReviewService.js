@@ -3,6 +3,7 @@ const {
   updateSummary,
   determineOverallStatus
 } = require('./utils');
+const { buildReviewFacts } = require('./reportFacts');
 const {
   extractTableOfContents,
   checkTableOfContentsPages,
@@ -30,6 +31,7 @@ async function reviewWordReport(reportPath, reportData) {
   }
 
   const wordData = buildWordData(reportData);
+  const reviewFacts = buildReviewFacts(reportPath, wordData);
 
   const allResults = {};
   const summary = {
@@ -43,16 +45,10 @@ async function reviewWordReport(reportPath, reportData) {
   // 1. 提取目录
   const tocInfo = extractTableOfContents(wordData);
   allResults.tableOfContents = tocInfo;
+  updateSummary(summary, tocInfo.chapters.length > 0 || tocInfo.tocLines?.length > 0 ? 'pass' : 'review');
 
-  // 2. 检查目录页数（暂时跳过，因为无法获取准确的页数）
-  const tocPagesResult = {
-    issues: [{
-      severity: 'review',
-      message: '系统无法从转换后的 .docx 中准确获取总页数，建议人工确认'
-    }],
-    evidence: ['页数统计信息：无法获取'],
-    status: 'review'
-  };
+  // 2. 检查目录页数
+  const tocPagesResult = checkTableOfContentsPages(wordData, tocInfo);
   allResults.tableOfContentsPages = tocPagesResult;
   updateSummary(summary, tocPagesResult.status);
 
@@ -62,12 +58,12 @@ async function reviewWordReport(reportPath, reportData) {
   updateSummary(summary, chaptersAlignmentResult.status);
 
   // 4. 检查基本信息
-  const basicInfoResult = checkReportBasicInfo(reportPath, wordData);
+  const basicInfoResult = checkReportBasicInfo(reportPath, wordData, reviewFacts);
   allResults.basicInfo = basicInfoResult;
   updateSummary(summary, basicInfoResult.status);
 
   // 5. 检查测试项一致性
-  const testItemResult = checkTestItemConsistency(reportPath, wordData);
+  const testItemResult = checkTestItemConsistency(reportPath, wordData, reviewFacts);
   allResults.testItemConsistency = testItemResult;
   updateSummary(summary, testItemResult.status);
 
@@ -77,12 +73,12 @@ async function reviewWordReport(reportPath, reportData) {
   updateSummary(summary, pollutionResult.status);
 
   // 7. 查找人员信息
-  const engineersResult = findEngineerNames(wordData);
+  const engineersResult = findEngineerNames(wordData, reviewFacts);
   allResults.engineers = engineersResult;
   updateSummary(summary, engineersResult.status);
 
   // 8. 检查 POLQA 配置
-  const polqaResult = checkPolqaConfiguration(wordData);
+  const polqaResult = checkPolqaConfiguration(wordData, reviewFacts);
   allResults.polqa = polqaResult;
   updateSummary(summary, polqaResult.status);
 

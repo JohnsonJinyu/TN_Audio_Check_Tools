@@ -3,70 +3,97 @@ const { normalizeText, normalizeUpperText } = require('../utils');
 function extractTableOfContents(wordData) {
   const evidence = [];
   const chapters = [];
+  const tocLines = [];
 
   if (!wordData || !wordData.paragraphs) {
     return { chapters: [], evidence: ['未能提取段落数据'] };
   }
 
-  const tocPatterns = [
-    /目录|table\s+of\s+contents|contents/i,
-    /^\s*1\s+/
+  const headingPatterns = [
+    { regex: /^(\d+(?:\.\d+)*)[a-z]?\s+(.+)$/i },
+    { regex: /^(?:table|表)\s*(\d+(?:\.\d+)*)\s*[:.-]?\s+(.+)$/i }
   ];
 
+  const allLines = [
+    ...(wordData.paragraphs || []).map((text, index) => ({ text: normalizeText(text), index, source: 'paragraph' })),
+    ...((wordData.tables || []).flatMap((table, tableIndex) => (table.rows || []).map((row, rowIndex) => ({
+      text: row.map((cell) => normalizeText(cell)).filter(Boolean).join(' | '),
+      cells: row,
+      index: rowIndex,
+      source: `table-${tableIndex}`
+    }))))
+  ].filter((line) => line.text);
+
   let inTocSection = false;
-  const tocLines = [];
 
-  wordData.paragraphs.forEach((para, index) => {
-    const text = normalizeText(para);
-    const upperText = normalizeUpperText(para);
+  allLines.forEach((line) => {
+    const text = normalizeText(line.text);
+    const upperText = normalizeUpperText(text);
 
-    if (tocPatterns[0].test(upperText)) {
+    if (/目录|table\s+of\s+contents|contents/i.test(upperText)) {
       inTocSection = true;
-      evidence.push(`第 ${index + 1} 行：识别到目录标记`);
+      evidence.push(`${line.source} 第 ${line.index + 1} 行：识别到目录标记`);
+      return;
     }
 
-    if (inTocSection && text && /^\d+[\s.]+.*\d+\s*$/.test(text)) {
+    const rowWithPage = text.match(/^(\d+(?:\.\d+)*[a-z]?)\s+(.+?)(?:\.{2,}|\t|\s{2,}|\|)\s*(\d+)\s*$/i);
+    if (inTocSection && rowWithPage) {
       tocLines.push({
         rawText: text,
-        lineIndex: index
+        lineIndex: line.index,
+        source: line.source,
+        chapterNumber: rowWithPage[1],
+        title: normalizeText(rowWithPage[2]),
+        pageNumber: parseInt(rowWithPage[3], 10)
       });
     }
 
-    if (inTocSection && /^\s*1[\s.]+\w+/.test(text) && index > 5) {
+    if (line.source.startsWith('table-') && Array.isArray(line.cells) && line.cells.length >= 2) {
+      const lastCell = normalizeText(line.cells[line.cells.length - 1]);
+      const firstCell = normalizeText(line.cells[0]);
+      if (/^\d+$/.test(lastCell) && /^(\d+(?:\.\d+)*[a-z]?)\s+.+/i.test(firstCell)) {
+        const match = firstCell.match(/^(\d+(?:\.\d+)*[a-z]?)\s+(.+)$/i);
+        tocLines.push({
+          rawText: text,
+          lineIndex: line.index,
+          source: line.source,
+          chapterNumber: match[1],
+          title: normalizeText(match[2]),
+          pageNumber: parseInt(lastCell, 10)
+        });
+      }
+    }
+
+    if (inTocSection && /^(?:appendix|annex|references|1\s+|1\.)/i.test(text) && tocLines.length > 0 && line.index > 5) {
       inTocSection = false;
     }
-  });
-
-  const headingPatterns = [
-    { regex: /^(\d+)\s+([a-z ]+)$/i, level: 1 },
-    { regex: /^(\d+\.\d+)\s+(.+)$/i, level: 2 }
-  ];
-
-  wordData.paragraphs.forEach((para, index) => {
-    const text = normalizeText(para);
 
     headingPatterns.forEach((pattern) => {
       const match = text.match(pattern.regex);
-      if (match) {
+      if (match && text.length < 200) {
         chapters.push({
           number: match[1],
-          title: match[2],
-          level: pattern.level,
-          paragraphIndex: index,
-          lineNumber: index + 1
+          title: normalizeText(match[2]),
+          paragraphIndex: line.index,
+          lineNumber: line.index + 1,
+          source: line.source
         });
       }
     });
   });
 
-  if (tocLines.length === 0 && chapters.length === 0) {
+  const uniqueChapters = Array.from(new Map(
+    chapters.map((chapter) => [`${chapter.number}|${normalizeUpperText(chapter.title)}`, chapter])
+  ).values());
+
+  if (tocLines.length === 0 && uniqueChapters.length === 0) {
     evidence.push('警告：未找到显式目录信息或标题结构');
   } else {
-    evidence.push(`识别到 ${chapters.length} 个章节标题`);
+    evidence.push(`识别到 ${uniqueChapters.length} 个章节标题，${tocLines.length} 条目录项`);
   }
 
   return {
-    chapters,
+    chapters: uniqueChapters,
     tocLines,
     evidence,
     pageCount: wordData.pageCount || null
@@ -90,9 +117,8 @@ function checkTableOfContentsPages(wordData, tocInfo) {
 
   const lastTocEntry = tocInfo.tocLines[tocInfo.tocLines.length - 1];
   if (lastTocEntry) {
-    const pageMatch = lastTocEntry.rawText.match(/(\d+)\s*$/);
-    if (pageMatch) {
-      const lastPageInToc = parseInt(pageMatch[1], 10);
+    const lastPageInToc = lastTocEntry.pageNumber;
+    if (lastPageInToc) {
       if (lastPageInToc > totalPages) {
         issues.push({
           severity: 'error',
@@ -121,29 +147,25 @@ function checkChaptersAlignment(wordData, tocInfo) {
   const issues = [];
   const evidence = [];
 
-  const documentChapters = new Set(
-    tocInfo.chapters.map((ch) => normalizeUpperText(ch.title))
-  );
+  const tocEntries = tocInfo.tocLines || [];
+  const actualChapters = tocInfo.chapters || [];
 
-  const actualChapters = [];
-  wordData.paragraphs.forEach((para, index) => {
-    const text = normalizeText(para);
-    if (/^[0-9.]+\s+[a-z ]+$/i.test(text) && text.length < 80) {
-      actualChapters.push({
-        text: normalizeUpperText(text),
-        originalText: text,
-        lineIndex: index + 1
-      });
-    }
-  });
-
-  evidence.push(`目录章节数：${tocInfo.chapters.length}，文档中发现标题数：${actualChapters.length}`);
+  evidence.push(`目录章节数：${tocEntries.length || tocInfo.chapters.length}，文档中发现标题数：${actualChapters.length}`);
 
   const missingChapters = [];
-  documentChapters.forEach((tocChapter) => {
-    const found = actualChapters.some((actualCh) => actualCh.text.includes(tocChapter.split(/\s+/)[0]));
+  tocEntries.forEach((tocEntry) => {
+    const found = actualChapters.some((chapter) => {
+      if (chapter.number === tocEntry.chapterNumber) {
+        return true;
+      }
+
+      const tocTitle = normalizeUpperText(tocEntry.title);
+      const chapterTitle = normalizeUpperText(chapter.title);
+      return tocTitle && chapterTitle && (chapterTitle.includes(tocTitle) || tocTitle.includes(chapterTitle));
+    });
+
     if (!found) {
-      missingChapters.push(tocChapter);
+      missingChapters.push(`${tocEntry.chapterNumber} ${tocEntry.title}`.trim());
     }
   });
 
@@ -155,9 +177,16 @@ function checkChaptersAlignment(wordData, tocInfo) {
     evidence.push(`缺失章节（部分）：${missingChapters.slice(0, 3).join('、')}`);
   }
 
-  const unlistedChapters = actualChapters.filter((ch) => {
-    const chapterNum = ch.text.split(/\s+/)[0];
-    return !Array.from(documentChapters).some((tc) => tc.includes(chapterNum));
+  const unlistedChapters = actualChapters.filter((chapter) => {
+    return !tocEntries.some((tocEntry) => {
+      if (tocEntry.chapterNumber === chapter.number) {
+        return true;
+      }
+
+      const tocTitle = normalizeUpperText(tocEntry.title);
+      const chapterTitle = normalizeUpperText(chapter.title);
+      return tocTitle && chapterTitle && (chapterTitle.includes(tocTitle) || tocTitle.includes(chapterTitle));
+    });
   });
 
   if (unlistedChapters.length > 0) {
@@ -165,7 +194,7 @@ function checkChaptersAlignment(wordData, tocInfo) {
       severity: 'review',
       message: `文档中有 ${unlistedChapters.length} 个章节未列在目录中，可能是新增内容或目录未更新`
     });
-    evidence.push(`文档中未在目录列出的章节：${unlistedChapters.slice(0, 3).map((c) => c.originalText).join('、')}`);
+    evidence.push(`文档中未在目录列出的章节：${unlistedChapters.slice(0, 3).map((chapter) => `${chapter.number} ${chapter.title}`.trim()).join('、')}`);
   }
 
   if (issues.length === 0) {
