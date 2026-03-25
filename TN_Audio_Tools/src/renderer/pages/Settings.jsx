@@ -598,7 +598,7 @@ function Settings() {
 
           <SettingSection
             title="版本更新"
-            description="查看当前版本状态，手动触发检查、下载和安装。国内网络较慢时，可优先使用镜像下载在浏览器中获取安装包。"
+            description="查看当前版本状态，手动触发检查、下载和安装。应用会优先尝试更快的下载源，并在失败时自动切换备用地址。"
           >
             <Card type="inner" className="settings-update-card">
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -631,7 +631,7 @@ function Settings() {
                     应用内下载
                   </Button>
                   <Button onClick={handleOpenExternalDownload} disabled={!canOpenExternalDownload}>
-                    镜像下载
+                    浏览器下载
                   </Button>
                   <Button type="primary" ghost onClick={handleInstallUpdate} disabled={!canInstall}>
                     重启安装
@@ -672,7 +672,7 @@ function Settings() {
                   <Card size="small" className="settings-update-metric">
                     <div className="settings-update-label">最近下载</div>
                     <strong>{formatDateTime(updateState?.lastDownloadedAt, selectedLanguage)}</strong>
-                    <div className="settings-update-hint">仅安装版支持在线更新</div>
+                    <div className="settings-update-hint">下载完成后可直接启动安装程序</div>
                   </Card>
                 </Col>
               </Row>
@@ -682,6 +682,7 @@ function Settings() {
                   <Progress percent={Number(updateState?.progressPercent || 0)} />
                   <div className="settings-update-hint">
                     已下载 {updateState?.transferred || 0} / {updateState?.total || 0} 字节，速度 {updateState?.bytesPerSecond || 0} B/s
+                    {updateState?.downloadSourceName ? `，当前源：${updateState.downloadSourceName}` : ''}
                   </div>
                 </div>
               ) : null}
@@ -690,11 +691,11 @@ function Settings() {
                 <Alert
                   type="info"
                   showIcon
-                  message="下载加速建议"
+                  message="下载策略"
                   description={
                     updateState?.externalDownloadUrl
-                      ? `如果应用内下载速度偏慢，可点击“镜像下载”并使用浏览器直接下载 ${updateState?.assetName || '安装包'}。当前镜像源：${updateState?.mirrorName || '自定义镜像'}。`
-                      : '如果应用内下载速度偏慢，可点击“镜像下载”在浏览器中打开发布页。'
+                      ? `应用内下载会自动尝试多个下载源；如果当前网络下速度仍不理想，可点击“浏览器下载”直接下载 ${updateState?.assetName || '安装包'}。当前优先外部源：${updateState?.mirrorName || '备用下载源'}。`
+                      : '如果应用内下载速度不理想，可点击“浏览器下载”在浏览器中打开发布页。'
                   }
                 />
               ) : null}

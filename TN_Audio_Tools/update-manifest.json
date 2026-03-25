@@ -1,0 +1,35 @@
+{
+  "version": "1.1.6",
+  "releaseName": "TN Audio Toolkit 1.1.6",
+  "releaseDate": "2026-03-25",
+  "releaseNotes": [
+    "更新检查改为多源远程清单，国内外网络都可在应用内正常检查新版本。",
+    "应用内下载改为多源测速与自动回退，优先选择更快的下载地址。",
+    "保留浏览器备用下载入口，应用内下载失败时可以直接切换到外部下载。"
+  ],
+  "assetName": "TN Audio Toolkit Setup 1.1.6.exe",
+  "releasePageUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.6",
+  "downloads": [
+    {
+      "name": "GitHub 镜像加速",
+      "channel": "mirror",
+      "url": "https://ghfast.top/https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.6/TN%20Audio%20Toolkit%20Setup%201.1.6.exe"
+    },
+    {
+      "name": "GitHub Release",
+      "channel": "direct",
+      "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.6/TN%20Audio%20Toolkit%20Setup%201.1.6.exe"
+    }
+  ]
+}{
+  "version": "1.1.5",
+  "releaseName": "TN Audio Toolkit 1.1.5",
+  "releaseDate": "2026-03-25T04:10:00.000Z",
+  "releaseNotes": [
+    "修正远程版本清单地址，避免 1.1.4 在国内外网络下检查更新时出现 404。",
+    "继续采用 Gitee 优先、GitHub 回退的浏览器下载更新模式。"
+  ],
+  "downloadUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.5",
+  "mirrorUrl": null,
+  "mandatory": false
+}
