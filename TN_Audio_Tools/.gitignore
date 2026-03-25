@@ -39,6 +39,17 @@ lerna-debug.log*
 /documents/*_20*.xlsx
 /tmp/
 
+# Ignore Office files under docs; keep markdown docs tracked.
+/docs/**/*.doc
+/docs/**/*.docx
+/docs/**/*.xls
+/docs/**/*.xlsx
+/docs/**/*.xlsm
+/docs/**/*.xlsb
+/docs/**/*.ppt
+/docs/**/*.pptx
+/docs/**/*.pptm
+
 # OS
 .DS_Store
 .DS_Store?
