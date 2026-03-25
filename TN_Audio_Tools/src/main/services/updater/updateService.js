@@ -8,12 +8,13 @@ const UPDATE_PROVIDER = Object.freeze({
 });
 const DEFAULT_DOWNLOAD_MIRROR = process.env.TN_AUDIO_UPDATE_MIRROR || 'https://ghfast.top/';
 const DEFAULT_UPDATE_MANIFEST_FILE = 'update-manifest.json';
+const DEFAULT_UPDATE_MANIFEST_PATH = `TN_Audio_Tools/${DEFAULT_UPDATE_MANIFEST_FILE}`;
 const DEFAULT_UPDATE_REQUEST_TIMEOUT = 8000;
 const DEFAULT_UPDATE_MANIFEST_URLS = [
-  'https://gitee.com/lingyu_mayun/TN_Audio_Check_Tools/raw/master/update-manifest.json',
-  `https://cdn.jsdelivr.net/gh/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}@main/${DEFAULT_UPDATE_MANIFEST_FILE}`,
-  `${normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR)}https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/main/${DEFAULT_UPDATE_MANIFEST_FILE}`,
-  `https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/main/${DEFAULT_UPDATE_MANIFEST_FILE}`
+  `https://gitee.com/lingyu_mayun/${UPDATE_PROVIDER.repo}/raw/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
+  `https://cdn.jsdelivr.net/gh/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}@master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
+  `${normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR)}https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
+  `https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/master/${DEFAULT_UPDATE_MANIFEST_PATH}`
 ].filter(Boolean);
 
 let initialized = false;

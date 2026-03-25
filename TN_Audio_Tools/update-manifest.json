@@ -1,12 +1,12 @@
 {
-  "version": "1.1.4",
-  "releaseName": "TN Audio Toolkit 1.1.4",
-  "releaseDate": "2026-03-25T03:30:00.000Z",
+  "version": "1.1.5",
+  "releaseName": "TN Audio Toolkit 1.1.5",
+  "releaseDate": "2026-03-25T04:10:00.000Z",
   "releaseNotes": [
-    "更新检查默认优先尝试 Gitee 上的 update-manifest.json。",
-    "内部工具继续采用浏览器下载模式，国内网络下的更新检查与下载体验更稳定。"
+    "修正远程版本清单地址，避免 1.1.4 在国内外网络下检查更新时出现 404。",
+    "继续采用 Gitee 优先、GitHub 回退的浏览器下载更新模式。"
   ],
-  "downloadUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.4",
+  "downloadUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.5",
   "mirrorUrl": null,
   "mandatory": false
 }
