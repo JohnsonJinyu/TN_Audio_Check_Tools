@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, App as AntdApp, Button, Card, Col, Divider, Form, Input, Progress, Row, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Col, Divider, Form, Input, Row, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
 import '../styles/pages.css';
 
 function SettingSection({ title, description, children, extra = null }) {
@@ -48,10 +48,7 @@ const statusMeta = {
   idle: { label: '待检查', color: 'default' },
   checking: { label: '检查中', color: 'processing' },
   'up-to-date': { label: '已是最新版本', color: 'success' },
-  available: { label: '发现更新', color: 'warning' },
-  downloading: { label: '下载中', color: 'processing' },
-  downloaded: { label: '下载完成', color: 'success' },
-  installing: { label: '安装中', color: 'processing' }
+  available: { label: '发现更新', color: 'warning' }
 };
 
 function formatDateTime(value, language = 'zh-cn') {
@@ -99,7 +96,6 @@ function Settings() {
   const [appSettings, setAppSettings] = useState(normalizeSettings(fallbackSettings));
   const [updateState, setUpdateState] = useState(null);
   const [checkingManually, setCheckingManually] = useState(false);
-  const [downloadingManually, setDownloadingManually] = useState(false);
   const [draftSettings, setDraftSettings] = useState(normalizeSettings(appSettings || fallbackSettings));
   const [saving, setSaving] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -181,11 +177,9 @@ function Settings() {
 
   const currentStatus = updateState?.status || 'idle';
   const currentStatusMeta = statusMeta[currentStatus] || statusMeta.idle;
-  const canCheckForUpdates = currentStatus !== 'checking' && currentStatus !== 'downloading' && currentStatus !== 'installing';
-  const canDownload = updateState?.available && !updateState?.downloaded && currentStatus !== 'downloading' && !updateState?.unsupported;
-  const canInstall = Boolean(updateState?.downloaded);
+  const canCheckForUpdates = currentStatus !== 'checking';
   const canOpenExternalDownload = Boolean(
-    (updateState?.externalDownloadUrl || updateState?.githubDownloadUrl || updateState?.releasePageUrl)
+    updateState?.available && (updateState?.externalDownloadUrl || updateState?.githubDownloadUrl || updateState?.releasePageUrl)
     && !updateState?.unsupported
   );
   const effectiveSettings = normalizeSettings(appSettings || fallbackSettings);
@@ -248,20 +242,6 @@ function Settings() {
     }
   };
 
-  const handleDownloadUpdate = async () => {
-    if (!hasUpdatesBridge) {
-      message.warning('当前环境不支持在线更新。');
-      return;
-    }
-
-    setDownloadingManually(true);
-    try {
-      await electronApi.updates.downloadUpdate();
-    } finally {
-      setDownloadingManually(false);
-    }
-  };
-
   const handleOpenExternalDownload = async () => {
     if (!hasUpdatesBridge || typeof electronApi?.updates?.openExternalDownload !== 'function') {
       message.warning('当前环境不支持外部下载。');
@@ -274,16 +254,7 @@ function Settings() {
       return;
     }
 
-    message.success('已在浏览器中打开镜像下载地址。');
-  };
-
-  const handleInstallUpdate = async () => {
-    if (!hasUpdatesBridge) {
-      message.warning('当前环境不支持在线更新。');
-      return;
-    }
-
-    await electronApi.updates.quitAndInstall();
+    message.success('已在浏览器中打开下载地址。');
   };
 
   const handleBrowseOutputDirectory = async () => {
@@ -598,7 +569,7 @@ function Settings() {
 
           <SettingSection
             title="版本更新"
-            description="查看当前版本状态，手动触发检查、下载和安装。国内网络较慢时，可优先使用镜像下载在浏览器中获取安装包。"
+            description="查看当前版本状态并手动检查新版本。发现新版后，下载将在浏览器中完成，以优先保证国内网络下的可更新性。"
           >
             <Card type="inner" className="settings-update-card">
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -623,18 +594,8 @@ function Settings() {
                   >
                     检查更新
                   </Button>
-                  <Button
-                    onClick={handleDownloadUpdate}
-                    loading={downloadingManually || currentStatus === 'downloading'}
-                    disabled={!canDownload}
-                  >
-                    应用内下载
-                  </Button>
                   <Button onClick={handleOpenExternalDownload} disabled={!canOpenExternalDownload}>
-                    镜像下载
-                  </Button>
-                  <Button type="primary" ghost onClick={handleInstallUpdate} disabled={!canInstall}>
-                    重启安装
+                    浏览器下载
                   </Button>
                 </Space>
               </div>
@@ -670,31 +631,22 @@ function Settings() {
                 </Col>
                 <Col xs={24} md={8}>
                   <Card size="small" className="settings-update-metric">
-                    <div className="settings-update-label">最近下载</div>
-                    <strong>{formatDateTime(updateState?.lastDownloadedAt, selectedLanguage)}</strong>
-                    <div className="settings-update-hint">仅安装版支持在线更新</div>
+                    <div className="settings-update-label">更新方式</div>
+                    <strong>{canOpenExternalDownload ? '浏览器下载' : '检查后提供入口'}</strong>
+                    <div className="settings-update-hint">内部工具优先保证可检查新版本，安装包下载在浏览器中完成。</div>
                   </Card>
                 </Col>
               </Row>
-
-              {currentStatus === 'downloading' ? (
-                <div>
-                  <Progress percent={Number(updateState?.progressPercent || 0)} />
-                  <div className="settings-update-hint">
-                    已下载 {updateState?.transferred || 0} / {updateState?.total || 0} 字节，速度 {updateState?.bytesPerSecond || 0} B/s
-                  </div>
-                </div>
-              ) : null}
 
               {canOpenExternalDownload ? (
                 <Alert
                   type="info"
                   showIcon
-                  message="下载加速建议"
+                  message="下载说明"
                   description={
                     updateState?.externalDownloadUrl
-                      ? `如果应用内下载速度偏慢，可点击“镜像下载”并使用浏览器直接下载 ${updateState?.assetName || '安装包'}。当前镜像源：${updateState?.mirrorName || '自定义镜像'}。`
-                      : '如果应用内下载速度偏慢，可点击“镜像下载”在浏览器中打开发布页。'
+                      ? `点击“浏览器下载”后会优先打开可直达的下载地址。当前下载源：${updateState?.mirrorName || '自定义下载源'}。`
+                      : '点击“浏览器下载”后会在浏览器中打开发布页或下载页。'
                   }
                 />
               ) : null}

@@ -1,5 +1,5 @@
 const { app, dialog, shell } = require('electron');
-const { autoUpdater } = require('electron-updater');
+const axios = require('axios');
 const log = require('electron-log');
 
 const UPDATE_PROVIDER = Object.freeze({
@@ -7,13 +7,18 @@ const UPDATE_PROVIDER = Object.freeze({
   repo: 'TN_Audio_Check_Tools'
 });
 const DEFAULT_DOWNLOAD_MIRROR = process.env.TN_AUDIO_UPDATE_MIRROR || 'https://ghfast.top/';
+const DEFAULT_UPDATE_MANIFEST_FILE = 'update-manifest.json';
+const DEFAULT_UPDATE_REQUEST_TIMEOUT = 8000;
+const DEFAULT_UPDATE_MANIFEST_URLS = [
+  `https://cdn.jsdelivr.net/gh/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}@main/${DEFAULT_UPDATE_MANIFEST_FILE}`,
+  `${normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR)}https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/main/${DEFAULT_UPDATE_MANIFEST_FILE}`,
+  `https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/main/${DEFAULT_UPDATE_MANIFEST_FILE}`
+].filter(Boolean);
 
 let initialized = false;
 let getMainWindow = () => null;
 let currentCheckSource = 'idle';
 let promptedAvailableVersion = null;
-let promptedDownloadedVersion = null;
-let promptedExternalDownloadVersion = null;
 
 function normalizeMirrorPrefix(prefix) {
   if (typeof prefix !== 'string') {
@@ -26,6 +31,16 @@ function normalizeMirrorPrefix(prefix) {
   }
 
   return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+}
+
+function getConfiguredManifestUrls() {
+  const rawValue = process.env.TN_AUDIO_UPDATE_CONFIG_URLS || process.env.TN_AUDIO_UPDATE_CONFIG_URL || '';
+  const configuredUrls = rawValue
+    .split(/[\n,;]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return configuredUrls.length ? configuredUrls : DEFAULT_UPDATE_MANIFEST_URLS;
 }
 
 function buildMirrorUrl(rawUrl) {
@@ -50,7 +65,22 @@ function encodePathSegment(value) {
 }
 
 function resolveAssetName(info = {}) {
-  return info?.files?.[0]?.url || info?.path || null;
+  if (info?.files?.[0]?.url || info?.path) {
+    return info?.files?.[0]?.url || info?.path || null;
+  }
+
+  const downloadUrl = info.downloadUrl || info.mirrorUrl || null;
+  if (!downloadUrl) {
+    return null;
+  }
+
+  try {
+    const pathname = new URL(downloadUrl).pathname || '';
+    const token = pathname.split('/').filter(Boolean).pop();
+    return token ? decodeURIComponent(token) : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 function buildUpdateLinks(info = {}) {
@@ -69,17 +99,119 @@ function buildUpdateLinks(info = {}) {
   }
 
   const releasePageUrl = `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/tag/${encodePathSegment(tag)}`;
-  const githubDownloadUrl = assetName
+  const fallbackGithubDownloadUrl = assetName
     ? `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/download/${encodePathSegment(tag)}/${encodePathSegment(assetName)}`
     : null;
+  const githubDownloadUrl = info.downloadUrl || fallbackGithubDownloadUrl;
+  const externalDownloadUrl = info.mirrorUrl || buildMirrorUrl(githubDownloadUrl);
 
   return {
     assetName,
     githubDownloadUrl,
-    externalDownloadUrl: buildMirrorUrl(githubDownloadUrl),
+    externalDownloadUrl,
     releasePageUrl,
     mirrorName: normalizeMirrorPrefix(DEFAULT_DOWNLOAD_MIRROR) ? 'ghfast' : null
   };
+}
+
+function stripVersionPrefix(version) {
+  return String(version || '').trim().replace(/^v/i, '');
+}
+
+function compareVersions(left, right) {
+  const leftParts = stripVersionPrefix(left).split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = stripVersionPrefix(right).split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const total = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < total; index += 1) {
+    const leftValue = leftParts[index] || 0;
+    const rightValue = rightParts[index] || 0;
+
+    if (leftValue > rightValue) {
+      return 1;
+    }
+
+    if (leftValue < rightValue) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+function ensureReleaseNotes(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter(Boolean).join('\n');
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() || null;
+  }
+
+  return null;
+}
+
+function normalizeRemoteManifest(payload = {}, sourceUrl) {
+  const version = stripVersionPrefix(payload.version);
+  if (!version) {
+    throw new Error('远程版本清单缺少 version 字段。');
+  }
+
+  const releaseName = payload.releaseName || payload.name || null;
+  const releaseDate = payload.releaseDate || payload.publishedAt || null;
+  const releaseNotes = ensureReleaseNotes(payload.releaseNotes || payload.notes || payload.changelog);
+  const downloadUrl = payload.downloadUrl || payload.releasePageUrl || null;
+  const mirrorUrl = payload.mirrorUrl || payload.externalDownloadUrl || null;
+  const info = {
+    version,
+    releaseName,
+    releaseDate,
+    releaseNotes,
+    downloadUrl,
+    mirrorUrl
+  };
+  const links = buildUpdateLinks(info);
+
+  return {
+    version,
+    releaseName,
+    releaseDate,
+    releaseNotes,
+    mandatory: Boolean(payload.mandatory),
+    sourceUrl,
+    ...links
+  };
+}
+
+async function fetchRemoteManifest() {
+  const manifestUrls = getConfiguredManifestUrls();
+  const errors = [];
+
+  for (const manifestUrl of manifestUrls) {
+    try {
+      const response = await axios.get(manifestUrl, {
+        timeout: DEFAULT_UPDATE_REQUEST_TIMEOUT,
+        responseType: 'json',
+        headers: {
+          Accept: 'application/json, text/plain, */*',
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      return normalizeRemoteManifest(response.data || {}, manifestUrl);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      errors.push(`${manifestUrl}: ${message}`);
+      log.warn('[updater] failed to fetch manifest from', manifestUrl, message);
+    }
+  }
+
+  const detail = errors.length ? `已尝试地址：${errors.join(' | ')}` : '未配置远程版本清单地址。';
+  throw new Error(`无法获取远程版本信息。${detail}`);
 }
 
 function isPortableApp() {
@@ -193,10 +325,14 @@ function getErrorMessage(error) {
     log.error('[updater] error stack:', error.stack);
   }
 
+  if (error.response?.data?.error) {
+    return String(error.response.data.error);
+  }
+
   return error.message || '检查更新时发生未知错误。';
 }
 
-async function promptForExternalDownload() {
+async function promptForBrowserDownload() {
   const targetUrl = updateState.externalDownloadUrl || updateState.githubDownloadUrl || updateState.releasePageUrl;
   const targetVersion = updateState.latestVersion || null;
 
@@ -204,23 +340,23 @@ async function promptForExternalDownload() {
     return false;
   }
 
-  if (targetVersion && promptedExternalDownloadVersion === targetVersion) {
+  if (targetVersion && promptedAvailableVersion === targetVersion) {
     return false;
   }
 
-  promptedExternalDownloadVersion = targetVersion;
+  promptedAvailableVersion = targetVersion;
 
   const result = await dialog.showMessageBox(getWindow(), {
-    type: 'warning',
-    buttons: ['打开镜像下载', '稍后'],
+    type: 'info',
+    buttons: ['打开下载页', '稍后'],
     defaultId: 0,
     cancelId: 1,
     noLink: true,
-    title: '应用内下载失败',
-    message: '当前应用内下载速度较慢或已失败。',
+    title: '发现新版本',
+    message: `检测到新版本 ${targetVersion}`,
     detail: updateState.externalDownloadUrl
-      ? `是否改为在浏览器中打开镜像下载 ${updateState.assetName || '安装包'}？`
-      : '是否改为在浏览器中打开发布页继续下载？'
+      ? '是否现在在浏览器中打开下载地址？'
+      : '是否现在在浏览器中打开发布页？'
   });
 
   if (result.response === 0) {
@@ -232,200 +368,23 @@ async function promptForExternalDownload() {
 }
 
 async function promptForDownload(info) {
-  if (promptedAvailableVersion === info.version) {
-    return;
-  }
-
-  promptedAvailableVersion = info.version;
-
-  const result = await dialog.showMessageBox(getWindow(), {
-    type: 'info',
-    buttons: ['立即下载', '稍后'],
-    defaultId: 0,
-    cancelId: 1,
-    noLink: true,
-    title: '发现新版本',
-    message: `检测到新版本 ${info.version}`,
-    detail: '是否现在开始下载更新安装包？'
-  });
-
-  if (result.response === 0) {
-    await downloadUpdate({ source: 'auto' });
-  }
-}
-
-async function promptForInstall(info) {
-  if (promptedDownloadedVersion === info.version) {
-    return;
-  }
-
-  promptedDownloadedVersion = info.version;
-
-  const result = await dialog.showMessageBox(getWindow(), {
-    type: 'info',
-    buttons: ['立即安装', '稍后'],
-    defaultId: 0,
-    cancelId: 1,
-    noLink: true,
-    title: '更新已下载完成',
-    message: `新版本 ${info.version} 已下载完成`,
-    detail: '立即重启应用并完成安装？'
-  });
-
-  if (result.response === 0) {
-    quitAndInstallUpdate();
-  }
+  return promptForBrowserDownload(info);
 }
 
 function handleUpdaterError(error) {
   const message = getErrorMessage(error);
-  const shouldOfferExternalDownload = Boolean(
-    updateState.downloading && (updateState.externalDownloadUrl || updateState.githubDownloadUrl || updateState.releasePageUrl)
-  );
   log.error('[updater] update failed:', message);
   setState({
     status: updateState.available ? 'available' : 'idle',
     checking: false,
     downloading: false,
-    error: updateState.externalDownloadUrl
-      ? `${message}。可改用镜像下载获取安装包。`
-      : message
+    downloaded: false,
+    installReady: false,
+    error: message
   });
   currentCheckSource = 'idle';
 
-  if (shouldOfferExternalDownload) {
-    promptForExternalDownload().catch((promptError) => {
-      log.error('[updater] failed to show external download prompt:', promptError);
-    });
-  }
-
   return { ok: false, error: message };
-}
-
-function registerAutoUpdaterEvents() {
-  autoUpdater.on('checking-for-update', () => {
-    log.info('[updater] checking for update');
-    setState({
-      status: 'checking',
-      checking: true,
-      error: null,
-      lastCheckedAt: new Date().toISOString(),
-      lastCheckSource: currentCheckSource,
-      unsupported: false
-    });
-  });
-
-  autoUpdater.on('update-available', (info) => {
-    log.info('[updater] update available:', info.version);
-    const downloadLinks = buildUpdateLinks(info);
-    setState({
-      status: 'available',
-      checking: false,
-      available: true,
-      downloading: false,
-      downloaded: false,
-      installReady: false,
-      latestVersion: info.version,
-      releaseName: info.releaseName || null,
-      releaseDate: info.releaseDate || null,
-      releaseNotes: normalizeReleaseNotes(info.releaseNotes),
-      assetName: downloadLinks.assetName,
-      githubDownloadUrl: downloadLinks.githubDownloadUrl,
-      externalDownloadUrl: downloadLinks.externalDownloadUrl,
-      releasePageUrl: downloadLinks.releasePageUrl,
-      mirrorName: downloadLinks.mirrorName,
-      progressPercent: 0,
-      transferred: 0,
-      total: 0,
-      bytesPerSecond: 0,
-      error: null
-    });
-
-    const triggerSource = currentCheckSource;
-    currentCheckSource = 'idle';
-
-    if (triggerSource === 'auto') {
-      promptForDownload(info).catch((error) => {
-        log.error('[updater] failed to show download prompt:', error);
-      });
-    }
-  });
-
-  autoUpdater.on('update-not-available', (info) => {
-    log.info('[updater] update not available');
-    const downloadLinks = buildUpdateLinks(info || {});
-    setState({
-      status: 'up-to-date',
-      checking: false,
-      available: false,
-      downloading: false,
-      downloaded: false,
-      installReady: false,
-      latestVersion: info?.version || app.getVersion(),
-      releaseName: info?.releaseName || null,
-      releaseDate: info?.releaseDate || null,
-      releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
-      assetName: downloadLinks.assetName,
-      githubDownloadUrl: downloadLinks.githubDownloadUrl,
-      externalDownloadUrl: downloadLinks.externalDownloadUrl,
-      releasePageUrl: downloadLinks.releasePageUrl,
-      mirrorName: downloadLinks.mirrorName,
-      progressPercent: 0,
-      transferred: 0,
-      total: 0,
-      bytesPerSecond: 0,
-      error: null
-    });
-    currentCheckSource = 'idle';
-  });
-
-  autoUpdater.on('download-progress', (progress) => {
-    setState({
-      status: 'downloading',
-      checking: false,
-      downloading: true,
-      downloaded: false,
-      installReady: false,
-      progressPercent: Number(progress.percent || 0).toFixed(1),
-      transferred: progress.transferred || 0,
-      total: progress.total || 0,
-      bytesPerSecond: progress.bytesPerSecond || 0,
-      error: null
-    });
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    log.info('[updater] update downloaded:', info.version);
-    const downloadLinks = buildUpdateLinks(info);
-    setState({
-      status: 'downloaded',
-      checking: false,
-      available: true,
-      downloading: false,
-      downloaded: true,
-      installReady: true,
-      latestVersion: info.version,
-      releaseName: info.releaseName || null,
-      releaseDate: info.releaseDate || null,
-      releaseNotes: normalizeReleaseNotes(info.releaseNotes),
-      assetName: downloadLinks.assetName,
-      githubDownloadUrl: downloadLinks.githubDownloadUrl,
-      externalDownloadUrl: downloadLinks.externalDownloadUrl,
-      releasePageUrl: downloadLinks.releasePageUrl,
-      mirrorName: downloadLinks.mirrorName,
-      progressPercent: 100,
-      lastDownloadedAt: new Date().toISOString(),
-      error: null
-    });
-
-    promptForInstall(info).catch((error) => {
-      log.error('[updater] failed to show install prompt:', error);
-    });
-  });
-
-  autoUpdater.on('error', (error) => {
-    handleUpdaterError(error);
-  });
 }
 
 function initializeUpdateService(options = {}) {
@@ -435,13 +394,6 @@ function initializeUpdateService(options = {}) {
 
   getMainWindow = options.getMainWindow || (() => null);
   log.transports.file.level = 'info';
-  autoUpdater.logger = log;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.allowPrerelease = false;
-  autoUpdater.allowDowngrade = false;
-
-  registerAutoUpdaterEvents();
   initialized = true;
   emitState();
 }
@@ -467,9 +419,83 @@ async function checkForUpdates(options = {}) {
   }
 
   currentCheckSource = source;
+  setState({
+    status: 'checking',
+    checking: true,
+    available: false,
+    downloading: false,
+    downloaded: false,
+    installReady: false,
+    error: null,
+    lastCheckedAt: new Date().toISOString(),
+    lastCheckSource: source,
+    unsupported: false
+  });
 
   try {
-    await autoUpdater.checkForUpdates();
+    const remoteInfo = await fetchRemoteManifest();
+    const isNewVersion = compareVersions(remoteInfo.version, app.getVersion()) > 0;
+
+    if (isNewVersion) {
+      setState({
+        status: 'available',
+        checking: false,
+        available: true,
+        downloading: false,
+        downloaded: false,
+        installReady: false,
+        latestVersion: remoteInfo.version,
+        releaseName: remoteInfo.releaseName,
+        releaseDate: remoteInfo.releaseDate,
+        releaseNotes: normalizeReleaseNotes(remoteInfo.releaseNotes),
+        assetName: remoteInfo.assetName,
+        githubDownloadUrl: remoteInfo.githubDownloadUrl,
+        externalDownloadUrl: remoteInfo.externalDownloadUrl,
+        releasePageUrl: remoteInfo.releasePageUrl,
+        mirrorName: remoteInfo.externalDownloadUrl ? (remoteInfo.mirrorName || '下载源') : null,
+        progressPercent: 0,
+        transferred: 0,
+        total: 0,
+        bytesPerSecond: 0,
+        error: null
+      });
+
+      const triggerSource = currentCheckSource;
+      currentCheckSource = 'idle';
+
+      if (triggerSource === 'auto') {
+        promptForDownload(remoteInfo).catch((promptError) => {
+          log.error('[updater] failed to show browser download prompt:', promptError);
+        });
+      }
+
+      return { ok: true, available: true, version: remoteInfo.version };
+    }
+
+    const currentVersion = app.getVersion();
+    setState({
+      status: 'up-to-date',
+      checking: false,
+      available: false,
+      downloading: false,
+      downloaded: false,
+      installReady: false,
+      latestVersion: currentVersion,
+      releaseName: remoteInfo.releaseName,
+      releaseDate: remoteInfo.releaseDate,
+      releaseNotes: normalizeReleaseNotes(remoteInfo.releaseNotes),
+      assetName: remoteInfo.assetName,
+      githubDownloadUrl: remoteInfo.githubDownloadUrl,
+      externalDownloadUrl: remoteInfo.externalDownloadUrl,
+      releasePageUrl: remoteInfo.releasePageUrl,
+      mirrorName: remoteInfo.externalDownloadUrl ? (remoteInfo.mirrorName || '下载源') : null,
+      progressPercent: 0,
+      transferred: 0,
+      total: 0,
+      bytesPerSecond: 0,
+      error: null
+    });
+    currentCheckSource = 'idle';
     return { ok: true };
   } catch (error) {
     return handleUpdaterError(error);
@@ -491,46 +517,24 @@ async function downloadUpdate(options = {}) {
     return { ok: false, unsupported: true, message };
   }
 
-  if (updateState.downloaded) {
-    return { ok: true, alreadyDownloaded: true };
-  }
-
-  if (updateState.downloading) {
-    return { ok: false, busy: true, state: updateState };
-  }
-
-  setState({
-    status: 'downloading',
-    checking: false,
-    downloading: true,
-    error: null
-  });
-
   try {
-    await autoUpdater.downloadUpdate();
-    return { ok: true, source };
+    const targetUrl = getExternalDownloadUrl(true);
+    if (!targetUrl) {
+      return { ok: false, message: '当前没有可用的下载地址。' };
+    }
+
+    await shell.openExternal(targetUrl);
+    return { ok: true, source, openedInBrowser: true, url: targetUrl };
   } catch (error) {
     return handleUpdaterError(error);
   }
 }
 
 function quitAndInstallUpdate() {
-  if (!updateState.downloaded) {
-    return { ok: false, message: '当前没有已下载完成的更新。' };
-  }
-
-  setState({
-    status: 'installing',
-    checking: false,
-    downloading: false,
-    error: null
-  });
-
-  setImmediate(() => {
-    autoUpdater.quitAndInstall(false, true);
-  });
-
-  return { ok: true };
+  return {
+    ok: false,
+    message: '当前版本采用浏览器下载模式，请在下载完成后手动运行安装包。'
+  };
 }
 
 function getUpdateState() {
