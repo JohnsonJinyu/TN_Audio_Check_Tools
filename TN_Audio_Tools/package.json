@@ -82,6 +82,7 @@
       "build/**/*",
       "src/main/**/*",
       "src/renderer/modules/reportChecker/config/**/*",
+      "src/renderer/modules/testDataExtraction/config/**/*",
       "node_modules/**/*"
     ],
     "directories": {

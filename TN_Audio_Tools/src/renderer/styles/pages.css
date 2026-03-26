@@ -270,6 +270,10 @@
   border-color: #dfe7fb;
 }
 
+.report-checker-conclusion-card .ant-card-head {
+  border-bottom-color: #d8e2f5;
+}
+
 .report-checker-conclusion-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -284,7 +288,8 @@
   padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid #e4ebff;
-  background: linear-gradient(135deg, rgba(73, 114, 255, 0.1) 0%, rgba(73, 114, 255, 0.03) 100%);
+  background: linear-gradient(135deg, rgba(73, 114, 255, 0.14) 0%, rgba(73, 114, 255, 0.05) 100%);
+  box-shadow: 0 4px 12px rgba(73, 114, 255, 0.08);
 }
 
 .report-checker-conclusion-metric strong {
@@ -318,6 +323,7 @@
   background: linear-gradient(155deg, #ffffff 0%, #f7faff 100%);
   cursor: pointer;
   text-align: left;
+  color: inherit;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
@@ -368,6 +374,7 @@
   background: #fbfcff;
   cursor: pointer;
   text-align: left;
+  color: inherit;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
@@ -423,6 +430,19 @@
 
 .report-checker-conclusion-action-list {
   margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid #dde6f6;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(245, 248, 255, 0.92) 100%);
+}
+
+.report-checker-conclusion-actions > .ant-typography {
+  color: var(--text-color);
+}
+
+.report-checker-conclusion-action-list .ant-typography {
+  color: var(--text-color);
+  line-height: 1.75;
 }
 
 .report-checker-progress-header {
@@ -863,6 +883,57 @@
   justify-content: center;
 }
 
+.report-parameter-card {
+  padding: 16px;
+  border: 1px solid #e6ebf5;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.report-parameter-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.report-parameter-card__summary {
+  min-width: 0;
+  flex: 1;
+}
+
+.report-parameter-card__name {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-color);
+}
+
+.report-parameter-card__tags {
+  display: flex;
+}
+
+.report-parameter-card__actions {
+  align-items: center;
+}
+
+.report-parameter-card__fields {
+  display: grid;
+  gap: 12px;
+}
+
+.report-parameter-field__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-light);
+}
+
+.report-parameter-card--confirmed {
+  border-color: #cfe7d2;
+  background: linear-gradient(180deg, #ffffff 0%, #f3fbf4 100%);
+}
+
 .report-checker-note-list {
   color: var(--text-light);
   font-size: 13px;
@@ -873,6 +944,8 @@
   position: relative;
   overflow: hidden;
   cursor: pointer;
+  border-color: var(--review-digest-border, #dbe5ff);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-color) 96%, #ffffff) 0%, var(--review-digest-soft, #f7faff) 100%);
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   box-shadow: 0 12px 24px rgba(36, 56, 99, 0.08);
 }
@@ -916,6 +989,7 @@
 }
 
 .review-digest-card__headline {
+  color: var(--review-digest-title, var(--text-color));
   font-weight: 700;
   line-height: 1.65;
   letter-spacing: 0.01em;
@@ -957,6 +1031,12 @@
   transform: translateY(-1px);
   box-shadow: 0 6px 12px rgba(36, 56, 99, 0.1);
   filter: saturate(1.05);
+}
+
+.review-digest-card__pill--pass {
+  background: color-mix(in srgb, var(--review-digest-soft, #f6ffed) 92%, #ffffff 8%);
+  border-color: color-mix(in srgb, var(--review-digest-border, #b7eb8f) 88%, #ffffff 12%);
+  color: var(--review-digest-muted, #3f6600);
 }
 
 .review-digest-card__pill--warning {
@@ -1252,12 +1332,28 @@
   box-shadow: 0 8px 18px rgba(8, 14, 28, 0.28);
 }
 
+[data-theme='dark'] .report-checker-conclusion-card {
+  border-color: #46587d;
+  background: linear-gradient(180deg, #26334d 0%, #1f2a41 100%);
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-card-head {
+  border-bottom-color: #3d4f72;
+}
+
 [data-theme='dark'] .report-checker-top-card,
 [data-theme='dark'] .report-checker-conclusion-metric,
 [data-theme='dark'] .report-checker-upload-summary-item,
+[data-theme='dark'] .report-parameter-card,
 [data-theme='dark'] .review-area-modal__item {
   border-color: #425272;
   background: linear-gradient(180deg, #2a3852 0%, #24314a 100%);
+}
+
+[data-theme='dark'] .report-checker-conclusion-metric {
+  border-color: #50658d;
+  background: linear-gradient(145deg, rgba(96, 131, 255, 0.2) 0%, rgba(33, 47, 75, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 20px rgba(6, 10, 20, 0.24);
 }
 
 [data-theme='dark'] .report-checker-insight-card,
@@ -1265,8 +1361,52 @@
 [data-theme='dark'] .review-digest-card,
 [data-theme='dark'] .review-table-digest {
   border-color: #40506e;
-  background: linear-gradient(180deg, #26344d 0%, #202c42 100%);
   box-shadow: 0 8px 18px rgba(8, 14, 28, 0.26);
+}
+
+[data-theme='dark'] .report-checker-insight-card {
+  border-color: #53688f;
+  background: linear-gradient(155deg, rgba(40, 56, 84, 0.98) 0%, rgba(31, 43, 66, 0.98) 100%);
+}
+
+[data-theme='dark'] .report-checker-bundle-item {
+  border-color: #4b607f;
+  background: linear-gradient(180deg, rgba(37, 52, 78, 0.98) 0%, rgba(29, 41, 61, 0.98) 100%);
+}
+
+[data-theme='dark'] .report-parameter-card {
+  border-color: #4a5d84;
+  background: linear-gradient(180deg, #2b3955 0%, #24314a 100%);
+  box-shadow: 0 10px 20px rgba(7, 12, 24, 0.24);
+}
+
+[data-theme='dark'] .report-parameter-card--confirmed {
+  border-color: #4e7a63;
+  background: linear-gradient(180deg, #223a32 0%, #1d312d 100%);
+}
+
+[data-theme='dark'] .report-parameter-field__label {
+  color: #d6e1f5;
+}
+
+[data-theme='dark'] .report-parameter-card .ant-select-selector {
+  background: #162033 !important;
+  border-color: #4b5e80 !important;
+  color: #f4f7ff !important;
+}
+
+[data-theme='dark'] .report-parameter-card .ant-select-arrow,
+[data-theme='dark'] .report-parameter-card .ant-select-selection-item {
+  color: #f4f7ff !important;
+}
+
+[data-theme='dark'] .report-parameter-card .ant-select-selection-placeholder {
+  color: #9fb0d0 !important;
+}
+
+[data-theme='dark'] .review-digest-card {
+  border-color: color-mix(in srgb, var(--review-digest-border, #5a6f9e) 48%, #3f4f6e);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--review-digest-soft, #24314a) 18%, #1f2b42) 0%, color-mix(in srgb, var(--review-digest-accent, #8ea2ff) 12%, #202c42) 100%);
 }
 
 [data-theme='dark'] .report-checker-insight-card:hover,
@@ -1300,6 +1440,17 @@
   color: #c8d3e8;
 }
 
+[data-theme='dark'] .report-checker-conclusion-actions > .ant-typography,
+[data-theme='dark'] .report-checker-conclusion-action-list .ant-typography {
+  color: #e7eeff;
+}
+
+[data-theme='dark'] .report-checker-conclusion-action-list {
+  border-color: #4b5f83;
+  background: linear-gradient(180deg, rgba(33, 46, 70, 0.96) 0%, rgba(28, 39, 59, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
 [data-theme='dark'] .report-checker-action-title,
 [data-theme='dark'] .report-checker-progress-title,
 [data-theme='dark'] .report-checker-bundle-title,
@@ -1314,11 +1465,92 @@
   color: #f4f7ff;
 }
 
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag {
+  border-color: rgba(195, 210, 240, 0.18);
+  font-weight: 600;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag:not(.ant-tag-borderless) {
+  background: #2a3852;
+  color: #e7eeff;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-blue,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-processing,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-geekblue {
+  background: color-mix(in srgb, #1677ff 18%, #22304a);
+  border-color: color-mix(in srgb, #8db8ff 32%, #4a6289);
+  color: #dcebff;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-green,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-success {
+  background: color-mix(in srgb, #52c41a 16%, #223126);
+  border-color: color-mix(in srgb, #95de64 32%, #567253);
+  color: #e6f8db;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-gold,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-orange,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-warning {
+  background: color-mix(in srgb, #faad14 18%, #352b19);
+  border-color: color-mix(in srgb, #ffd666 32%, #745d33);
+  color: #ffefc8;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-red,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-error,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-volcano {
+  background: color-mix(in srgb, #ff4d4f 18%, #382227);
+  border-color: color-mix(in srgb, #ff9c9d 32%, #7a4e53);
+  color: #ffd7d8;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-purple,
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-magenta {
+  background: color-mix(in srgb, #722ed1 18%, #2d2441);
+  border-color: color-mix(in srgb, #b37feb 32%, #66507e);
+  color: #eedfff;
+}
+
+[data-theme='dark'] .report-checker-conclusion-card .ant-tag-default {
+  background: #2a3852;
+  border-color: #4f6388;
+  color: #d8e3f8 !important;
+}
+
 [data-theme='dark'] .review-digest-card__pill,
 [data-theme='dark'] .review-table-digest__pill {
   background: #2b3850;
   color: #d9e2f5;
   border-color: #425272;
+}
+
+[data-theme='dark'] .review-digest-card__pill--pass {
+  background: color-mix(in srgb, var(--review-digest-accent, #389e0d) 18%, #223027);
+  color: #edf9ea;
+  border-color: color-mix(in srgb, var(--review-digest-accent, #389e0d) 42%, #61835d);
+}
+
+[data-theme='dark'] .review-digest-card__pill--warning,
+[data-theme='dark'] .review-table-digest__pill--warning {
+  background: color-mix(in srgb, #d48806 22%, #342b18);
+  border-color: color-mix(in srgb, #ffd591 38%, #6e5830);
+  color: #ffe9bf;
+}
+
+[data-theme='dark'] .review-digest-card__pill--review,
+[data-theme='dark'] .review-table-digest__pill--review {
+  background: color-mix(in srgb, #1677ff 18%, #1f2b42);
+  border-color: color-mix(in srgb, #adc6ff 36%, #4a6188);
+  color: #dce8ff;
+}
+
+[data-theme='dark'] .review-digest-card__pill--error,
+[data-theme='dark'] .review-table-digest__pill--error {
+  background: color-mix(in srgb, #cf1322 18%, #312026);
+  border-color: color-mix(in srgb, #ffa39e 34%, #7e4b4b);
+  color: #ffd8d6;
 }
 
 [data-theme='dark'] .review-area-card__link {
@@ -1440,6 +1672,20 @@
   .review-digest-card__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .report-parameter-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .report-parameter-card__actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .report-parameter-card__fields {
+    grid-template-columns: 1fr !important;
   }
 
   .review-area-card__top {

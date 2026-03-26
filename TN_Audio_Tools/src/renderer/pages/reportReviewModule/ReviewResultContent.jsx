@@ -80,7 +80,7 @@ export default function ReviewResultContent({ resultData }) {
           <Card size="small" title="审查统计">
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: '8px 0', color: '#52c41a', fontSize: 16, fontWeight: 'bold' }}>{summary.passedChecks}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#999' }}>通过项</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)' }}>通过项</p>
             </div>
           </Card>
         </Col>
@@ -89,7 +89,7 @@ export default function ReviewResultContent({ resultData }) {
           <Card size="small">
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: '8px 0', color: '#faad14', fontSize: 16, fontWeight: 'bold' }}>{summary.warningChecks}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#999' }}>警告项</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)' }}>警告项</p>
             </div>
           </Card>
         </Col>
@@ -98,7 +98,7 @@ export default function ReviewResultContent({ resultData }) {
           <Card size="small">
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: '8px 0', color: '#1677ff', fontSize: 16, fontWeight: 'bold' }}>{summary.reviewChecks}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#999' }}>需复核</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)' }}>需复核</p>
             </div>
           </Card>
         </Col>
@@ -107,7 +107,7 @@ export default function ReviewResultContent({ resultData }) {
           <Card size="small">
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: '8px 0', color: '#ff4d4f', fontSize: 16, fontWeight: 'bold' }}>{summary.errorChecks}</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#999' }}>错误项</p>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)' }}>错误项</p>
             </div>
           </Card>
         </Col>
@@ -127,7 +127,7 @@ export default function ReviewResultContent({ resultData }) {
           ),
           children: (
             <div>
-              <p style={{ marginBottom: 12, color: '#666' }}>{section.description || '无详细说明'}</p>
+              <p style={{ marginBottom: 12, color: 'var(--text-light)' }}>{section.description || '无详细说明'}</p>
 
               {Array.isArray(section.issues) && section.issues.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
@@ -149,7 +149,7 @@ export default function ReviewResultContent({ resultData }) {
                   <h4 style={{ marginBottom: 8 }}>证据记录：</h4>
                   <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                     {section.evidence.map((item, idx) => (
-                      <li key={idx} style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>{item}</li>
+                      <li key={idx} style={{ marginBottom: 4, color: 'var(--text-light)', fontSize: 12 }}>{item}</li>
                     ))}
                   </ul>
                 </div>
@@ -160,14 +160,14 @@ export default function ReviewResultContent({ resultData }) {
                   <h4 style={{ marginBottom: 8 }}>识别到的章节：</h4>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid #ddd' }}>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                         <th style={{ padding: 8, textAlign: 'left' }}>章节号</th>
                         <th style={{ padding: 8, textAlign: 'left' }}>标题</th>
                       </tr>
                     </thead>
                     <tbody>
                       {section.data.chapters.map((chapter, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: 8 }}>{chapter.number}</td>
                           <td style={{ padding: 8 }}>{chapter.title}</td>
                         </tr>

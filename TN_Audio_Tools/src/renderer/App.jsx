@@ -25,7 +25,7 @@ const languageLocaleMap = {
 };
 const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
 const fallbackAppearanceSettings = {
-  theme: 'auto',
+  theme: 'light',
   language: 'zh-cn'
 };
 

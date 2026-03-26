@@ -105,7 +105,7 @@ function SpectrumAnalyzer() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#8c8c8c'
+                color: 'var(--text-light)'
               }}>
                 <div>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
@@ -126,7 +126,7 @@ function SpectrumAnalyzer() {
           <Col xs={24} sm={12} md={6}>
             <Card type="inner">
               <div style={{ textAlign: 'center' }}>
-                <p style={{ color: '#8c8c8c', fontSize: '12px', marginBottom: '8px' }}>
+                <p style={{ color: 'var(--text-light)', fontSize: '12px', marginBottom: '8px' }}>
                   峰值频率
                 </p>
                 <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
@@ -138,7 +138,7 @@ function SpectrumAnalyzer() {
           <Col xs={24} sm={12} md={6}>
             <Card type="inner">
               <div style={{ textAlign: 'center' }}>
-                <p style={{ color: '#8c8c8c', fontSize: '12px', marginBottom: '8px' }}>
+                <p style={{ color: 'var(--text-light)', fontSize: '12px', marginBottom: '8px' }}>
                   能量
                 </p>
                 <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
@@ -150,7 +150,7 @@ function SpectrumAnalyzer() {
           <Col xs={24} sm={12} md={6}>
             <Card type="inner">
               <div style={{ textAlign: 'center' }}>
-                <p style={{ color: '#8c8c8c', fontSize: '12px', marginBottom: '8px' }}>
+                <p style={{ color: 'var(--text-light)', fontSize: '12px', marginBottom: '8px' }}>
                   THD
                 </p>
                 <p style={{ fontSize: '20px', fontWeight: 'bold' }}>
@@ -162,7 +162,7 @@ function SpectrumAnalyzer() {
           <Col xs={24} sm={12} md={6}>
             <Card type="inner">
               <div style={{ textAlign: 'center' }}>
-                <p style={{ color: '#8c8c8c', fontSize: '12px', marginBottom: '8px' }}>
+                <p style={{ color: 'var(--text-light)', fontSize: '12px', marginBottom: '8px' }}>
                   SNR
                 </p>
                 <p style={{ fontSize: '20px', fontWeight: 'bold' }}>

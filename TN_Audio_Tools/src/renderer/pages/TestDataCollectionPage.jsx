@@ -1373,10 +1373,10 @@ function TestDataCollectionPage() {
             </div>
           </div>
 
-          <p style={{ marginBottom: '24px', color: '#8c8c8c' }}>
+          <p style={{ marginBottom: '24px', color: 'var(--text-light)' }}>
             Excel 报告仅用于 checklist 填表、漏测/重测/多测候选评估与跨报告一致性检查；Word 报告仅用于响度/频响章节识别和文档完整性审查。
           </p>
-          <p style={{ marginTop: '-12px', marginBottom: '24px', color: '#8c8c8c' }}>
+          <p style={{ marginTop: '-12px', marginBottom: '24px', color: 'var(--text-light)' }}>
             .doc 报告会先在后台尝试转成 .docx；Word 路径不会生成 checklist 输出文件，结果统一进入下方结论窗口。
           </p>
 
@@ -1572,24 +1572,19 @@ function TestDataCollectionPage() {
                 return (
                   <div
                     key={record.id}
-                    style={{
-                      padding: 16,
-                      border: '1px solid #e6ebf5',
-                      borderRadius: 14,
-                      background: '#fbfcff'
-                    }}
+                    className={`report-parameter-card report-parameter-card--${record.parameterConfirmationStatus === 'confirmed' ? 'confirmed' : 'pending'}`}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 14 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <Text strong style={{ display: 'block', marginBottom: 8 }}>{record.name}</Text>
-                        <Space size={[8, 8]} wrap>
+                    <div className="report-parameter-card__header">
+                      <div className="report-parameter-card__summary">
+                        <Text strong className="report-parameter-card__name">{record.name}</Text>
+                        <Space size={[8, 8]} wrap className="report-parameter-card__tags">
                           {detectedTags.length > 0
                             ? detectedTags.map((tag) => <Tag key={`${record.id}-${tag}`} color="blue">{tag}</Tag>)
                             : <Tag>未识别到上下文</Tag>}
                           {record.reportContext?.measurementObject ? <Tag color="default">{record.reportContext.measurementObject}</Tag> : null}
                         </Space>
                       </div>
-                      <Space size={8}>
+                      <Space size={8} className="report-parameter-card__actions">
                         <Tag color={confirmationMeta.color}>{confirmationMeta.label}</Tag>
                         <Button
                           type={record.parameterConfirmationStatus === 'confirmed' ? 'default' : 'primary'}
@@ -1602,13 +1597,13 @@ function TestDataCollectionPage() {
                       </Space>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))', gap: 12 }}>
+                    <div className="report-parameter-card__fields" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
                       {REPORT_PANEL_FIELDS.map((field) => {
                         const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
 
                         return (
-                          <div key={`${record.id}-${field.cell}`}>
-                            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                          <div key={`${record.id}-${field.cell}`} className="report-parameter-field">
+                            <Text strong className="report-parameter-field__label">
                               {field.label} ({field.cell})
                             </Text>
                             <Select
