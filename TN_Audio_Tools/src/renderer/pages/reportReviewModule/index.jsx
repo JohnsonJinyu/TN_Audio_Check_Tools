@@ -191,10 +191,10 @@ export default function ReportReviewPage() {
               <div>{`成功 ${successCount} 份，失败 ${failedCount} 份。失败项如下：`}</div>
               <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
                 {failedReports.map((item) => (
-                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: '#fff2f0', border: '1px solid #ffccc7' }}>
+                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #cf1322 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, #cf1322 28%, var(--border-color))' }}>
                     <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
-                    <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>{item.reportPath}</div>
-                    <div style={{ color: '#5c0011' }}>{item.message}</div>
+                    <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{item.reportPath}</div>
+                    <div style={{ color: 'var(--text-color)' }}>{item.message}</div>
                   </div>
                 ))}
               </div>
@@ -351,7 +351,7 @@ export default function ReportReviewPage() {
             <Card
               className="report-checker-card"
               title="最近审查结论"
-              extra={<span style={{ color: '#8c8c8c', fontSize: 12 }}>无需点详情即可先看初步判断</span>}
+              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>无需点详情即可先看初步判断</span>}
             >
               <Row gutter={[16, 16]}>
                 {latestReviewDigests.map((record) => (
@@ -368,8 +368,11 @@ export default function ReportReviewPage() {
                       style={{
                         height: '100%',
                         borderRadius: 14,
-                        borderColor: record.digest.theme.border,
-                        background: `linear-gradient(180deg, #ffffff 0%, ${record.digest.theme.soft} 100%)`
+                        '--review-digest-accent': record.digest.theme.accent,
+                        '--review-digest-soft': record.digest.theme.soft,
+                        '--review-digest-border': record.digest.theme.border,
+                        '--review-digest-title': record.digest.theme.title,
+                        '--review-digest-muted': record.digest.theme.muted
                       }}
                       styles={{ body: { display: 'flex', flexDirection: 'column', gap: 10, height: '100%' } }}
                     >
@@ -399,12 +402,11 @@ export default function ReportReviewPage() {
 
                       <div className="review-digest-card__stats">
                         <span
-                          className="review-digest-card__pill review-digest-card__pill--interactive"
+                          className="review-digest-card__pill review-digest-card__pill--pass review-digest-card__pill--interactive"
                           onClick={(event) => {
                             event.stopPropagation();
                             openStatusDetail(record, 'pass');
                           }}
-                          style={{ backgroundColor: record.digest.theme.soft, color: record.digest.theme.muted, borderColor: record.digest.theme.border }}
                         >
                           通过 {record.digest.summary.passedChecks}
                         </span>
@@ -487,7 +489,7 @@ export default function ReportReviewPage() {
           <Card
             className="report-checker-card"
             title="检查范围说明"
-            extra={<span style={{ color: '#8c8c8c', fontSize: 12 }}>默认收起，按需展开查看</span>}
+            extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>默认收起，按需展开查看</span>}
           >
             <Collapse
               ghost
@@ -513,7 +515,7 @@ export default function ReportReviewPage() {
                                   <span className="review-area-card__link">点击查看说明</span>
                                 </div>
                                 <h3 style={{ margin: 0, fontSize: 18 }}>{area.title}</h3>
-                                <p style={{ margin: 0, color: '#667085', minHeight: 44 }}>{area.description}</p>
+                                <p style={{ margin: 0, color: 'var(--text-light)', minHeight: 44 }}>{area.description}</p>
                                 <div className="review-area-card__footer">
                                   <InfoCircleOutlined /> 查看检查内容与适用场景
                                 </div>
@@ -581,7 +583,7 @@ export default function ReportReviewPage() {
                 )}
                 className="review-status-detail-card"
               >
-                <div style={{ color: '#595959', marginBottom: 12, lineHeight: 1.7 }}>
+                <div style={{ color: 'var(--text-light)', marginBottom: 12, lineHeight: 1.7 }}>
                   {section.description || '无详细说明'}
                 </div>
 
@@ -607,12 +609,12 @@ export default function ReportReviewPage() {
 
                 {Array.isArray(section.evidence) && section.evidence.length > 0 && (
                   <div>
-                    <div style={{ fontWeight: 600, color: '#44506b', marginBottom: 8 }}>证据记录</div>
+                    <div style={{ fontWeight: 600, color: 'var(--text-color)', marginBottom: 8 }}>证据记录</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {section.evidence.map((evidence, index) => (
                         <div
                           key={`${section.key}-evidence-${index}`}
-                          style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #e8eefc', background: '#f8fbff', color: '#4b6381', lineHeight: 1.65 }}
+                          style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--surface-elevated)', color: 'var(--text-light)', lineHeight: 1.65 }}
                         >
                           {evidence}
                         </div>

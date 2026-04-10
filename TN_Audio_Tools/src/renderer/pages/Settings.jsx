@@ -19,7 +19,7 @@ function SettingSection({ title, description, children, extra = null }) {
 
 const fallbackSettings = {
   appearance: {
-    theme: 'auto',
+    theme: 'light',
     language: 'zh-cn'
   },
   system: {

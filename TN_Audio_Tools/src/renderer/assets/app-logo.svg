@@ -1,0 +1,21 @@
+﻿<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="110" fill="#0E0E10"/>
+  <defs>
+    <mask id="split">
+      <rect width="512" height="512" fill="white"/>
+      <rect x="0" y="251" width="512" height="10" fill="black"/>
+    </mask>
+  </defs>
+  <g fill="white" mask="url(#split)">
+    <!-- T bar -->
+    <rect x="102" y="167" width="130" height="42"/>
+    <!-- T stem: centered on bar -->
+    <rect x="143" y="209" width="49" height="136"/>
+    <!-- N left vertical -->
+    <rect x="248" y="167" width="49" height="178"/>
+    <!-- N diagonal -->
+    <polygon points="297,175 297,207 386,345 386,313"/>
+    <!-- N right vertical -->
+    <rect x="363" y="167" width="49" height="178"/>
+  </g>
+</svg>

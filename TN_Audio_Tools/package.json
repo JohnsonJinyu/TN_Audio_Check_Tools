@@ -1,6 +1,6 @@
 {
   "name": "tn-audio-toolkit",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "TN Audio Toolkit - 专业音频工具集",
   "main": "src/main/main.js",
   "homepage": "./",
@@ -14,7 +14,8 @@
     "react-build": "react-scripts build",
     "electron-dev": "electron .",
     "electron-build": "npm run react-build && electron-builder",
-    "release": "npm run react-build && electron-builder --publish always",
+    "release:preflight": "node scripts/release-preflight.js",
+    "release": "npm run release:preflight && npm run react-build && electron-builder --publish always",
     "start": "npm run dev",
     "build": "npm run electron-build",
     "test": "react-scripts test",
@@ -48,6 +49,7 @@
     "concurrently": "^8.2.2",
     "electron": "^27.3.11",
     "electron-builder": "^24.6.4",
+    "png-to-ico": "^3.0.1",
     "react-scripts": "5.0.1",
     "wait-on": "^7.1.0"
   },
@@ -66,6 +68,7 @@
   "build": {
     "appId": "com.tnaudio.toolkit",
     "productName": "TN Audio Toolkit",
+    "icon": "assets/icon.ico",
     "electronUpdaterCompatibility": ">=2.16",
     "extraMetadata": {
       "main": "src/main/main.js"
@@ -82,12 +85,24 @@
       "build/**/*",
       "src/main/**/*",
       "src/renderer/modules/reportChecker/config/**/*",
+      "src/renderer/modules/testDataExtraction/config/**/*",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "src/renderer/modules/testDataExtraction/config",
+        "to": "src/renderer/modules/testDataExtraction/config"
+      }
     ],
     "directories": {
       "buildResources": "assets"
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -104,6 +119,9 @@
       ]
     },
     "nsis": {
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }

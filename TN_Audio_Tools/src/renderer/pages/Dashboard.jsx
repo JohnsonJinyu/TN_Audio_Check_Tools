@@ -282,7 +282,7 @@ function Dashboard({ onNavigate }) {
               </h3>
               <p style={{ 
                 fontSize: '12px', 
-                color: '#8c8c8c',
+                color: 'var(--text-light)',
                 marginBottom: '12px',
                 minHeight: '36px'
               }}>
@@ -315,7 +315,7 @@ function Dashboard({ onNavigate }) {
             最近使用
           </h2>
           <Card>
-            <p style={{ color: '#8c8c8c', textAlign: 'center', margin: '40px 0' }}>
+            <p style={{ color: 'var(--text-light)', textAlign: 'center', margin: '40px 0' }}>
               暂无最近使用的记录
             </p>
           </Card>

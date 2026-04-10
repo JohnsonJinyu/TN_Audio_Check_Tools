@@ -11,6 +11,7 @@ import {
   HomeOutlined
 } from '@ant-design/icons';
 import './App.css';
+import appLogo from './assets/app-logo.svg';
 import Dashboard from './pages/Dashboard';
 import TestDataCollectionPage from './pages/TestDataCollectionPage';
 import ReportReview from './pages/ReportReview';
@@ -25,7 +26,7 @@ const languageLocaleMap = {
 };
 const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
 const fallbackAppearanceSettings = {
-  theme: 'auto',
+  theme: 'light',
   language: 'zh-cn'
 };
 
@@ -272,7 +273,7 @@ function App() {
             className="sider"
           >
             <div className="logo">
-              <span className="logo-icon">🎵</span>
+              <img className="logo-icon" src={appLogo} alt="TN Audio Toolkit" />
               {!collapsed && <span className="logo-text">音频工具集</span>}
             </div>
             <Menu

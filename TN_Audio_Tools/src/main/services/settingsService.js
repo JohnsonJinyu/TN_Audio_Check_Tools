@@ -9,7 +9,7 @@ const CONCURRENCY_OPTIONS = new Set([1, 2, 4, 8]);
 
 const DEFAULT_APP_SETTINGS = Object.freeze({
   appearance: {
-    theme: 'auto',
+    theme: 'light',
     language: 'zh-cn'
   },
   system: {
