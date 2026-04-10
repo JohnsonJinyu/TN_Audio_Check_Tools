@@ -1,24 +1,24 @@
 {
-  "version": "1.1.6",
-  "releaseName": "TN Audio Toolkit 1.1.6",
-  "releaseDate": "2026-03-25",
+  "version": "1.1.7",
+  "releaseName": "TN Audio Toolkit 1.1.7",
+  "releaseDate": "2026-04-10",
   "releaseNotes": [
-    "更新检查改为多源远程清单，国内外网络都可在应用内正常检查新版本。",
-    "应用内下载改为多源测速与自动回退，优先选择更快的下载地址。",
-    "保留浏览器备用下载入口，应用内下载失败时可以直接切换到外部下载。"
+    "修复 Windows 图标打包与发布链路问题。",
+    "修复打包环境下内置规则文件的读取稳定性。",
+    "补齐供旧版客户端识别的兼容更新清单。"
   ],
-  "assetName": "TN Audio Toolkit Setup 1.1.6.exe",
-  "releasePageUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.6",
+  "assetName": "TN-Audio-Toolkit-Setup-1.1.7.exe",
+  "releasePageUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.7",
   "downloads": [
     {
       "name": "GitHub 镜像加速",
       "channel": "mirror",
-      "url": "https://ghfast.top/https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.6/TN%20Audio%20Toolkit%20Setup%201.1.6.exe"
+      "url": "https://ghfast.top/https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.7/TN-Audio-Toolkit-Setup-1.1.7.exe"
     },
     {
       "name": "GitHub Release",
       "channel": "direct",
-      "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.6/TN%20Audio%20Toolkit%20Setup%201.1.6.exe"
+      "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.7/TN-Audio-Toolkit-Setup-1.1.7.exe"
     }
   ]
 }
