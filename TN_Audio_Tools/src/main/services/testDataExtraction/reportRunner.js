@@ -12,7 +12,7 @@ function emitProgress(onProgress, payload) {
 
 function createReportRunner({
   supportedChecklistExtensions,
-  defaultRulesRelativePath,
+  resolveDefaultRulePath,
   loadRules,
   processSingleReport,
   buildBatchConclusion
@@ -43,12 +43,16 @@ function createReportRunner({
     }
   }
 
-  function resolveRulePath(appPath, customRulePath) {
+  async function resolveRulePath(appPath, customRulePath) {
     if (customRulePath) {
       return customRulePath;
     }
 
-    return path.join(appPath, defaultRulesRelativePath);
+    if (typeof resolveDefaultRulePath === 'function') {
+      return resolveDefaultRulePath(appPath);
+    }
+
+    throw new Error('缺少默认规则路径解析器');
   }
 
   // 这一层只做流程编排，不关心具体的报告解析和提取细节。
@@ -64,7 +68,7 @@ function createReportRunner({
     appPath,
     onProgress
   }) {
-    const resolvedRulePath = resolveRulePath(appPath, rulePath);
+    const resolvedRulePath = await resolveRulePath(appPath, rulePath);
     await validatePaths({ reportPaths, checklistPath, rulePath: resolvedRulePath });
 
     const rules = await loadRules(resolvedRulePath);

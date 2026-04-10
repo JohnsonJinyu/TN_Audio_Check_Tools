@@ -78,21 +78,25 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   height: 64px;
   color: #fff;
-  font-size: 24px;
   font-weight: bold;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
 }
 
 .logo-icon {
-  font-size: 32px;
-  margin-right: 10px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: block;
+  filter: drop-shadow(0 8px 12px rgba(5, 20, 39, 0.18));
 }
 
 .logo-text {
   font-size: 16px;
+  letter-spacing: 0.04em;
 }
 
 .ant-menu-dark {

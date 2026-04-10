@@ -9,6 +9,7 @@ const os = require('os');
 const { app, BrowserWindow, Menu, Tray, ipcMain, shell, dialog, nativeImage } = require('electron');
 const isDev = require('electron-is-dev');
 const path = require('path');
+const { existsSync } = require('fs');
 const {
   initializeUpdateService,
   checkForUpdates,
@@ -19,7 +20,7 @@ const {
 } = require('./services/updater/updateService');
 const {
   processReports,
-  DEFAULT_RULES_RELATIVE_PATH,
+  resolveBundledRulesPath,
   buildExportableRulesContent,
   parseChecklistReportOptions,
   inspectReport
@@ -37,14 +38,25 @@ const {
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
-app.setAppUserModelId('com.tnaudio.toolkit');
+if (process.platform === 'win32') {
+  // Dev mode should use executable path, packaged app should use stable app id.
+  app.setAppUserModelId(app.isPackaged ? 'com.tnaudio.toolkit' : process.execPath);
+}
 
 let mainWindow;
 let tray = null;
 let isQuitting = false;
 
 function getIconPath() {
-  return path.join(__dirname, '../../assets/icon.ico');
+  const candidatePaths = isDev
+    ? [path.join(__dirname, '../../assets/icon.ico')]
+    : [
+        path.join(process.resourcesPath, 'icon.ico'),
+        path.join(__dirname, '../../assets/icon.ico')
+      ];
+
+  const resolved = candidatePaths.find((candidatePath) => existsSync(candidatePath));
+  return resolved || candidatePaths[0];
 }
 
 function emitSettingsChanged(settings) {
@@ -169,6 +181,13 @@ function createWindow() {
     },
     icon: getIconPath()
   });
+
+  if (process.platform === 'win32') {
+    const winIcon = nativeImage.createFromPath(getIconPath());
+    if (!winIcon.isEmpty()) {
+      mainWindow.setIcon(winIcon);
+    }
+  }
 
   const startUrl = isDev
     ? (process.env.ELECTRON_RENDERER_URL || 'http://localhost:3123')
@@ -429,7 +448,7 @@ ipcMain.handle('report-checker:inspect-report-context', async (_, payload) => {
 });
 
 ipcMain.handle('report-checker:export-rules', async (_, customRulePath) => {
-  const sourcePath = customRulePath || path.join(app.getAppPath(), DEFAULT_RULES_RELATIVE_PATH);
+  const sourcePath = customRulePath || await resolveBundledRulesPath(app.getAppPath());
   await fs.access(sourcePath);
 
   const defaultName = path.basename(sourcePath);
