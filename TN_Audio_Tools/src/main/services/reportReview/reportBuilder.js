@@ -39,6 +39,42 @@ function generateReviewReport(reviewResult) {
     polqa: {
       title: 'POLQA 配置检查',
       description: '检查 POLQA 算法版本和参考音源配置是否完整'
+    },
+    timingAdjacentInterval: {
+      title: '相邻测试项间隔检查',
+      description: '除3quest测试外，相邻测试项的间隔时间应≤1分钟'
+    },
+    timingTotalSpan: {
+      title: '全部测试项跨度检查',
+      description: '全部测试项应在6小时内完成'
+    },
+    timingDelayOrder: {
+      title: '时延测试时序检查',
+      description: '时延测试应在测试序列的最前面执行'
+    },
+    timingSidetoneDelayOrder: {
+      title: 'Sidetone Delay时序检查',
+      description: 'Sidetone Delay测试应在Sidetone测试之前完成'
+    },
+    timingBgnConnectionOrder: {
+      title: 'BGN Connection时序检查',
+      description: 'BGN Connection测试应在3quest测试之前完成'
+    },
+    contentLoudnessFRTrend: {
+      title: '响度与频响趋势一致性',
+      description: '同一报告中TX/RX响度趋势应与频率响应趋势保持一致'
+    },
+    contentCurveValueCorroboration: {
+      title: '曲线与数值互相印证',
+      description: '不同音量级别下，响度数值变化方向应与频响幅值变化方向一致'
+    },
+    contentSameCodecDiffNetwork: {
+      title: '同Codec不同网络响度差异（跨报告）',
+      description: '相同codec类型在不同网络下的RX/TX响度差异应≤1dB'
+    },
+    contentSameNetworkDiffCodec: {
+      title: '同网络不同Codec响度差异（跨报告）',
+      description: '相同网络在不同codec类型下的RX/TX响度差异应≤1dB'
     }
   };
 

@@ -58,7 +58,10 @@ function normalizeBandwidth(value) {
     return '';
   }
 
-  for (const [bandwidth, aliases] of Object.entries(BANDWIDTH_ALIASES)) {
+  const sortedEntries = Object.entries(BANDWIDTH_ALIASES)
+    .sort(([a], [b]) => b.length - a.length);
+
+  for (const [bandwidth, aliases] of sortedEntries) {
     if (aliases.some((alias) => upperValue.includes(alias))) {
       return bandwidth;
     }
@@ -229,6 +232,8 @@ function buildExpectedMetadata(reportPath, wordData, lines) {
   const bandwidth = normalizeBandwidth(reportContext.bandwidth) || fileNameDerived.bandwidth;
   const terminalMode = normalizeTerminalMode(reportContext.terminalMode) || fileNameDerived.terminalMode;
 
+  const network = bandwidth || reportContext.network || '';
+
   return {
     fileName,
     fileNameUpper,
@@ -237,6 +242,7 @@ function buildExpectedMetadata(reportPath, wordData, lines) {
     measurementObject,
     codec,
     bandwidth,
+    network,
     terminalMode,
     headerText: (wordData.headers || []).map((item) => normalizeText(item)).filter(Boolean).join(' | '),
     footerText: (wordData.footers || []).map((item) => normalizeText(item)).filter(Boolean).join(' | ')

@@ -357,6 +357,7 @@ function createXlsxReportSource() {
         }
       ],
       tableRows: detailedRowContexts,
+      detailedRows,
       fallbackRows: valuesDerivedRows,
       structuredStats: {
         detailedRowCount: detailedRows.length,

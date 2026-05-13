@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('electron', {
   },
   reportReview: {
     reviewWordReport: (payload) => ipcRenderer.invoke('report-review:review-word-report', payload),
+    reviewPairedReport: (payload) => ipcRenderer.invoke('report-review:review-paired-report', payload),
+    runCrossReportChecks: (payload) => ipcRenderer.invoke('report-review:run-cross-report-checks', payload),
     uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload)
   }
 });

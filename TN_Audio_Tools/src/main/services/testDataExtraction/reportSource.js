@@ -218,7 +218,7 @@ function createReportSource({
     const [rawTextResult, htmlResult, structuredData] = await Promise.all([
       mammoth.extractRawText({ path: reportPath }),
       mammoth.convertToHtml({ path: reportPath }),
-      parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [], headers: [], footers: [] }))
+      parseDocxStructuredData(reportPath).catch(() => ({ lines: [], tables: [], headers: [], footers: [], pageCount: null }))
     ]);
 
     const searchData = createSearchData(rawTextResult.value || '', htmlResult.value || '', structuredData);
@@ -227,7 +227,8 @@ function createReportSource({
       {
         ...searchData,
         reportFormat: 'docx',
-        structuredData
+        structuredData,
+        pageCount: structuredData.pageCount || null
       },
       reportPath,
       rawTextResult.value || ''
@@ -251,11 +252,7 @@ function createReportSource({
       const converted = await convertDocToTemporaryDocx(reportPath);
 
       if (converted?.convertedPath) {
-        try {
-          return await parseDocxReport(converted.convertedPath);
-        } finally {
-          await fs.rm(converted.tempDir, { recursive: true, force: true });
-        }
+        return await parseDocxReport(converted.convertedPath);
       }
 
       const extracted = await wordExtractor.extract(reportPath);
@@ -278,7 +275,8 @@ function createReportSource({
           lines: [],
           tables: [],
           headers: extracted.getHeaders?.() ? [extracted.getHeaders()] : [],
-          footers: []
+          footers: [],
+          pageCount: null
         }
       }, reportPath, rawText);
     }

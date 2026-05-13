@@ -25,7 +25,7 @@ const {
   parseChecklistReportOptions,
   inspectReport
 } = require('./services/testDataExtraction');
-const { reviewWordReport } = require('./services/reportReview');
+const { reviewWordReport, reviewPairedReport, runCrossReportChecks } = require('./services/reportReview');
 const {
   DEFAULT_APP_SETTINGS,
   getSettings,
@@ -484,6 +484,23 @@ ipcMain.handle('report-review:review-word-report', async (_, payload) => {
 
   const result = await reviewWordReport(payload.reportPath);
   return result;
+});
+
+ipcMain.handle('report-review:review-paired-report', async (_, payload) => {
+  if (!payload?.docxPath || !payload?.xlsxPath) {
+    throw new Error('配对审查需要同时提供 .docx 和 .xlsx 文件路径');
+  }
+
+  const result = await reviewPairedReport(payload.docxPath, payload.xlsxPath);
+  return result;
+});
+
+ipcMain.handle('report-review:run-cross-report-checks', async (_, payload) => {
+  if (!Array.isArray(payload?.results) || payload.results.length < 2) {
+    throw new Error('跨报告对比需要至少2份审查结果');
+  }
+
+  return runCrossReportChecks(payload.results);
 });
 
 ipcMain.handle('dialog:open-file', async (_, options = {}) => {

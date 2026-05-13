@@ -13,7 +13,7 @@ function normalizeReportPaths(filePaths) {
     return [];
   }
 
-  const supportedExtensions = new Set(['.doc', '.docx']);
+  const supportedExtensions = new Set(['.doc', '.docx', '.xlsx']);
   const normalized = filePaths
     .map((filePath) => String(filePath || '').trim())
     .filter(Boolean)
@@ -27,6 +27,61 @@ function normalizeReportPaths(filePaths) {
 
 function getReportName(filePath) {
   return String(filePath || '').split('\\').pop() || filePath;
+}
+
+function getFileBaseName(filePath) {
+  const name = getReportName(filePath);
+  return name.replace(/\.(docx?|xlsx)$/i, '');
+}
+
+function isDocFile(filePath) {
+  const lower = (filePath || '').toLowerCase();
+  return lower.endsWith('.doc') && !lower.endsWith('.docx');
+}
+
+function getProgressLabel(filePath, prefix, baseName) {
+  const label = baseName || getReportName(filePath);
+  return isDocFile(filePath) ? `正在转换Word格式: ${label}` : `${prefix}: ${label}`;
+}
+
+function detectFilePairs(filePaths) {
+  const byBase = new Map();
+
+  filePaths.forEach((filePath) => {
+    const lowerPath = filePath.toLowerCase();
+    let ext = '';
+    if (lowerPath.endsWith('.xlsx')) ext = '.xlsx';
+    else if (lowerPath.endsWith('.docx')) ext = '.docx';
+    else if (lowerPath.endsWith('.doc')) ext = '.doc';
+
+    const baseName = filePath.slice(0, filePath.length - ext.length);
+    const normalizedKey = baseName.toLowerCase();
+
+    if (!byBase.has(normalizedKey)) {
+      byBase.set(normalizedKey, { baseName: getFileBaseName(filePath), docx: null, xlsx: null });
+    }
+
+    const group = byBase.get(normalizedKey);
+    if (ext === '.docx' || ext === '.doc') {
+      group.docx = group.docx || filePath;
+    } else if (ext === '.xlsx') {
+      group.xlsx = filePath;
+    }
+  });
+
+  const pairs = [];
+  const solo = [];
+
+  byBase.forEach((group) => {
+    if (group.docx && group.xlsx) {
+      pairs.push({ baseName: group.baseName, docx: group.docx, xlsx: group.xlsx });
+    } else {
+      if (group.docx) solo.push(group.docx);
+      if (group.xlsx) solo.push(group.xlsx);
+    }
+  });
+
+  return { pairs, solo };
 }
 
 export default function ReportReviewPage() {
@@ -49,6 +104,8 @@ export default function ReportReviewPage() {
   const [selectedStatusDetail, setSelectedStatusDetail] = useState(null);
   const [reviewAreaModalVisible, setReviewAreaModalVisible] = useState(false);
   const [selectedReviewArea, setSelectedReviewArea] = useState(null);
+  const [crossReportResults, setCrossReportResults] = useState(null);
+  const [crossReportModalVisible, setCrossReportModalVisible] = useState(false);
 
   const safeWordReviewHistory = Array.isArray(wordReviewHistory) ? wordReviewHistory : [];
 
@@ -92,13 +149,18 @@ export default function ReportReviewPage() {
     const nextFilePaths = normalizeReportPaths(filePaths);
 
     if (nextFilePaths.length === 0) {
-      message.warning('未检测到可用的 .doc 或 .docx 报告');
+      message.warning('未检测到可用的 .doc、.docx 或 .xlsx 报告');
       return;
     }
 
     setSelectedReportPaths(nextFilePaths);
     setBatchProgress(null);
-    message.success(`已选择 ${nextFilePaths.length} 份报告`);
+
+    const { pairs, solo } = detectFilePairs(nextFilePaths);
+    const parts = [];
+    if (pairs.length > 0) parts.push(`${pairs.length} 组配对`);
+    if (solo.length > 0) parts.push(`${solo.length} 份单独报告`);
+    message.success(`已选择 ${parts.join(' + ')}`);
   };
 
   const removeSelectedReport = (reportPath) => {
@@ -109,7 +171,7 @@ export default function ReportReviewPage() {
     try {
       const result = await window.electron.ipcRenderer.invoke('dialog:open-file', {
         filters: [
-          { name: 'Word 文档', extensions: ['doc', 'docx'] },
+          { name: '报告文件', extensions: ['doc', 'docx', 'xlsx'] },
           { name: '所有文件', extensions: ['*'] }
         ],
         properties: ['openFile', 'multiSelections']
@@ -129,29 +191,72 @@ export default function ReportReviewPage() {
       return;
     }
 
+    const { pairs, solo } = detectFilePairs(selectedReportPaths);
+    const totalTasks = pairs.length + solo.length;
+
     setReviewLoading(true);
     setBatchProgress({
-      total: selectedReportPaths.length,
+      total: totalTasks,
       completed: 0,
       successCount: 0,
       failedCount: 0,
-      currentFileName: getReportName(selectedReportPaths[0])
+      currentFileName: pairs.length > 0
+        ? getProgressLabel(pairs[0].docx, '配对审查', pairs[0].baseName)
+        : getProgressLabel(solo[0], '正在审查', getReportName(solo[0]))
     });
 
     try {
       let successCount = 0;
       let failedCount = 0;
       const failedReports = [];
+      const allResults = [];
+      let taskIndex = 0;
 
-      for (let index = 0; index < selectedReportPaths.length; index += 1) {
-        const reportPath = selectedReportPaths[index];
-
+      // 处理配对文件
+      for (const pair of pairs) {
         setBatchProgress({
-          total: selectedReportPaths.length,
-          completed: index,
+          total: totalTasks,
+          completed: taskIndex,
           successCount,
           failedCount,
-          currentFileName: getReportName(reportPath)
+          currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
+        });
+
+        try {
+          const result = await window.electron.reportReview.reviewPairedReport({
+            docxPath: pair.docx,
+            xlsxPath: pair.xlsx
+          });
+
+          recordWordReviewResult(pair.docx, result, pair.xlsx);
+          allResults.push(result);
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          failedReports.push({
+            reportPath: `${pair.baseName} (配对)`,
+            message: error?.message || '配对审查失败'
+          });
+        }
+
+        taskIndex += 1;
+        setBatchProgress({
+          total: totalTasks,
+          completed: taskIndex,
+          successCount,
+          failedCount,
+          currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
+        });
+      }
+
+      // 处理单独文件
+      for (const reportPath of solo) {
+        setBatchProgress({
+          total: totalTasks,
+          completed: taskIndex,
+          successCount,
+          failedCount,
+          currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
 
         try {
@@ -160,6 +265,7 @@ export default function ReportReviewPage() {
           });
 
           recordWordReviewResult(reportPath, result);
+          allResults.push(result);
           successCount += 1;
         } catch (error) {
           failedCount += 1;
@@ -169,31 +275,51 @@ export default function ReportReviewPage() {
           });
         }
 
+        taskIndex += 1;
         setBatchProgress({
-          total: selectedReportPaths.length,
-          completed: index + 1,
+          total: totalTasks,
+          completed: taskIndex,
           successCount,
           failedCount,
-          currentFileName: getReportName(reportPath)
+          currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
       }
 
       setWordReviewHistory(readWordReviewHistory());
 
+      // 跨报告对比：≥2份结果时自动触发
+      if (allResults.length >= 2) {
+        try {
+          const crossResults = await window.electron.reportReview.runCrossReportChecks({
+            results: allResults
+          });
+          setCrossReportResults({
+            results: crossResults,
+            checkedAt: new Date().toISOString(),
+            reportCount: crossResults.length
+          });
+        } catch (_) {
+          setCrossReportResults(null);
+        }
+      } else {
+        setCrossReportResults(null);
+      }
+
       if (failedReports.length === 0) {
-        message.success(`批量审查完成，共处理 ${successCount} 份报告`);
+        const pairMsg = pairs.length > 0 ? `${pairs.length} 组配对、` : '';
+        message.success(`批量审查完成，${pairMsg}${solo.length} 份单独报告，共 ${successCount} 项审查`);
       } else {
         modal.warning({
           title: '批量审查完成，部分报告失败',
           width: 680,
           content: (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>{`成功 ${successCount} 份，失败 ${failedCount} 份。失败项如下：`}</div>
+              <div>{`成功 ${successCount} 项，失败 ${failedCount} 项。失败项如下：`}</div>
               <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
                 {failedReports.map((item) => (
                   <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #cf1322 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, #cf1322 28%, var(--border-color))' }}>
                     <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
-                    <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{item.reportPath}</div>
+                    <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{typeof item.reportPath === 'string' ? item.reportPath : ''}</div>
                     <div style={{ color: 'var(--text-color)' }}>{item.message}</div>
                   </div>
                 ))}
@@ -203,7 +329,7 @@ export default function ReportReviewPage() {
         });
       }
     } catch (error) {
-      message.error(error?.message || 'Word 审查失败');
+      message.error(error?.message || '审查失败');
     } finally {
       setBatchProgress((currentProgress) => currentProgress ? {
         ...currentProgress,
@@ -269,7 +395,8 @@ export default function ReportReviewPage() {
                   >
                     <div style={{ fontSize: 32, marginBottom: 10 }}>📁</div>
                     <div style={{ fontSize: 20, fontWeight: 600, color: reviewDropzoneTitleColor, marginBottom: 6 }}>点击或拖拽选择多个文件</div>
-                    <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx 报告</div>
+                    <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx / .xlsx 报告</div>
+                    <div style={{ fontSize: 12, color: reviewDropzoneTextColor, marginTop: 4, opacity: 0.8 }}>建议同时选择同名的 .docx 和 .xlsx，配对后可获得最完整的审查结果</div>
                   </div>
 
                   {selectedReportPaths.length > 0 && (
@@ -284,24 +411,55 @@ export default function ReportReviewPage() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ color: reviewSelectionPanelColor.accentColor, fontWeight: 600 }}>✓ 已选择 {selectedReportPaths.length} 份报告</div>
+                        <div style={{ color: reviewSelectionPanelColor.accentColor, fontWeight: 600 }}>
+                          {'✓ 已选择 '}
+                          {(() => {
+                            const { pairs, solo } = detectFilePairs(selectedReportPaths);
+                            const parts = [];
+                            if (pairs.length > 0) parts.push(`${pairs.length} 组配对`);
+                            if (solo.length > 0) parts.push(`${solo.length} 份单独报告`);
+                            return parts.join(' + ');
+                          })()}
+                        </div>
                         <Button size="small" onClick={() => setSelectedReportPaths([])} disabled={reviewLoading}>清空已选</Button>
                       </div>
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {selectedReportPaths.map((reportPath) => (
-                          <Tag
-                            key={reportPath}
-                            closable={!reviewLoading}
-                            onClose={(event) => {
-                              event.preventDefault();
-                              removeSelectedReport(reportPath);
-                            }}
-                            style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                          >
-                            {getReportName(reportPath)}
-                          </Tag>
-                        ))}
+                        {(() => {
+                          const { pairs, solo } = detectFilePairs(selectedReportPaths);
+                          return (
+                            <>
+                              {pairs.map((pair) => (
+                                <Tag
+                                  key={pair.docx}
+                                  closable={!reviewLoading}
+                                  onClose={(event) => {
+                                    event.preventDefault();
+                                    removeSelectedReport(pair.docx);
+                                    removeSelectedReport(pair.xlsx);
+                                  }}
+                                  color="purple"
+                                  style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                  {pair.baseName} ({pair.docx.toLowerCase().endsWith('.doc') && !pair.docx.toLowerCase().endsWith('.docx') ? '.doc' : '.docx'} + .xlsx)
+                                </Tag>
+                              ))}
+                              {solo.map((reportPath) => (
+                                <Tag
+                                  key={reportPath}
+                                  closable={!reviewLoading}
+                                  onClose={(event) => {
+                                    event.preventDefault();
+                                    removeSelectedReport(reportPath);
+                                  }}
+                                  style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                  {getReportName(reportPath)}
+                                </Tag>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {batchProgress && (
@@ -346,109 +504,107 @@ export default function ReportReviewPage() {
           </Card>
         </Col>
 
-        {latestReviewDigests.length > 0 && (
+        {crossReportResults && crossReportResults.results.length >= 2 ? (
+          <Col xs={24}>
+            <Card
+              className="report-checker-card"
+              title="本轮批量对比概览"
+              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>{crossReportResults.checkedAt ? new Date(crossReportResults.checkedAt).toLocaleString() : ''}</span>}
+              style={{ borderColor: '#d6e4ff' }}
+            >
+              {(() => {
+                var reports = crossReportResults.results;
+                var codecs = [...new Set(reports.map(function(r) {
+                  return r.reviewResult?.reportFacts?.metadata?.codec || '?';
+                }))];
+                var networks = [...new Set(reports.map(function(r) {
+                  return r.reviewResult?.reportFacts?.metadata?.network || '?';
+                }))];
+
+                return (
+                  <div>
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
+                      <div><span style={{ color: 'var(--text-light)' }}>报告数：</span><strong>{reports.length}</strong></div>
+                      <div><span style={{ color: 'var(--text-light)' }}>Codec：</span><strong>{codecs.join(' · ')}</strong></div>
+                      <div><span style={{ color: 'var(--text-light)' }}>网络：</span><strong>{networks.join(' · ')}</strong></div>
+                    </div>
+                    <Table
+                      dataSource={reports.map(function(r) {
+                        var s = r.reviewResult?.summary || {};
+                        var md = r.reviewResult?.reportFacts?.metadata || {};
+                        var name = getReportName(r.docxPath || r.reportPath || '');
+                        return {
+                          key: name,
+                          name: name,
+                          network: md.network || '-',
+                          codec: md.codec || '-',
+                          passed: s.passedChecks || 0,
+                          warning: s.warningChecks || 0,
+                          review: s.reviewChecks || 0,
+                          error: s.errorChecks || 0,
+                          total: s.totalChecks || 17,
+                          status: r.reviewResult?.overallStatus || 'unknown',
+                          record: r
+                        };
+                      })}
+                      rowKey="key"
+                      size="small"
+                      pagination={false}
+                      columns={[
+                        { title: '报告', dataIndex: 'name', key: 'name', ellipsis: true, width: 180 },
+                        { title: '网络', dataIndex: 'network', key: 'network', width: 70 },
+                        { title: 'Codec', dataIndex: 'codec', key: 'codec', width: 70 },
+                        { title: '通过', dataIndex: 'passed', key: 'passed', width: 58, align: 'center', render: function(v) { return <span style={{ color: '#52c41a', fontWeight: 600 }}>{v}</span>; } },
+                        { title: '警告', dataIndex: 'warning', key: 'warning', width: 58, align: 'center', render: function(v) { return <span style={{ color: v > 0 ? '#faad14' : undefined, fontWeight: v > 0 ? 600 : undefined }}>{v}</span>; } },
+                        { title: '复核', dataIndex: 'review', key: 'review', width: 58, align: 'center', render: function(v) { return <span style={{ color: v > 0 ? '#1677ff' : undefined, fontWeight: v > 0 ? 600 : undefined }}>{v}</span>; } },
+                        { title: '错误', dataIndex: 'error', key: 'error', width: 58, align: 'center', render: function(v) { return <span style={{ color: v > 0 ? '#f5222d' : undefined, fontWeight: v > 0 ? 600 : undefined }}>{v}</span>; } },
+                        { title: '总计', dataIndex: 'total', key: 'total', width: 54, align: 'center' },
+                        { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: function(v) { return <Tag color={v === 'pass' ? 'success' : (v === 'error' ? 'error' : (v === 'warning' ? 'warning' : 'processing'))}>{v === 'pass' ? '通过' : (v === 'error' ? '错误' : (v === 'warning' ? '警告' : '复核'))}</Tag>; } }
+                      ]}
+                    />
+                  </div>
+                );
+              })()}
+            </Card>
+          </Col>
+        ) : (latestReviewDigests.length > 0 ? (
           <Col xs={24}>
             <Card
               className="report-checker-card"
               title="最近审查结论"
-              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>无需点详情即可先看初步判断</span>}
+              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>批量对比时自动切换为对比概览</span>}
             >
               <Row gutter={[16, 16]}>
-                {latestReviewDigests.map((record) => (
-                  <Col key={record.id} xs={24} lg={8}>
-                    <Card
-                      className="review-digest-card"
-                      size="small"
-                      hoverable
-                      onClick={() => {
-                        setDetailModalData(record);
-                        setDetailModalVisible(true);
-                      }}
-                      data-status={record.digest.overallStatus}
-                      style={{
-                        height: '100%',
-                        borderRadius: 14,
-                        '--review-digest-accent': record.digest.theme.accent,
-                        '--review-digest-soft': record.digest.theme.soft,
-                        '--review-digest-border': record.digest.theme.border,
-                        '--review-digest-title': record.digest.theme.title,
-                        '--review-digest-muted': record.digest.theme.muted
-                      }}
-                      styles={{ body: { display: 'flex', flexDirection: 'column', gap: 10, height: '100%' } }}
-                    >
-                      <div className="review-digest-card__bar" style={{ backgroundColor: record.digest.theme.accent }} />
-
-                      <div className="review-digest-card__header">
-                        <div className="review-digest-card__meta">
-                          <div className="review-digest-card__name">
-                            {record.reportName}
-                          </div>
-                          <div className="review-digest-card__time">
+                {latestReviewDigests.slice(0, 1).map(function(record) {
+                  return (
+                    <Col key={record.id} xs={24}>
+                      <div
+                        onClick={function() { setDetailModalData(record); setDetailModalVisible(true); }}
+                        style={{ cursor: 'pointer', padding: '16px 20px', borderRadius: 14, background: 'var(--surface-color)', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{record.reportName}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-light)' }}>
                             {record.checkedAt ? new Date(record.checkedAt).toLocaleString() : '-'}
+                            {' · '}通过 {record.digest.summary.passedChecks} / 警告 {record.digest.summary.warningChecks} / 复核 {record.digest.summary.reviewChecks} / 错误 {record.digest.summary.errorChecks}
                           </div>
                         </div>
-                        <Tag color={record.digest.statusColor} style={{ marginInlineEnd: 0 }}>
-                          {record.digest.statusText}
-                        </Tag>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <Button size="small" onClick={function(e) {
+                            e.stopPropagation();
+                            setDetailModalData(record);
+                            setDetailModalVisible(true);
+                          }}>查看详情</Button>
+                          <Tag color={record.digest.statusColor}>{record.digest.statusText}</Tag>
+                        </div>
                       </div>
-
-                      <div className="review-digest-card__headline" style={{ color: record.digest.theme.title }}>
-                        {record.digest.headline}
-                      </div>
-
-                      <div className="review-digest-card__detail">
-                        {record.digest.detail}
-                      </div>
-
-                      <div className="review-digest-card__stats">
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--pass review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'pass');
-                          }}
-                        >
-                          通过 {record.digest.summary.passedChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--warning review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'warning');
-                          }}
-                        >
-                          警告 {record.digest.summary.warningChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--review review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'review');
-                          }}
-                        >
-                          复核 {record.digest.summary.reviewChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--error review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'error');
-                          }}
-                        >
-                          错误 {record.digest.summary.errorChecks}
-                        </span>
-                      </div>
-
-                      <div className="review-digest-card__hint">
-                        点击卡片查看完整详情，点击统计标签可按状态筛选明细
-                      </div>
-                    </Card>
-                  </Col>
-                ))}
+                    </Col>
+                  );
+                })}
               </Row>
             </Card>
           </Col>
-        )}
+        ) : null)}
 
         <Col xs={24}>
           <Card
@@ -484,6 +640,174 @@ export default function ReportReviewPage() {
             )}
           </Card>
         </Col>
+
+        {crossReportResults && crossReportResults.results.length >= 2 && (
+          <Col xs={24}>
+            <Card
+              className="report-checker-card"
+              title={`批量对比结果（跨报告） — ${crossReportResults.reportCount} 份报告`}
+              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>{crossReportResults.checkedAt ? new Date(crossReportResults.checkedAt).toLocaleString() : ''}</span>}
+              style={{ borderColor: '#d6e4ff' }}
+            >
+              {(() => {
+                const reports = crossReportResults.results;
+                const codecCheck = reports[0]?.reviewResult?.checks?.contentSameCodecDiffNetwork;
+                const networkCheck = reports[0]?.reviewResult?.checks?.contentSameNetworkDiffCodec;
+
+                // 按 codec 分组渲染响度数据
+                const codecGroups = {};
+                reports.forEach(function(r) {
+                  var md = r.reviewResult?.reportFacts?.metadata || {};
+                  var tf = r.reviewResult?.testDataFacts;
+                  var codec = md.codec || '未知';
+                  if (!codecGroups[codec]) codecGroups[codec] = [];
+                  var metrics = tf?.loudnessMetrics || [];
+                  var minRow = metrics.length > 0 ? metrics.reduce(function(a, b) {
+                    return (a.rlr || 99) < (b.rlr || 99) ? a : b;
+                  }) : null;
+                  codecGroups[codec].push({
+                    name: getReportName(r.reportPath || r.docxPath || ''),
+                    network: md.network || '-',
+                    slr: minRow?.slr != null ? Number(minRow.slr).toFixed(1) : '-',
+                    rlr: minRow?.rlr != null ? Number(minRow.rlr).toFixed(1) : '-',
+                    stmr: minRow?.stmr != null ? Number(minRow.stmr).toFixed(1) : '-',
+                    path: r.reportPath || r.docxPath
+                  });
+                });
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* 同Codec不同网络 */}
+                    {Object.keys(codecGroups).map(function(codec) {
+                      var items = codecGroups[codec];
+                      if (items.length < 2) return null;
+                      var diffCheck = codecCheck;
+                      return (
+                        <div key={'codec-' + codec} style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: '16px 20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 600, fontSize: 16 }}>同 Codec 不同网络响度差异 — {codec}</div>
+                            <Tag color={diffCheck?.status === 'pass' ? 'success' : (diffCheck?.status === 'warning' ? 'warning' : (diffCheck?.status === 'error' ? 'error' : 'default'))}>
+                              {diffCheck?.status === 'pass' ? '通过' : (diffCheck?.status === 'warning' ? '警告' : (diffCheck?.status === 'error' ? '错误' : '待对比'))}
+                            </Tag>
+                          </div>
+                          <Table
+                            dataSource={items}
+                            rowKey="name"
+                            size="small"
+                            pagination={false}
+                            columns={[
+                              { title: '报告', dataIndex: 'name', key: 'name', ellipsis: true },
+                              { title: '网络', dataIndex: 'network', key: 'network', width: 80 },
+                              { title: 'RLR', dataIndex: 'rlr', key: 'rlr', width: 70 },
+                              { title: 'SLR', dataIndex: 'slr', key: 'slr', width: 70 },
+                              { title: 'STMR', dataIndex: 'stmr', key: 'stmr', width: 70 }
+                            ]}
+                          />
+                          {diffCheck?.issues && diffCheck.issues.length > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              {diffCheck.issues.map(function(iss, i) {
+                                return (
+                                  <Alert
+                                    key={i}
+                                    type={iss.severity === 'error' ? 'error' : (iss.severity === 'warning' ? 'warning' : 'info')}
+                                    showIcon
+                                    message={iss.message}
+                                    style={{ marginBottom: 6 }}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
+                          {diffCheck?.evidence && diffCheck.evidence.length > 0 && (() => {
+                            var evList = diffCheck.evidence;
+                            var pairLines = evList.filter(function(l) { return /diff=\d+\.\d+d?B/.test(l); });
+                            var summaryLine = evList.filter(function(l) { return l.indexOf('✓') === 0 && l.indexOf('diff') === -1; })[0] || '';
+                            var headerLines = evList.filter(function(l) { return l.indexOf(':') > -1 && l.indexOf('个') > -1 && l.indexOf('diff') === -1; });
+                            return (
+                              <div style={{ marginTop: 14, padding: '14px 16px', background: diffCheck?.status === 'pass' ? '#f6ffed' : (diffCheck?.status === 'warning' ? '#fffbe6' : '#fff2f0'), borderRadius: 10, border: '1px solid ' + (diffCheck?.status === 'pass' ? '#b7eb8f' : (diffCheck?.status === 'warning' ? '#ffe58f' : '#ffa39e')) }}>
+                                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: diffCheck?.status === 'pass' ? '#389e0d' : (diffCheck?.status === 'warning' ? '#d48806' : '#cf1322') }}>
+                                  {summaryLine || (diffCheck?.status === 'pass' ? '✓ 所有差异均在1dB以内' : '存在超出阈值的差异')}
+                                </div>
+                                {headerLines.length > 0 && (
+                                  <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>{headerLines.join(' | ')}</div>
+                                )}
+                                {pairLines.length > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {pairLines.map(function(line, i) {
+                                      var isOK = line.indexOf('✓') > -1;
+                                      return (
+                                        <div key={i} style={{ fontSize: 13, color: isOK ? '#389e0d' : '#cf1322', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: '3px 0' }}>
+                                          {isOK ? '✓ ' : '✗ '}{line.replace(/^\s+/, '').replace(/ ✓$/, '')}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })}
+
+                    {/* 同网络不同Codec */}
+                    <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 600, fontSize: 16 }}>同网络不同 Codec 响度差异</div>
+                        <Tag color={networkCheck?.status === 'pass' ? 'success' : (networkCheck?.status === 'warning' ? 'warning' : (networkCheck?.status === 'error' ? 'error' : 'default'))}>
+                          {networkCheck?.status === 'pass' ? '通过' : (networkCheck?.status === 'warning' ? '警告' : (networkCheck?.status === 'error' ? '错误' : '待对比'))}
+                        </Tag>
+                      </div>
+                      {networkCheck?.issues && networkCheck.issues.length > 0 && (
+                        <div>
+                          {networkCheck.issues.map(function(iss, i) {
+                            return (
+                              <Alert
+                                key={i}
+                                type={iss.severity === 'error' ? 'error' : (iss.severity === 'warning' ? 'warning' : 'info')}
+                                showIcon
+                                message={iss.message}
+                                style={{ marginBottom: 6 }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                      {networkCheck?.evidence && networkCheck.evidence.length > 0 && (() => {
+                        var evList = networkCheck.evidence;
+                        var pairLines = evList.filter(function(l) { return /diff=\d+\.\d+d?B/.test(l); });
+                        var summaryLine = evList.filter(function(l) { return l.indexOf('✓') === 0 && l.indexOf('diff') === -1; })[0] || '';
+                        var hasMultiple = evList.some(function(l) { return l.indexOf('个codec') > -1; });
+                        if (!hasMultiple && pairLines.length === 0) {
+                          return <div style={{ marginTop: 10, color: 'var(--text-light)', fontSize: 13 }}>各报告 codec 相同，无跨 codec 对比数据</div>;
+                        }
+                        return (
+                          <div style={{ marginTop: 14, padding: '14px 16px', background: networkCheck?.status === 'pass' ? '#f6ffed' : (networkCheck?.status === 'warning' ? '#fffbe6' : '#fff2f0'), borderRadius: 10, border: '1px solid ' + (networkCheck?.status === 'pass' ? '#b7eb8f' : (networkCheck?.status === 'warning' ? '#ffe58f' : '#ffa39e')) }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: networkCheck?.status === 'pass' ? '#389e0d' : (networkCheck?.status === 'warning' ? '#d48806' : '#cf1322') }}>
+                              {summaryLine || (networkCheck?.status === 'pass' ? '✓ 所有差异均在1dB以内' : '存在超出阈值的差异')}
+                            </div>
+                            {pairLines.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {pairLines.map(function(line, i) {
+                                  var isOK = line.indexOf('✓') > -1;
+                                  return (
+                                    <div key={i} style={{ fontSize: 13, color: isOK ? '#389e0d' : '#cf1322', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: '3px 0' }}>
+                                      {isOK ? '✓ ' : '✗ '}{line.replace(/^\s+/, '').replace(/ ✓$/, '')}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()}
+            </Card>
+          </Col>
+        )}
 
         <Col xs={24}>
           <Card

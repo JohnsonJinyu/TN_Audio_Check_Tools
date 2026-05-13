@@ -4,6 +4,7 @@ const {
   determineOverallStatus
 } = require('./utils');
 const { buildReviewFacts } = require('./reportFacts');
+const { buildTestDataFacts } = require('./reportTestDataFacts');
 const {
   extractTableOfContents,
   checkTableOfContentsPages,
@@ -16,6 +17,17 @@ const {
   findEngineerNames
 } = require('./checks/metadata');
 const { checkPolqaConfiguration } = require('./checks/polqa');
+const {
+  checkAdjacentTestItemInterval,
+  checkTotalTestSpan,
+  checkDelayTestTiming,
+  checkSidetoneDelayTiming,
+  checkBgnConnectionTiming
+} = require('./checks/timing');
+const {
+  checkLoudnessFrequencyResponseTrendConsistency,
+  checkCurveValueCorroboration
+} = require('./checks/contentConsistency');
 const { generateReviewReport } = require('./reportBuilder');
 
 /**
@@ -32,20 +44,23 @@ async function reviewWordReport(reportPath, reportData) {
 
   const wordData = buildWordData(reportData);
   const reviewFacts = buildReviewFacts(reportPath, wordData);
+  const testDataFacts = buildTestDataFacts(reportData);
 
   const allResults = {};
   const summary = {
-    totalChecks: 8,
+    totalChecks: 17,
     passedChecks: 0,
     warningChecks: 0,
     reviewChecks: 0,
     errorChecks: 0
   };
 
+  // === 文档结构检查 ===
   // 1. 提取目录
   const tocInfo = extractTableOfContents(wordData);
+  tocInfo.status = tocInfo.chapters.length > 0 || tocInfo.tocLines?.length > 0 ? 'pass' : 'review';
   allResults.tableOfContents = tocInfo;
-  updateSummary(summary, tocInfo.chapters.length > 0 || tocInfo.tocLines?.length > 0 ? 'pass' : 'review');
+  updateSummary(summary, tocInfo.status);
 
   // 2. 检查目录页数
   const tocPagesResult = checkTableOfContentsPages(wordData, tocInfo);
@@ -57,6 +72,7 @@ async function reviewWordReport(reportPath, reportData) {
   allResults.chaptersAlignment = chaptersAlignmentResult;
   updateSummary(summary, chaptersAlignmentResult.status);
 
+  // === 元数据与命名检查 ===
   // 4. 检查基本信息
   const basicInfoResult = checkReportBasicInfo(reportPath, wordData, reviewFacts);
   allResults.basicInfo = basicInfoResult;
@@ -82,12 +98,66 @@ async function reviewWordReport(reportPath, reportData) {
   allResults.polqa = polqaResult;
   updateSummary(summary, polqaResult.status);
 
+  // === 测试时间检查 (2.3) ===
+  // 9. 相邻测试项间隔
+  const timingAdjInterval = checkAdjacentTestItemInterval(testDataFacts);
+  allResults.timingAdjacentInterval = timingAdjInterval;
+  updateSummary(summary, timingAdjInterval.status);
+
+  // 10. 全部测试项跨度
+  const timingTotalSpan = checkTotalTestSpan(testDataFacts);
+  allResults.timingTotalSpan = timingTotalSpan;
+  updateSummary(summary, timingTotalSpan.status);
+
+  // 11. 时延测试时序
+  const timingDelayOrder = checkDelayTestTiming(testDataFacts);
+  allResults.timingDelayOrder = timingDelayOrder;
+  updateSummary(summary, timingDelayOrder.status);
+
+  // 12. Sidetone Delay时序
+  const timingSidetoneDelay = checkSidetoneDelayTiming(testDataFacts);
+  allResults.timingSidetoneDelayOrder = timingSidetoneDelay;
+  updateSummary(summary, timingSidetoneDelay.status);
+
+  // 13. BGN Connection时序
+  const timingBgnConnection = checkBgnConnectionTiming(testDataFacts);
+  allResults.timingBgnConnectionOrder = timingBgnConnection;
+  updateSummary(summary, timingBgnConnection.status);
+
+  // === 内容合理性检查 (2.2) ===
+  // 14. 响度与频响趋势一致性（单报告内）
+  const contentLoudnessFR = checkLoudnessFrequencyResponseTrendConsistency(testDataFacts);
+  allResults.contentLoudnessFRTrend = contentLoudnessFR;
+  updateSummary(summary, contentLoudnessFR.status);
+
+  // 15. 曲线与数值互相印证（单报告内）
+  const contentCurveCorroboration = checkCurveValueCorroboration(testDataFacts);
+  allResults.contentCurveValueCorroboration = contentCurveCorroboration;
+  updateSummary(summary, contentCurveCorroboration.status);
+
+  // 16-17. 跨报告对比（单报告模式下标记为批量对比待执行）
+  allResults.contentSameCodecDiffNetwork = {
+    issues: [{ severity: 'review', message: '需要至少2份不同网络的报告进行跨报告对比（批量模式下自动执行）' }],
+    evidence: ['跨报告检查在批量审查时自动触发'],
+    status: 'review',
+  };
+  updateSummary(summary, 'review');
+
+  allResults.contentSameNetworkDiffCodec = {
+    issues: [{ severity: 'review', message: '需要至少2份不同codec的报告进行跨报告对比（批量模式下自动执行）' }],
+    evidence: ['跨报告检查在批量审查时自动触发'],
+    status: 'review',
+  };
+  updateSummary(summary, 'review');
+
   return {
     reportPath,
     reviewTimestamp: new Date().toISOString(),
     summary,
     checks: allResults,
-    overallStatus: determineOverallStatus(summary)
+    overallStatus: determineOverallStatus(summary),
+    reportFacts: reviewFacts,
+    testDataFacts,
   };
 }
 
@@ -102,7 +172,14 @@ function createWordReviewService() {
     checkTestItemConsistency,
     checkNamePollution,
     findEngineerNames,
-    checkPolqaConfiguration
+    checkPolqaConfiguration,
+    checkAdjacentTestItemInterval,
+    checkTotalTestSpan,
+    checkDelayTestTiming,
+    checkSidetoneDelayTiming,
+    checkBgnConnectionTiming,
+    checkLoudnessFrequencyResponseTrendConsistency,
+    checkCurveValueCorroboration,
   };
 }
 

@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
+const { execSync } = require('child_process');
 const JSZip = require('jszip');
 
 function createReportConverter({ wordExtractor }) {
@@ -96,6 +97,79 @@ function createReportConverter({ wordExtractor }) {
     await fs.writeFile(outputPath, buffer);
   }
 
+  function isComProgIdAvailable(progId) {
+    try {
+      execSync(
+        `powershell -NoProfile -Command "try { $x = New-Object -ComObject '${progId}'; $x.Quit(); [System.Runtime.InteropServices.Marshal]::ReleaseComObject($x); Write-Host 'OK' } catch { exit 1 }"`,
+        { stdio: 'pipe', timeout: 8000 }
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function convertDocViaCom(progId, inputPath, outputPath) {
+    const psScript = [
+      `$app = New-Object -ComObject '${progId}'`,
+      `$app.Visible = $false`,
+      `$app.DisplayAlerts = 0`,
+      `$doc = $app.Documents.Open('${inputPath.replace(/\\/g, '\\\\')}')`,
+      `$doc.SaveAs2('${outputPath.replace(/\\/g, '\\\\')}', 16)`,
+      `$doc.Close()`,
+      `$app.Quit()`,
+      `[System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)`,
+      `[System.Runtime.InteropServices.Marshal]::ReleaseComObject($app)`,
+    ].join('; ');
+
+    execSync(`powershell -NoProfile -Command "${psScript}"`, {
+      stdio: 'pipe',
+      timeout: 30000,
+      windowsHide: true
+    });
+
+    try {
+      await fs.access(outputPath);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isLibreOfficeAvailable() {
+    try {
+      const candidates = ['libreoffice', 'soffice'];
+      for (const cmd of candidates) {
+        try {
+          execSync(`"${cmd}" --version`, { stdio: 'pipe', timeout: 5000 });
+          return cmd;
+        } catch (_) { /* try next */ }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function convertDocViaLibreOffice(reportPath, tempDir) {
+    const libreOfficeCmd = isLibreOfficeAvailable();
+    if (!libreOfficeCmd) return null;
+
+    const inputName = path.parse(reportPath).base;
+    execSync(
+      `"${libreOfficeCmd}" --headless --convert-to docx --outdir "${tempDir}" "${reportPath}"`,
+      { stdio: 'pipe', timeout: 30000 }
+    );
+
+    const expectedOutput = path.join(tempDir, inputName.replace(/\.doc$/i, '.docx'));
+    try {
+      await fs.access(expectedOutput);
+      return { tempDir, convertedPath: expectedOutput };
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function extractDocText(reportPath) {
     const extracted = await wordExtractor.extract(reportPath);
     return [
@@ -108,19 +182,41 @@ function createReportConverter({ wordExtractor }) {
   }
 
   async function convertDocToTemporaryDocx(reportPath) {
+    const outputDir = path.dirname(reportPath);
+    const convertedPath = path.join(outputDir, `${path.parse(reportPath).name}.docx`);
+
+    // ① Word.Application COM（最高保真度）
+    if (isComProgIdAvailable('Word.Application')) {
+      try {
+        const ok = await convertDocViaCom('Word.Application', reportPath, convertedPath);
+        if (ok) return { tempDir: outputDir, convertedPath };
+      } catch (_) { /* 静默回退 */ }
+    }
+
+    // ② KWPS.Application COM（WPS，已预装）
+    if (isComProgIdAvailable('KWPS.Application')) {
+      try {
+        const ok = await convertDocViaCom('KWPS.Application', reportPath, convertedPath);
+        if (ok) return { tempDir: outputDir, convertedPath };
+      } catch (_) { /* 静默回退 */ }
+    }
+
+    // ③ LibreOffice CLI
+    try {
+      const loResult = await convertDocViaLibreOffice(reportPath, outputDir);
+      if (loResult) return loResult;
+    } catch (_) { /* 静默回退 */ }
+
+    // ④ word-extractor 文本重建（永久保底）
     const rawText = normalizeDocText(await extractDocText(reportPath));
     if (!rawText) {
       return null;
     }
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tn-audio-report-'));
-    const convertedPath = path.join(tempDir, `${path.parse(reportPath).name}.docx`);
-
     try {
       await buildDocxFromText(rawText, convertedPath);
-      return { tempDir, convertedPath };
+      return { tempDir: outputDir, convertedPath };
     } catch (error) {
-      await fs.rm(tempDir, { recursive: true, force: true });
       throw error;
     }
   }
