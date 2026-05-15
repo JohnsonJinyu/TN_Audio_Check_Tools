@@ -10,9 +10,14 @@ function extractTableOfContents(wordData) {
   }
 
   const headingPatterns = [
-    { regex: /^(\d+(?:\.\d+)*)[a-z]?\s+(.+)$/i },
-    { regex: /^(?:table|表)\s*(\d+(?:\.\d+)*)\s*[:.-]?\s+(.+)$/i }
+    // 仅匹配1-3级章节编号（如 1、1.1、1.1.1），且首数字≤50
+    { regex: /^(\d{1,2}(?:\.\d{1,2}){0,2})\s+(.{3,})$/i },
+    // 表/图编号
+    { regex: /^(?:table|表|figure|图)\s*(\d+(?:\.\d+)*)\s*[:.-]?\s+(.{3,})$/i }
   ];
+
+  // 疑似数据行的关键词，不含真实章节标题
+  var dataLineKeywords = /\b(?:dB|Hz|kHz|MHz|ms|μ?s|Pass|Fail|OK|NOK|ERROR|WARNING|RLR|SLR|STMR|MOS|POLQA|P\.\d+|DELAY|ECHO|SIDETONE|BGN|NOISE|THD|SNR)\b/i;
 
   const allLines = [
     ...(wordData.paragraphs || []).map((text, index) => ({ text: normalizeText(text), index, source: 'paragraph' })),
@@ -71,6 +76,11 @@ function extractTableOfContents(wordData) {
     headingPatterns.forEach((pattern) => {
       const match = text.match(pattern.regex);
       if (match && text.length < 200) {
+        const chapterNum = parseInt(match[1], 10);
+        // 跳过章节号过大（>50）的数据行
+        if (!isNaN(chapterNum) && chapterNum > 50) return;
+        // 跳过含测量单位或测试术语的数据行
+        if (dataLineKeywords.test(text)) return;
         chapters.push({
           number: match[1],
           title: normalizeText(match[2]),
@@ -175,26 +185,6 @@ function checkChaptersAlignment(wordData, tocInfo) {
       message: `目录中有 ${missingChapters.length} 个章节在文档中未找到：${missingChapters.slice(0, 3).join('、')}`
     });
     evidence.push(`缺失章节（部分）：${missingChapters.slice(0, 3).join('、')}`);
-  }
-
-  const unlistedChapters = actualChapters.filter((chapter) => {
-    return !tocEntries.some((tocEntry) => {
-      if (tocEntry.chapterNumber === chapter.number) {
-        return true;
-      }
-
-      const tocTitle = normalizeUpperText(tocEntry.title);
-      const chapterTitle = normalizeUpperText(chapter.title);
-      return tocTitle && chapterTitle && (chapterTitle.includes(tocTitle) || tocTitle.includes(chapterTitle));
-    });
-  });
-
-  if (unlistedChapters.length > 0) {
-    issues.push({
-      severity: 'review',
-      message: `文档中有 ${unlistedChapters.length} 个章节未列在目录中，可能是新增内容或目录未更新`
-    });
-    evidence.push(`文档中未在目录列出的章节：${unlistedChapters.slice(0, 3).map((chapter) => `${chapter.number} ${chapter.title}`.trim()).join('、')}`);
   }
 
   if (issues.length === 0) {

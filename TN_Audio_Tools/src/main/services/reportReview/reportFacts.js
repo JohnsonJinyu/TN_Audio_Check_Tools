@@ -162,17 +162,20 @@ function extractMeasurementObject(lines, reportContext = {}) {
     /measurement\s*object\s*[:：-]\s*(.+)$/i,
     /(?:^|\|)\s*measurement\s*object\s*\|\s*(.+)$/i,
     /(?:^|\b)object\s*[:：-]\s*(.+)$/i,
-    /对象\s*[:：-]\s*(.+)$/
+    /对象\s*[:：-]\s*(.+)$/,
+    /测试对象\s*[:：-]?\s*(.+)$/,
+    /measurement\s+object\s{2,}(.+)$/i,
+    /对象\s{2,}(.+)$/
   ];
 
   const rowLabelPatterns = [
-    /^measurement\s*object$/i,
-    /^object$/i,
-    /^测试对象$/,
-    /^对象$/
+    /^measurement\s*object\s*[:：]?\s*$/i,
+    /^object\s*[:：]?\s*$/i,
+    /^测试对象\s*[:：]?\s*$/,
+    /^对象\s*[:：]?\s*$/
   ];
 
-  lines.forEach((line) => {
+  lines.forEach((line, lineIndex) => {
     directPatterns.forEach((pattern) => {
       const match = line.text.match(pattern);
       if (match?.[1]) {
@@ -191,6 +194,20 @@ function extractMeasurementObject(lines, reportContext = {}) {
         if (value) {
           candidates.push({ value, source: 'table' });
           evidences.push(`table: ${value}`);
+        }
+      }
+    }
+
+    // 多行匹配：当前行只有标签没有值，下一行可能是值
+    if (rowLabelPatterns.some((pattern) => pattern.test(normalizeText(line.text)))) {
+      if (line.source !== 'table' || (Array.isArray(line.cells) && line.cells.length < 2)) {
+        const nextLine = lines[lineIndex + 1];
+        if (nextLine && nextLine.text) {
+          const maybeValue = normalizeText(nextLine.text);
+          if (maybeValue && maybeValue.length > 0 && maybeValue.length < 200) {
+            candidates.push({ value: maybeValue, source: `${nextLine.source}(multiline)` });
+            evidences.push(`${nextLine.source}(multiline): ${maybeValue}`);
+          }
         }
       }
     }
@@ -228,11 +245,20 @@ function buildExpectedMetadata(reportPath, wordData, lines) {
 
   const fileNameDerived = deriveMetadataFromFileName(fileName);
 
-  const codec = normalizeCodec(reportContext.codec) || fileNameDerived.codec;
-  const bandwidth = normalizeBandwidth(reportContext.bandwidth) || fileNameDerived.bandwidth;
-  const terminalMode = normalizeTerminalMode(reportContext.terminalMode) || fileNameDerived.terminalMode;
+  var codec = normalizeCodec(reportContext.codec) || fileNameDerived.codec;
+  var bandwidth = normalizeBandwidth(reportContext.bandwidth) || fileNameDerived.bandwidth;
+  var terminalMode = normalizeTerminalMode(reportContext.terminalMode) || fileNameDerived.terminalMode;
 
-  const network = bandwidth || reportContext.network || '';
+  // 回退：从文档正文（页眉、段落、表格）中提取 codec/bandwidth/mode
+  if (!codec || !bandwidth || !terminalMode) {
+    const allText = lines.map(function(l) { return l.text; }).join(' ');
+    const upperAllText = normalizeUpperText(allText);
+    if (!codec) codec = normalizeCodec(upperAllText);
+    if (!bandwidth) bandwidth = normalizeBandwidth(upperAllText);
+    if (!terminalMode) terminalMode = normalizeTerminalMode(upperAllText);
+  }
+
+  var network = bandwidth || reportContext.network || '';
 
   return {
     fileName,

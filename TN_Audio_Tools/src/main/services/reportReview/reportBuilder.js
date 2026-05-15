@@ -62,7 +62,7 @@ function generateReviewReport(reviewResult) {
     },
     contentLoudnessFRTrend: {
       title: '响度与频响趋势一致性',
-      description: '同一报告中TX/RX响度趋势应与频率响应趋势保持一致'
+      description: '对比响度曲线图与频响曲线图的视觉趋势是否一致（需AI视觉分析，当前需人工复核）'
     },
     contentCurveValueCorroboration: {
       title: '曲线与数值互相印证',

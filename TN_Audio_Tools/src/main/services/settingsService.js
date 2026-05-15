@@ -24,6 +24,13 @@ const DEFAULT_APP_SETTINGS = Object.freeze({
     defaultOutputFormat: 'mp3',
     defaultBitrate: '192',
     defaultSampleRate: '44100'
+  },
+  llm: {
+    enabled: false,
+    apiUrl: '',
+    apiKey: '',
+    model: '',
+    maxImagesPerAnalysis: 4
   }
 });
 
@@ -97,6 +104,13 @@ function normalizeSettings(input = {}) {
         SAMPLE_RATE_OPTIONS,
         DEFAULT_APP_SETTINGS.audio.defaultSampleRate
       )
+    },
+    llm: {
+      enabled: normalizeBoolean(input?.llm?.enabled),
+      apiUrl: typeof input?.llm?.apiUrl === 'string' ? input.llm.apiUrl.trim() : '',
+      apiKey: typeof input?.llm?.apiKey === 'string' ? input.llm.apiKey.trim() : '',
+      model: typeof input?.llm?.model === 'string' ? input.llm.model.trim() : '',
+      maxImagesPerAnalysis: Math.min(Math.max(Number(input?.llm?.maxImagesPerAnalysis) || 4, 2), 8)
     }
   };
 

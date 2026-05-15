@@ -46,7 +46,12 @@ export default function ReviewResultContent({ resultData }) {
     reviewChecks: 0,
     errorChecks: 0
   };
-  const sections = Array.isArray(report?.sections) ? report.sections : [];
+  const CROSS_REPORT_SECTION_KEYS = new Set(['contentSameCodecDiffNetwork', 'contentSameNetworkDiffCodec']);
+  let sections = Array.isArray(report?.sections) ? report.sections : [];
+
+  if (resultData.hideCrossReportSections) {
+    sections = sections.filter(function(s) { return !CROSS_REPORT_SECTION_KEYS.has(s.key); });
+  }
 
   if (sections.length === 0) {
     return (

@@ -173,101 +173,41 @@ function checkSameNetworkDifferentCodecLoudness(allMetrics) {
  * 检查逻辑：同一份报告内，发送方向(SND/TX)和接收方向(RCV/RX)的响度测试
  * 如果有多条数据，其变化趋势应与对应方向的频响幅值趋势一致。
  */
-function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts) {
-  const evidence = [];
-  const issues = [];
-  const ready = requireTestData(testDataFacts);
-
-  if (!ready.ok) {
-    evidence.push(ready.reason);
-    return { issues: [{ severity: 'review', message: ready.reason }], evidence, status: 'review' };
+async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, llmSettings) {
+  var _ev = [];
+  var _rd = requireTestData(testDataFacts);
+  if (!_rd.ok) {
+    _ev.push(_rd.reason);
+    return { issues: [{ severity: 'review', message: _rd.reason }], evidence: _ev, status: 'review' };
   }
 
-  const metrics = testDataFacts.loudnessMetrics || [];
-  const frMetrics = testDataFacts.frequencyResponseMetrics || [];
+  var _m = testDataFacts.loudnessMetrics || [];
+  var _f = testDataFacts.frequencyResponseMetrics || [];
+  _ev.push('响度数据 ' + _m.length + ' 条，频响数据 ' + _f.length + ' 条');
 
-  if (frMetrics.length === 0) {
-    evidence.push('未提取到频响数据，仅基于响度数据做基本检查');
-
-    // 至少检查同方向上响度值是否有明显异常
-    const byDir = {};
-    metrics.forEach((m) => {
-      const dir = m.direction || 'unknown';
-      if (!byDir[dir]) byDir[dir] = [];
-      byDir[dir].push(m.value);
-    });
-
-    Object.entries(byDir).forEach(([dir, values]) => {
-      if (values.length < 3) return;
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      if (max - min > 10) {
-        issues.push({
-          severity: 'review',
-          message: `${dir}方向响度值范围较大 (${min.toFixed(1)} ~ ${max.toFixed(1)} dB, 跨度${(max-min).toFixed(1)}dB)，建议人工确认频响趋势`,
-        });
+  if (llmSettings && llmSettings.enabled && llmSettings.apiUrl && llmSettings.apiKey && reportPath) {
+    try {
+      var { extractReportImages } = require('../imageExtractor');
+      var images = await extractReportImages(reportPath);
+      if (images.length > 0) {
+        var chartImages = images.slice(0, llmSettings.maxImagesPerAnalysis || 4);
+        _ev.push('AI分析 ' + chartImages.length + ' 张曲线图');
+        var { analyzeChartImages } = require('../llmService');
+        var llmResult = await analyzeChartImages({ images: chartImages, testDataFacts: testDataFacts, settings: llmSettings });
+        if (llmResult.evidence) _ev = _ev.concat(llmResult.evidence);
+        if (llmResult.issues && llmResult.issues.length > 0) {
+          return { issues: llmResult.issues, evidence: _ev, status: llmResult.status };
+        }
+        return { issues: [], evidence: _ev, status: 'pass' };
       }
-      evidence.push(`${dir}方向: ${values.length}个响度值, 范围 ${min.toFixed(1)}~${max.toFixed(1)} dB`);
-    });
-
-    if (issues.length === 0) {
-      evidence.push('✓ 响度数据无显著异常');
-      return { issues: [], evidence, status: 'pass' };
+      _ev.push('未检测到响度/频响曲线图，需人工对比');
+    } catch (e) {
+      _ev.push('AI分析失败: ' + (e.message || '未知错误'));
     }
-    return { issues, evidence, status: 'review' };
   }
 
-  // 有频响数据时，按方向比较趋势
-  const byDirLoudness = {};
-  metrics.forEach((m) => {
-    const dir = m.direction || 'unknown';
-    if (!byDirLoudness[dir]) byDirLoudness[dir] = [];
-    byDirLoudness[dir].push(m);
-  });
-
-  const byDirFR = {};
-  frMetrics.forEach((m) => {
-    const dir = m.direction || 'unknown';
-    if (!byDirFR[dir]) byDirFR[dir] = [];
-    byDirFR[dir].push(m);
-  });
-
-  const directions = new Set([...Object.keys(byDirLoudness), ...Object.keys(byDirFR)]);
-
-  directions.forEach((dir) => {
-    const loudVals = (byDirLoudness[dir] || []).map((m) => m.value);
-    const frVals = (byDirFR[dir] || []).map((m) => m.amplitude);
-
-    if (loudVals.length < 2 || frVals.length < 2) {
-      evidence.push(`${dir}方向数据不足，无法完成趋势对比（响度${loudVals.length}个，频响${frVals.length}个）`);
-      return;
-    }
-
-    // 简单线性趋势：看首尾值的方向
-    const loudTrend = loudVals[loudVals.length - 1] - loudVals[0];
-    const frTrend = frVals[frVals.length - 1] - frVals[0];
-
-    evidence.push(`${dir}方向: 响度趋势=${loudTrend > 0 ? '+' : ''}${loudTrend.toFixed(2)}dB, 频响趋势=${frTrend > 0 ? '+' : ''}${frTrend.toFixed(2)}dB`);
-
-    // 趋势方向应一致（同时增或同时减）
-    if ((loudTrend > 0 && frTrend < -2) || (loudTrend < 0 && frTrend > 2)) {
-      issues.push({
-        severity: 'warning',
-        message: `${dir}方向响度趋势与频响趋势不一致：响度${loudTrend > 0 ? '上升' : '下降'}${Math.abs(loudTrend).toFixed(1)}dB，频响${frTrend > 0 ? '上升' : '下降'}${Math.abs(frTrend).toFixed(1)}dB`,
-      });
-    } else {
-      evidence.push(`  ✓ 趋势方向一致`);
-    }
-  });
-
-  if (issues.length === 0) {
-    evidence.push('✓ TX/RX响度与频响趋势一致');
-    return { issues: [], evidence, status: 'pass' };
-  }
-
-  return { issues, evidence, status: 'warning' };
+  return { issues: [{ severity: 'review', message: '请人工对比报告中响度与频响测试项的曲线趋势是否一致' }], evidence: _ev, status: 'review' };
 }
-
 /**
  * 2.2.4 单报告内曲线与数值互相印证
  *
@@ -306,7 +246,7 @@ function checkCurveValueCorroboration(testDataFacts) {
 
   if (sortedVolumes.length < 2) {
     evidence.push('仅有1个音量等级的测试数据，无法进行跨音量印证');
-    return { issues: [], evidence, status: 'pass' };
+    return { issues: [{ severity: 'review', message: '仅有1个音量水平，无法验证曲线与数值的跨音量一致性' }], evidence, status: 'review' };
   }
 
   evidence.push(`共 ${sortedVolumes.length} 个音量分组`);
@@ -319,29 +259,40 @@ function checkCurveValueCorroboration(testDataFacts) {
   });
 
   Object.entries(byDir).forEach(([dir, items]) => {
-    // 按音量标签排序
-    const sorted = items.sort((a, b) => String(a.volume).localeCompare(String(b.volume), undefined, { numeric: true }));
+    const sorted = items.sort(function(a, b) { return String(a.volume).localeCompare(String(b.volume), undefined, { numeric: true }); });
     if (sorted.length < 2) return;
 
-    const values = sorted.map((it) => it.value);
-    let increasing = 0;
-    let decreasing = 0;
+    var increasing = 0;
+    var decreasing = 0;
+    var sameValue = 0;
 
-    for (let i = 1; i < values.length; i++) {
-      if (values[i] > values[i - 1]) increasing += 1;
-      else if (values[i] < values[i - 1]) decreasing += 1;
+    for (var i = 1; i < sorted.length; i++) {
+      // 仅在不同音量级别之间比较，跳过同音量的相邻对
+      if (sorted[i].volume === sorted[i - 1].volume) continue;
+
+      if (sorted[i].value > sorted[i - 1].value) increasing += 1;
+      else if (sorted[i].value < sorted[i - 1].value) decreasing += 1;
+      else sameValue += 1;
     }
 
-    const total = increasing + decreasing;
-    if (total === 0) return;
+    var total = increasing + decreasing + sameValue;
+    if (total === 0) {
+      evidence.push(dir + '方向仅1个音量级别，无法进行跨音量单调性对比');
+      return;
+    }
 
-    const consistency = Math.max(increasing, decreasing) / total;
-    evidence.push(`${dir}方向跨音量单调性: ${(consistency * 100).toFixed(0)}% (${increasing}升/${decreasing}降)`);
+    var consistency = Math.max(increasing, decreasing) / total;
+    evidence.push(dir + '方向跨音量单调性: ' + (consistency * 100).toFixed(0) + '% (' + increasing + '升/' + decreasing + '降/' + sameValue + '平)');
 
-    if (consistency < 0.6) {
+    if (consistency < 0.8) {
       issues.push({
-        severity: 'review',
-        message: `${dir}方向不同音量下响度变化方向不一致（${increasing}次上升, ${decreasing}次下降），建议人工验证曲线趋势`,
+        severity: 'error',
+        message: dir + '方向不同音量下响度变化方向不一致（' + increasing + '次上升, ' + decreasing + '次下降, ' + sameValue + '次持平），跨音量单调性仅' + (consistency * 100).toFixed(0) + '%，需排查测试数据或曲线异常'
+      });
+    } else if (consistency < 1.0) {
+      issues.push({
+        severity: 'warning',
+        message: dir + '方向跨音量单调性为' + (consistency * 100).toFixed(0) + '%（' + increasing + '升/' + decreasing + '降/' + sameValue + '平），存在少量不一致，建议复核'
       });
     }
   });
@@ -355,6 +306,10 @@ function checkCurveValueCorroboration(testDataFacts) {
     return { issues: [], evidence, status: 'pass' };
   }
 
+  var hasError = issues.some(function(item) { return item.severity === 'error'; });
+  var hasWarning = issues.some(function(item) { return item.severity === 'warning'; });
+  if (hasError) return { issues, evidence, status: 'error' };
+  if (hasWarning) return { issues, evidence, status: 'warning' };
   return { issues, evidence, status: 'review' };
 }
 

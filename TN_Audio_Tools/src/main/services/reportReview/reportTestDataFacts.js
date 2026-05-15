@@ -25,19 +25,27 @@ const DETAILED_COL = {
 };
 
 function classifyTestCategory(name, smd, bgnScenario) {
-  const text = normalizeUpperText([name, smd].filter(Boolean).join(' '));
+  // 仅用 name 做分类匹配（smd为SMD标识符，可能含与测试类型无关的通用关键字）
+  const nameText = normalizeUpperText(String(name || ''));
+  const fullText = normalizeUpperText([name, smd].filter(Boolean).join(' '));
 
-  if (text.includes('BGN') && text.includes('CONNECT')) return 'bgn_connection';
+  if (fullText.includes('BGN') && fullText.includes('CONNECT')) return 'bgn_connection';
   if (bgnScenario && /\b(?:PUB|ROAD|CROSSROAD|TRAIN|STATION|CAR|CAFE|STREET|OFFICE|HOTEL)\b/i.test(String(bgnScenario))) {
     return '3quest';
   }
-  if (text.includes('SIDETONE') && text.includes('DELAY')) return 'sidetone_delay';
-  if (text.includes('SIDETONE') && !text.includes('DELAY')) return 'sidetone';
-  if (text.includes('DELAY') && !text.includes('SIDETONE') && !text.includes('ECHO')) return 'delay';
-  if (text.includes('ECHO') && text.includes('DELAY')) return 'echo_delay';
-  if (/LOUDNESS|RLR|SLR|STMR/.test(text)) return 'loudness';
-  if (/FREQUENCY\s*RESPONSE|频响|FREQ\b/.test(text)) return 'frequency_response';
-  if (/MOS-LQO|POLQA|P\.863/.test(text)) return 'polqa';
+  if (fullText.includes('SIDETONE') && fullText.includes('DELAY')) return 'sidetone_delay';
+  if (fullText.includes('SIDETONE') && !fullText.includes('DELAY')) return 'sidetone';
+  // 仅在 name 中匹配时延关键词，排除校准/补偿/锁定等无关项
+  var isDelayName = (
+    /\b(?:ROUND\s*TRIP|ONE\s*WAY|GROUP)\s*DELAY\b/i.test(nameText) ||
+    /\bDELAY\s*TIME\b/i.test(nameText) ||
+    /时延/.test(nameText)
+  );
+  if (isDelayName && !/CALIBRAT|COMPENSAT|OFFSET|LOCK/i.test(nameText)) return 'delay';
+  if (fullText.includes('ECHO') && fullText.includes('DELAY')) return 'echo_delay';
+  if (/LOUDNESS|RLR|SLR|STMR/.test(fullText)) return 'loudness';
+  if (/FREQUENCY\s*RESPONSE|频响|FREQ\b/.test(fullText)) return 'frequency_response';
+  if (/MOS-LQO|POLQA|P\.863/.test(fullText)) return 'polqa';
   return 'other';
 }
 

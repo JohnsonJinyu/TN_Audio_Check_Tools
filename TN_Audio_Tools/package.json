@@ -18,7 +18,6 @@
     "release": "npm run release:preflight && npm run react-build && electron-builder --publish always",
     "start": "npm run dev",
     "build": "npm run electron-build",
-    "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "dependencies": {
@@ -84,7 +83,6 @@
     "files": [
       "build/**/*",
       "src/main/**/*",
-      "src/renderer/modules/reportChecker/config/**/*",
       "src/renderer/modules/testDataExtraction/config/**/*",
       "node_modules/**/*"
     ],

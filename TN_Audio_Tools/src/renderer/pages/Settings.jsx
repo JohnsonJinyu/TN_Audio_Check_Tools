@@ -34,6 +34,13 @@ const fallbackSettings = {
     defaultOutputFormat: 'mp3',
     defaultBitrate: '192',
     defaultSampleRate: '44100'
+  },
+  llm: {
+    enabled: false,
+    apiUrl: '',
+    apiKey: '',
+    model: '',
+    maxImagesPerAnalysis: 4
   }
 };
 const localeMap = {
@@ -594,6 +601,56 @@ function Settings() {
                 ]}
               />
             </Form.Item>
+          </SettingSection>
+
+          <SettingSection
+            title="AI 图表分析"
+            description="利用大模型视觉能力分析报告中的频率响应曲线图表，验证响度与频响趋势是否一致。需要配置公司内部API凭据。"
+          >
+            <Form.Item label="启用AI图表分析" name={['llm', 'enabled']} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <div style={{ color: 'var(--text-light)', fontSize: 12, marginTop: -16, marginBottom: 16 }}>
+              开启后，在审查详情中可手动触发AI图表验证
+            </div>
+            <Form.Item label="API 地址" name={['llm', 'apiUrl']}>
+              <Input placeholder="https://llm.your-company.com" />
+            </Form.Item>
+            <Form.Item label="API Key" name={['llm', 'apiKey']}>
+              <Input.Password placeholder="sk-..." addonAfter={
+                <Button type="link" size="small" style={{ padding: 0 }} onClick={async function() {
+                  var apiUrl = form.getFieldValue(['llm', 'apiUrl']) || '';
+                  var apiKey = form.getFieldValue(['llm', 'apiKey']) || '';
+                  var model = form.getFieldValue(['llm', 'model']) || '';
+                  if (!apiUrl || !apiKey) { message.warning('请先填写API地址和Key'); return; }
+                  message.loading({ content: '正在测试连接...', key: 'llm-test', duration: 0 });
+                  try {
+                    var res = await window.electron.reportReview.testLlmConnection({ apiUrl, apiKey, model });
+                    if (res.ok) { message.success({ content: res.message, key: 'llm-test' }); }
+                    else { message.error({ content: res.message, key: 'llm-test', duration: 8 }); }
+                  } catch(e) { message.error({ content: '测试失败: ' + (e.message || '未知错误'), key: 'llm-test', duration: 8 }); }
+                }}>测试连接</Button>
+              } />
+            </Form.Item>
+            <Form.Item label="模型名称" name={['llm', 'model']}>
+              <Input placeholder="claude-sonnet-4-20250514" />
+            </Form.Item>
+            <Form.Item label="单次最大图片数" name={['llm', 'maxImagesPerAnalysis']}>
+              <Select
+                options={[
+                  { label: '2 张', value: 2 },
+                  { label: '4 张', value: 4 },
+                  { label: '6 张', value: 6 },
+                  { label: '8 张', value: 8 }
+                ]}
+              />
+            </Form.Item>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginTop: 8 }}
+              message="API Key 仅存储在本地，不会上传至任何第三方。启用后审查报告时自动调用AI分析图表（仅当检测到响度/频响曲线图时）。"
+            />
           </SettingSection>
 
           <SettingSection

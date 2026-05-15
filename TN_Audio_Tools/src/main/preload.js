@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('electron', {
     reviewWordReport: (payload) => ipcRenderer.invoke('report-review:review-word-report', payload),
     reviewPairedReport: (payload) => ipcRenderer.invoke('report-review:review-paired-report', payload),
     runCrossReportChecks: (payload) => ipcRenderer.invoke('report-review:run-cross-report-checks', payload),
-    uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload)
+    uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload),
+    analyzeChartImages: (payload) => ipcRenderer.invoke('report-review:analyze-chart-images', payload),
+    testLlmConnection: (payload) => ipcRenderer.invoke('llm:test-connection', payload)
   }
 });

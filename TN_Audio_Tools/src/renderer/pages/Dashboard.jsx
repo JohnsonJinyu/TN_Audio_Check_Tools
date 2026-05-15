@@ -22,12 +22,52 @@ function buildDashboardSnapshot() {
   const collectionData = readDashboardData();
   const reviewHistory = readWordReviewHistory();
   const safeReviewHistory = Array.isArray(reviewHistory) ? reviewHistory : [];
-  const passedReviewCount = safeReviewHistory.filter((item) => item?.result?.reviewResult?.overallStatus === 'pass').length;
+  const passedReviewCount = safeReviewHistory.filter(function(item) {
+    return item?.result?.reviewResult?.overallStatus === 'pass';
+  }).length;
+
+  var now = Date.now();
+  var sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  var recent7DaysReviews = safeReviewHistory.filter(function(item) {
+    return item?.checkedAt && new Date(item.checkedAt).getTime() > sevenDaysAgo;
+  });
+
+  var passRate = safeReviewHistory.length > 0
+    ? Math.round((passedReviewCount / safeReviewHistory.length) * 100)
+    : 0;
+
+  var categoryStats = { structure: { pass: 0, total: 0 }, metadata: { pass: 0, total: 0 }, timing: { pass: 0, total: 0 }, content: { pass: 0, total: 0 } };
+  var structureKeys = ['tableOfContents', 'tableOfContentsPages', 'chaptersAlignment'];
+  var metadataKeys = ['basicInfo', 'testItemConsistency', 'namePollution', 'engineers', 'polqa'];
+  var timingKeys = ['timingAdjacentInterval', 'timingTotalSpan', 'timingDelayOrder', 'timingSidetoneDelayOrder', 'timingBgnConnectionOrder'];
+  var contentKeys = ['contentLoudnessFRTrend', 'contentCurveValueCorroboration', 'contentSameCodecDiffNetwork', 'contentSameNetworkDiffCodec'];
+
+  safeReviewHistory.forEach(function(item) {
+    var checks = item?.result?.reviewResult?.checks || {};
+    structureKeys.forEach(function(k) { if (checks[k]) { categoryStats.structure.total++; if (checks[k].status === 'pass') categoryStats.structure.pass++; } });
+    metadataKeys.forEach(function(k) { if (checks[k]) { categoryStats.metadata.total++; if (checks[k].status === 'pass') categoryStats.metadata.pass++; } });
+    timingKeys.forEach(function(k) { if (checks[k]) { categoryStats.timing.total++; if (checks[k].status === 'pass') categoryStats.timing.pass++; } });
+    contentKeys.forEach(function(k) { if (checks[k]) { categoryStats.content.total++; if (checks[k].status === 'pass') categoryStats.content.pass++; } });
+  });
+
+  var recentReviews = safeReviewHistory.slice(0, 5).map(function(item) {
+    return {
+      id: item.id,
+      reportName: item.reportName,
+      checkedAt: item.checkedAt,
+      status: item?.result?.reviewResult?.overallStatus || 'unknown',
+      summary: item?.result?.reviewResult?.summary || {}
+    };
+  });
 
   return {
     ...collectionData,
     reviewHistoryCount: safeReviewHistory.length,
-    passedReviewCount
+    passedReviewCount: passedReviewCount,
+    passRate: passRate,
+    recent7DaysCount: recent7DaysReviews.length,
+    recentReviews: recentReviews,
+    categoryStats: categoryStats
   };
 }
 
@@ -64,7 +104,9 @@ function Dashboard({ onNavigate }) {
       description: '查看审查范围、最近处理结果和输出文件历史',
       icon: <SearchOutlined />,
       color: '#1677ff',
-      stats: `${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 已通过`,
+      stats: dashboardData.reviewHistoryCount > 0
+        ? (`${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 通过 (${dashboardData.passRate}%)`)
+        : '暂无审查记录',
       pageKey: 'report-review'
     },
     {
@@ -134,22 +176,25 @@ function Dashboard({ onNavigate }) {
       key: 'checkedReports',
       title: '已收集报告',
       value: dashboardData.checkedReports,
+      suffix: '份',
       prefix: <FileTextOutlined />,
       color: '#ff7a45',
       pageKey: 'report-checker'
     },
     {
       key: 'reviewHistory',
-      title: '审查记录',
+      title: '报告审查记录',
       value: dashboardData.reviewHistoryCount,
+      suffix: dashboardData.passRate > 0 ? ('通过率 ' + dashboardData.passRate + '%') : '',
       prefix: <SearchOutlined />,
       color: '#1677ff',
       pageKey: 'report-review'
     },
     {
-      key: 'analysisSuccess',
-      title: '成功处理',
-      value: dashboardData.analysisSuccess,
+      key: 'recentActivity',
+      title: '近7天审查',
+      value: dashboardData.recent7DaysCount,
+      suffix: '次',
       prefix: <LineChartOutlined />,
       color: '#722ed1',
       pageKey: 'report-review'
@@ -246,6 +291,7 @@ function Dashboard({ onNavigate }) {
                 title={stat.title}
                 value={stat.value}
                 prefix={stat.prefix}
+                suffix={stat.suffix ? <span style={{ fontSize: 14, color: stat.color }}>{stat.suffix}</span> : undefined}
                 valueStyle={{ color: stat.color }}
               />
             </Card>
@@ -308,16 +354,50 @@ function Dashboard({ onNavigate }) {
           </Col>
         ))}
 
-        {/* 最近使用 */}
+        {/* 最近审查活动 */}
         <Col xs={24}>
           <Divider />
           <h2 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 'bold' }}>
-            最近使用
+            最近审查活动
           </h2>
           <Card>
-            <p style={{ color: 'var(--text-light)', textAlign: 'center', margin: '40px 0' }}>
-              暂无最近使用的记录
-            </p>
+            {dashboardData.recentReviews && dashboardData.recentReviews.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {dashboardData.recentReviews.map(function(record) {
+                  var statusColorMap = { pass: 'success', warning: 'warning', review: 'processing', error: 'error' };
+                  var statusTextMap = { pass: '通过', warning: '警告', review: '复核', error: '错误' };
+                  return (
+                    <div
+                      key={record.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 16px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--surface-color)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{record.reportName}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-light)' }}>
+                          {record.checkedAt ? new Date(record.checkedAt).toLocaleString() : '-'}
+                          {' · '}通过 {record.summary.passedChecks || 0} / 警告 {record.summary.warningChecks || 0} / 复核 {record.summary.reviewChecks || 0} / 错误 {record.summary.errorChecks || 0}
+                        </div>
+                      </div>
+                      <Tag color={statusColorMap[record.status] || 'default'}>
+                        {statusTextMap[record.status] || record.status}
+                      </Tag>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-light)', textAlign: 'center', margin: '40px 0' }}>
+                暂无审查记录 — 前往"报告审查"开始使用
+              </p>
+            )}
           </Card>
         </Col>
 

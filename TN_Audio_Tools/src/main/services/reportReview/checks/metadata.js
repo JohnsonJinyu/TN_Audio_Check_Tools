@@ -95,7 +95,7 @@ function checkTestItemConsistency(reportPath, wordData, reviewFacts = buildRevie
   const extractedBandwidth = metadata.bandwidth || null;
   const extractedMode = metadata.terminalMode || null;
 
-  evidence.push(`文件名提取 - Codec: ${extractedCodec}, Bandwidth: ${extractedBandwidth}, Mode: ${extractedMode}`);
+  evidence.push(`文件名提取 - Codec: ${extractedCodec || '未识别'}, Bandwidth: ${extractedBandwidth || '未识别'}, Mode: ${extractedMode || '未识别'}`);
 
   const codecMentions = extractedCodec ? collectMentionEvidence(lines, CODEC_ALIASES[extractedCodec] || [extractedCodec]) : [];
   const bandwidthMentions = extractedBandwidth ? collectMentionEvidence(lines, BANDWIDTH_ALIASES[extractedBandwidth] || [extractedBandwidth]) : [];
@@ -111,24 +111,39 @@ function checkTestItemConsistency(reportPath, wordData, reviewFacts = buildRevie
   bandwidthMentions.slice(0, 2).forEach((item) => evidence.push(`Bandwidth 证据：${item}`));
   modeMentions.slice(0, 2).forEach((item) => evidence.push(`Mode 证据：${item}`));
 
-  if (codecMentions.length === 0 && extractedCodec) {
+  if (!extractedCodec) {
+    issues.push({
+      severity: 'review',
+      message: '无法从文件名或报告内容中识别Codec信息（如EVS/AMR/AMR-WB等），请人工确认'
+    });
+  } else if (codecMentions.length === 0) {
     issues.push({
       severity: 'warning',
-      message: `文件名表明使用 ${extractedCodec}，但报告正文中未明确提及该编码方式`
+      message: `文件名/配置中识别到Codec为 ${extractedCodec}，但报告正文未明确提及该编码方式`
     });
   }
 
-  if (bandwidthMentions.length === 0 && extractedBandwidth) {
+  if (!extractedBandwidth) {
+    issues.push({
+      severity: 'review',
+      message: '无法从文件名或报告内容中识别Bandwidth信息（如NB/WB/SWB等），请人工确认'
+    });
+  } else if (bandwidthMentions.length === 0) {
     issues.push({
       severity: 'warning',
-      message: `文件名表明使用 ${extractedBandwidth}，但报告正文中未明确提及该带宽`
+      message: `文件名/配置中识别到Bandwidth为 ${extractedBandwidth}，但报告正文未明确提及该带宽`
     });
   }
 
-  if (modeMentions.length === 0 && extractedMode) {
+  if (!extractedMode) {
+    issues.push({
+      severity: 'review',
+      message: '无法从文件名或报告内容中识别终端模式信息（如HA/HE/HH等），请人工确认'
+    });
+  } else if (modeMentions.length === 0) {
     issues.push({
       severity: 'warning',
-      message: `文件名表明是 ${extractedMode} 模式，但报告正文中未明确说明`
+      message: `文件名/配置中识别到终端模式为 ${extractedMode}，但报告正文未明确说明`
     });
   }
 
@@ -137,7 +152,8 @@ function checkTestItemConsistency(reportPath, wordData, reviewFacts = buildRevie
     return { issues, evidence, status: 'pass' };
   }
 
-  return { issues, evidence, status: 'warning' };
+  const hasWarning = issues.some(function(item) { return item.severity === 'warning'; });
+  return { issues, evidence, status: hasWarning ? 'warning' : 'review' };
 }
 
 function checkNamePollution(reportPath) {

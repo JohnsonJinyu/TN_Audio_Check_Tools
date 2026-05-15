@@ -273,7 +273,7 @@ function createWindow() {
   mainWindow.loadURL(startUrl);
 
   if (isDev) {
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // 启动时不自动打开，可通过菜单手动打开
   }
 
   mainWindow.on('minimize', (event) => {
@@ -501,6 +501,83 @@ ipcMain.handle('report-review:run-cross-report-checks', async (_, payload) => {
   }
 
   return runCrossReportChecks(payload.results);
+});
+
+ipcMain.handle('report-review:analyze-chart-images', async (_, payload) => {
+  const { reportPath, testDataFacts } = payload || {};
+  if (!reportPath) {
+    throw new Error('缺少报告路径');
+  }
+
+  const settings = getSettings();
+  if (!settings.llm?.enabled || !settings.llm?.apiKey || !settings.llm?.apiUrl) {
+    return {
+      status: 'review',
+      issues: [{ severity: 'review', message: '请在设置中启用AI图表分析并配置API地址和Key' }],
+      evidence: ['LLM图表分析未配置或未启用']
+    };
+  }
+
+  try {
+    const { extractReportImages } = require('./services/reportReview/imageExtractor');
+    const { analyzeChartImages } = require('./services/reportReview/llmService');
+
+    const images = await extractReportImages(reportPath);
+    var chartImages = (images || []).slice(0, settings.llm.maxImagesPerAnalysis || 4);
+
+    if (chartImages.length === 0) {
+      return {
+        status: 'review',
+        issues: [{ severity: 'review', message: '未在报告中检测到任何图片，无法进行AI验证' }],
+        evidence: ['报告中无可提取的图片，请确认报告包含图表']
+      };
+    }
+
+    return await analyzeChartImages({
+      images: chartImages,
+      testDataFacts: testDataFacts || {},
+      settings: settings.llm
+    });
+  } catch (error) {
+    return {
+      status: 'review',
+      issues: [{ severity: 'review', message: 'AI图表分析异常: ' + (error.message || '未知错误') }],
+      evidence: ['分析过程出错: ' + (error.message || '')]
+    };
+  }
+});
+
+ipcMain.handle('llm:test-connection', async (_, payload) => {
+  var p = payload || {};
+  var settings = getSettings();
+  var apiUrl = String(p.apiUrl || settings.llm?.apiUrl || '').replace(/\/+$/, '');
+  var apiKey = String(p.apiKey || settings.llm?.apiKey || '');
+  var model = String(p.model || settings.llm?.model || 'claude-sonnet-4-20250514');
+
+  if (!apiUrl || !apiKey) {
+    return { ok: false, message: 'API地址或Key未填写' };
+  }
+
+  try {
+    var axios = require('axios');
+    await axios.post(apiUrl + '/v1/chat/completions', {
+      model: model,
+      max_tokens: 10,
+      messages: [{ role: 'user', content: '回复OK' }]
+    }, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      timeout: 15000
+    });
+    return { ok: true, message: '连接成功，API可用 (' + model + ')' };
+  } catch (e) {
+    var msg = '连接失败: ';
+    if (e.response && e.response.status === 401) msg += 'API Key无效(401)';
+    else if (e.response && e.response.status === 403) msg += '无权限访问(403)';
+    else if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') msg += '无法连接到 ' + apiUrl;
+    else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED') msg += '连接超时';
+    else msg += (e.response?.status || e.message);
+    return { ok: false, message: msg };
+  }
 });
 
 ipcMain.handle('dialog:open-file', async (_, options = {}) => {
