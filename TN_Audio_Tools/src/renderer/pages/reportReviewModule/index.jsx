@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, App as AntdApp, Button, Card, Col, Collapse, Empty, Modal, Progress, Row, Space, Table, Tag } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { clearWordReviewHistory, readWordReviewHistory, recordWordReviewResult } from '../../modules/reportReview/storage';
@@ -10,18 +10,19 @@ import DetailModal from './components/DetailModal';
 import StatusDetailModal from './components/StatusDetailModal';
 import ReviewAreaModal from './components/ReviewAreaModal';
 import CrossReportPanel from './components/CrossReportPanel';
+import { useTheme } from '../../ThemeContext';
 import '../../styles/pages.css';
 
 export default function ReportReviewPage() {
   const { message, modal } = AntdApp.useApp();
-  const isDarkTheme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark';
-  const reviewDropzoneBaseColor = isDarkTheme ? '#24314a' : '#f5f7fa';
-  const reviewDropzoneHoverColor = isDarkTheme ? '#2a3955' : '#e6f7ff';
-  const reviewDropzoneTitleColor = isDarkTheme ? '#f4f7ff' : '#262626';
-  const reviewDropzoneTextColor = isDarkTheme ? '#c8d3e8' : '#8c8c8c';
+  const isDarkTheme = useTheme() === 'dark';
+  const reviewDropzoneBaseColor = isDarkTheme ? '#221d38' : '#faf8ff';
+  const reviewDropzoneHoverColor = isDarkTheme ? '#2a2245' : '#f3eeff';
+  const reviewDropzoneTitleColor = isDarkTheme ? '#f4f0ff' : '#22075e';
+  const reviewDropzoneTextColor = isDarkTheme ? '#c3b8e4' : '#8c8c8c';
   const reviewSelectionPanelColor = isDarkTheme
-    ? { backgroundColor: '#24314a', border: '1px solid #425272', textColor: '#dbe5f7', accentColor: '#9ab1ff', metaColor: '#b8c7e6' }
-    : { backgroundColor: '#e6f7ff', border: '1px solid #91d5ff', textColor: '#0050b3', accentColor: '#0050b3', metaColor: '#4b6381' };
+    ? { backgroundColor: '#221d38', border: '1px solid #4a3a72', textColor: '#dbd4f7', accentColor: '#b37feb', metaColor: '#c3b8e4' }
+    : { backgroundColor: '#f9f0ff', border: '1px solid #d3adf7', textColor: '#531dab', accentColor: '#722ed1', metaColor: '#4b3d6e' };
   const [wordReviewHistory, setWordReviewHistory] = useState(() => readWordReviewHistory() || []);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [selectedReportPaths, setSelectedReportPaths] = useState([]);
@@ -34,6 +35,32 @@ export default function ReportReviewPage() {
   const [selectedReviewArea, setSelectedReviewArea] = useState(null);
   const [crossReportResults, setCrossReportResults] = useState(null);
   const [crossReportModalVisible, setCrossReportModalVisible] = useState(false);
+  const [chartProgress, setChartProgress] = useState(null);
+  const chartProgressUnsubRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
+    };
+  }, []);
+
+  const listenForChartProgress = () => {
+    try {
+      if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current();
+      if (window.electron && window.electron.reportReview && window.electron.reportReview.onChartAnalysisProgress) {
+        var unsub = window.electron.reportReview.onChartAnalysisProgress(function(data) {
+          setChartProgress(data);
+        });
+        chartProgressUnsubRef.current = unsub;
+      }
+    } catch (_) {}
+  };
+
+  const stopChartProgress = () => {
+    try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
+    chartProgressUnsubRef.current = null;
+    setChartProgress(null);
+  };
 
   const safeWordReviewHistory = Array.isArray(wordReviewHistory) ? wordReviewHistory : [];
 
@@ -122,6 +149,7 @@ export default function ReportReviewPage() {
     const { pairs, solo } = detectFilePairs(selectedReportPaths);
     const totalTasks = pairs.length + solo.length;
 
+    listenForChartProgress();
     setReviewLoading(true);
     setBatchProgress({
       total: totalTasks,
@@ -259,6 +287,7 @@ export default function ReportReviewPage() {
     } catch (error) {
       message.error(error?.message || '审查失败');
     } finally {
+      stopChartProgress();
       setBatchProgress((currentProgress) => currentProgress ? {
         ...currentProgress,
         currentFileName: null
@@ -272,8 +301,8 @@ export default function ReportReviewPage() {
       <Row gutter={[24, 24]}>
         <Col xs={24}>
           <Card
-            className="report-checker-card"
-            style={{ borderColor: '#d6e4ff' }}
+            className="report-checker-card report-review-main-card"
+            style={{ borderColor: '#d3adf7' }}
             styles={{ body: { padding: '10px 24px' } }}
           >
             <Row gutter={[24, 8]} align="middle" justify="center">
@@ -300,7 +329,7 @@ export default function ReportReviewPage() {
                       }
                     }}
                     style={{
-                      border: '2px dashed #1677ff',
+                      border: '2px dashed #722ed1',
                       borderRadius: 16,
                       padding: '28px 28px',
                       textAlign: 'center',
@@ -315,13 +344,13 @@ export default function ReportReviewPage() {
                       userSelect: 'none'
                     }}
                     onMouseEnter={(event) => {
-                      event.currentTarget.style.borderColor = '#40a9ff';
+                      event.currentTarget.style.borderColor = '#9254de';
                     }}
                     onMouseLeave={(event) => {
-                      event.currentTarget.style.borderColor = '#1677ff';
+                      event.currentTarget.style.borderColor = '#722ed1';
                     }}
                   >
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📁</div>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
                     <div style={{ fontSize: 20, fontWeight: 600, color: reviewDropzoneTitleColor, marginBottom: 6 }}>点击或拖拽选择多个文件</div>
                     <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx / .xlsx 报告</div>
                     <div style={{ fontSize: 12, color: reviewDropzoneTextColor, marginTop: 4, opacity: 0.8 }}>建议同时选择同名的 .docx 和 .xlsx，配对后可获得最完整的审查结果</div>
@@ -435,6 +464,18 @@ export default function ReportReviewPage() {
                             <span>成功 {batchProgress.successCount}</span>
                             <span>失败 {batchProgress.failedCount}</span>
                           </div>
+                          {chartProgress && chartProgress.imageTotal > 0 && (
+                            <div style={{ marginTop: 10, padding: 8, background: 'rgba(0,0,0,0.03)', borderRadius: 6 }}>
+                              <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
+                                图表分析 {chartProgress.imageCurrent}/{chartProgress.imageTotal}: {chartProgress.fileName}
+                              </div>
+                              <Progress
+                                percent={Math.round((chartProgress.imageCurrent / chartProgress.imageTotal) * 100)}
+                                size="small"
+                                format={() => chartProgress.imageCurrent + '/' + chartProgress.imageTotal}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

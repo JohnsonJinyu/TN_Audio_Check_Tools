@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, App as AntdApp, ConfigProvider, Layout, Menu, theme as antdTheme } from 'antd';
+import { Alert, App as AntdApp, Badge, ConfigProvider, Layout, Menu, theme as antdTheme } from 'antd';
+import { ThemeContext } from './ThemeContext';
 import zhCN from 'antd/locale/zh_CN';
 import zhTW from 'antd/locale/zh_TW';
 import enUS from 'antd/locale/en_US';
@@ -11,6 +12,11 @@ import {
   HomeOutlined
 } from '@ant-design/icons';
 import './App.css';
+import './styles/theme-elevenlabs.css';
+import './styles/theme-linear.css';
+import './styles/theme-claude.css';
+import './styles/theme-vercel.css';
+import './styles/theme-apple-light.css';
 import appLogo from './assets/app-logo.svg';
 import Dashboard from './pages/Dashboard';
 import TestDataCollectionPage from './pages/TestDataCollectionPage';
@@ -27,11 +33,14 @@ const languageLocaleMap = {
 const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
 const fallbackAppearanceSettings = {
   theme: 'light',
-  language: 'zh-cn'
+  language: 'zh-cn',
+  designStyle: 'apple-light'
 };
 
 function appearanceEqual(left = fallbackAppearanceSettings, right = fallbackAppearanceSettings) {
-  return left?.theme === right?.theme && left?.language === right?.language;
+  return left?.theme === right?.theme
+    && left?.language === right?.language
+    && left?.designStyle === right?.designStyle;
 }
 
 function App() {
@@ -131,7 +140,8 @@ function App() {
           ? currentValue
           : {
             theme: nextAppearance.theme || fallbackAppearanceSettings.theme,
-            language: nextAppearance.language || fallbackAppearanceSettings.language
+            language: nextAppearance.language || fallbackAppearanceSettings.language,
+            designStyle: nextAppearance.designStyle || fallbackAppearanceSettings.designStyle
           }
       ));
     };
@@ -142,14 +152,18 @@ function App() {
 
   const language = appearanceSettings?.language || fallbackAppearanceSettings.language;
   const selectedTheme = appearanceSettings?.theme || fallbackAppearanceSettings.theme;
+  const designStyle = appearanceSettings?.designStyle || fallbackAppearanceSettings.designStyle;
+  const lightSidebarStyles = ['apple-light'];
+  const sidebarTheme = lightSidebarStyles.includes(designStyle) ? 'light' : 'dark';
   const resolvedTheme = selectedTheme === 'auto'
     ? (prefersDarkMode ? 'dark' : 'light')
     : selectedTheme;
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.designStyle = designStyle;
     document.documentElement.lang = language;
-  }, [language, resolvedTheme]);
+  }, [language, resolvedTheme, designStyle]);
 
   const configProviderLocale = useMemo(
     () => languageLocaleMap[language] || zhCN,
@@ -157,13 +171,22 @@ function App() {
   );
 
   const themeConfig = useMemo(
-    () => ({
-      algorithm: resolvedTheme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-      token: {
-        borderRadius: 10,
-        colorPrimary: resolvedTheme === 'dark' ? '#7ab8ff' : '#4c6ef5'
+    () => {
+      const baseToken = {
+        borderRadius: 8,
+        fontFamily: "var(--font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif)"
+      };
+      if (resolvedTheme === 'dark') {
+        return {
+          algorithm: antdTheme.darkAlgorithm,
+          token: { ...baseToken, colorPrimary: '#a8a29e' }
+        };
       }
-    }),
+      return {
+        algorithm: antdTheme.defaultAlgorithm,
+        token: { ...baseToken, colorPrimary: '#292524' }
+      };
+    },
     [resolvedTheme]
   );
 
@@ -217,8 +240,8 @@ function App() {
     {
       key: 'spectrum',
       icon: <LineChartOutlined />,
-      label: '频谱分析',
-      title: '音频频谱分析工具'
+      label: <span>频谱分析 <Badge count="Beta" size="small" style={{ backgroundColor: '#faad14', fontSize: 10, verticalAlign: 'middle' }} /></span>,
+      title: '音频频谱分析工具 (开发中)'
     },
     {
       type: 'divider'
@@ -263,21 +286,22 @@ function App() {
 
   return (
     <ConfigProvider locale={configProviderLocale} theme={themeConfig}>
+      <ThemeContext.Provider value={resolvedTheme}>
       <AntdApp>
         <Layout style={{ height: '100vh' }}>
-          <Sider 
-            trigger={null} 
-            collapsible 
+          <Sider
+            trigger={null}
+            collapsible
             collapsed={collapsed}
             width={220}
-            className="sider"
+            className={`sider ${sidebarTheme === 'light' ? 'sider--light' : ''}`}
           >
-            <div className="logo">
+            <div className={`logo ${sidebarTheme === 'light' ? 'logo--light' : ''}`}>
               <img className="logo-icon" src={appLogo} alt="TN Audio Toolkit" />
               {!collapsed && <span className="logo-text">音频工具集</span>}
             </div>
             <Menu
-              theme="dark"
+              theme={sidebarTheme}
               mode="inline"
               selectedKeys={[currentPage]}
               items={menuItems.map(item => {
@@ -329,6 +353,7 @@ function App() {
           </Layout>
         </Layout>
       </AntdApp>
+      </ThemeContext.Provider>
     </ConfigProvider>
   );
 }

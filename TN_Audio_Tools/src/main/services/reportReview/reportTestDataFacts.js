@@ -1,28 +1,31 @@
 const { normalizeText, normalizeUpperText } = require('./utils');
+const { normalizeVolumeLevel, extractVolumeLevelFromTitle } = require('./volumeLevelUtils');
 
-const DETAILED_COL = {
-  MEASUREMENT_OBJECT: 0,
+// 列索引仅作为 row.raw 数组格式的回退，优先使用对象属性名
+var DETAILED_COL = {
+  NAME: 3,
+  SMD: 7,
+  DIRECTION: 19,
+  VOLUME_CTRL: 22,
   VALUE: 1,
   UNIT: 2,
-  NAME: 3,
-  COMMENT: 4,
-  STATUS: 5,
-  SMD_NO: 6,
-  SMD: 7,
-  INDEX: 8,
-  RUN: 9,
+  BGN_SCENARIO: 18,
   DATE: 10,
   TIME: 11,
-  LOWER_LIMIT: 12,
-  UPPER_LIMIT: 13,
-  DESCRIPTION: 14,
-  BANDWIDTH: 17,
-  BGN_SCENARIO: 18,
-  DIRECTION: 19,
-  USE_CASE: 20,
-  VAR_NAME: 21,
-  VOLUME_CTRL: 22,
 };
+
+/**
+ * 从行数据读取字段值 — 优先用对象属性名，回退到 raw[] 数组索引
+ */
+function _field(row, propName, colIndex) {
+  if (!row) return '';
+  // 对象属性优先
+  if (row[propName] !== undefined && row[propName] !== null) return row[propName];
+  // 回退: raw 数组
+  var raw = Array.isArray(row) ? row : (row.raw || []);
+  if (raw[colIndex] !== undefined && raw[colIndex] !== null) return raw[colIndex];
+  return '';
+}
 
 function classifyTestCategory(name, smd, bgnScenario) {
   // 仅用 name 做分类匹配（smd为SMD标识符，可能含与测试类型无关的通用关键字）
@@ -44,7 +47,7 @@ function classifyTestCategory(name, smd, bgnScenario) {
   if (isDelayName && !/CALIBRAT|COMPENSAT|OFFSET|LOCK/i.test(nameText)) return 'delay';
   if (fullText.includes('ECHO') && fullText.includes('DELAY')) return 'echo_delay';
   if (/LOUDNESS|RLR|SLR|STMR/.test(fullText)) return 'loudness';
-  if (/FREQUENCY\s*RESPONSE|频响|FREQ\b/.test(fullText)) return 'frequency_response';
+  if (/FREQUENCY\s*RESPONSE|频响|FREQ\b|SENSITIVITY[\s,]*FREQUENCY/i.test(fullText)) return 'frequency_response';
   if (/MOS-LQO|POLQA|P\.863/.test(fullText)) return 'polqa';
   return 'other';
 }
@@ -96,15 +99,14 @@ function extractTimestamps(reportData) {
   }
 
   detailedRows.forEach((row, rowIndex) => {
-    const rawRow = Array.isArray(row) ? row : row.raw || [];
-    const name = normalizeText(rawRow[DETAILED_COL.NAME] || row.Name || '');
-    const smd = normalizeText(rawRow[DETAILED_COL.SMD] || row.SMD || '');
-    const bgnScenario = rawRow[DETAILED_COL.BGN_SCENARIO] || row.BGNScenario || '';
-    const direction = normalizeText(rawRow[DETAILED_COL.DIRECTION] || row.Direction || '');
-    const dateVal = rawRow[DETAILED_COL.DATE] || row.Date || null;
-    const timeVal = rawRow[DETAILED_COL.TIME] || row.Time || null;
+    var name = normalizeText(_field(row, 'Name', DETAILED_COL.NAME));
+    var smd = normalizeText(_field(row, 'SMD', DETAILED_COL.SMD));
+    var bgnScenario = _field(row, 'BGNScenario', DETAILED_COL.BGN_SCENARIO);
+    var direction = normalizeText(_field(row, 'Direction', DETAILED_COL.DIRECTION));
+    var dateVal = _field(row, 'Date', DETAILED_COL.DATE) || null;
+    var timeVal = _field(row, 'Time', DETAILED_COL.TIME) || null;
 
-    const timestamp = parseDateTime(dateVal, timeVal);
+    var timestamp = parseDateTime(dateVal, timeVal);
     if (timestamp) hasAbsoluteTimestamps = true;
 
     testItemTimestamps.push({
@@ -152,18 +154,17 @@ function extractLoudnessMetrics(reportData) {
   const bandwidth = reportContext.bandwidth || '';
 
   detailedRows.forEach((row, rowIndex) => {
-    const rawRow = Array.isArray(row) ? row : row.raw || [];
-    const name = normalizeText(rawRow[DETAILED_COL.NAME] || row.Name || '');
-    const smd = normalizeText(rawRow[DETAILED_COL.SMD] || row.SMD || '');
-    const unit = normalizeText(rawRow[DETAILED_COL.UNIT] || row.Unit || '');
-    const direction = normalizeText(rawRow[DETAILED_COL.DIRECTION] || row.Direction || '');
-    const volumeCtrl = normalizeText(rawRow[DETAILED_COL.VOLUME_CTRL] || row.VolumeCTRL || '');
-    const rawValue = rawRow[DETAILED_COL.VALUE] || row.Value || null;
+    var name = normalizeText(_field(row, 'Name', DETAILED_COL.NAME));
+    var smd = normalizeText(_field(row, 'SMD', DETAILED_COL.SMD));
+    var unit = normalizeText(_field(row, 'Unit', DETAILED_COL.UNIT));
+    var direction = normalizeText(_field(row, 'Direction', DETAILED_COL.DIRECTION));
+    var volumeCtrl = normalizeText(_field(row, 'VolumeCTRL', DETAILED_COL.VOLUME_CTRL));
+    var rawValue = _field(row, 'Value', DETAILED_COL.VALUE) || null;
 
-    const category = classifyTestCategory(name, smd, '');
+    var category = classifyTestCategory(name, smd, '');
     if (category !== 'loudness') return;
 
-    const numericValue = Number(rawValue);
+    var numericValue = Number(rawValue);
     if (isNaN(numericValue)) return;
 
     metrics.push({
@@ -174,7 +175,10 @@ function extractLoudnessMetrics(reportData) {
       bandwidth,
       value: numericValue,
       unit: unit || 'dB',
-      volumeLevel: volumeCtrl || null,
+      volumeLevel: normalizeVolumeLevel(volumeCtrl)
+        || extractVolumeLevelFromTitle(name)
+        || extractVolumeLevelFromTitle(smd)
+        || extractVolumeLevelFromTitle([smd, name].filter(Boolean).join(' ')),
       category: name.toUpperCase().includes('RLR') ? 'RLR'
         : name.toUpperCase().includes('SLR') ? 'SLR'
         : name.toUpperCase().includes('STMR') ? 'STMR'
@@ -183,6 +187,8 @@ function extractLoudnessMetrics(reportData) {
     });
   });
 
+  var missingLevel = metrics.filter(function(m) { return !m.volumeLevel; }).length;
+  if (missingLevel > 0) evidence.push('其中 ' + missingLevel + ' 个响度测点未能提取到音量等级');
   evidence.push(`提取到 ${metrics.length} 个响度相关数值`);
 
   return { loudnessMetrics: metrics, evidence };
@@ -202,18 +208,17 @@ function extractFrequencyResponseData(reportData) {
   }
 
   detailedRows.forEach((row, rowIndex) => {
-    const rawRow = Array.isArray(row) ? row : row.raw || [];
-    const name = normalizeText(rawRow[DETAILED_COL.NAME] || row.Name || '');
-    const smd = normalizeText(rawRow[DETAILED_COL.SMD] || row.SMD || '');
-    const unit = normalizeText(rawRow[DETAILED_COL.UNIT] || row.Unit || '');
-    const direction = normalizeText(rawRow[DETAILED_COL.DIRECTION] || row.Direction || '');
-    const volumeCtrl = normalizeText(rawRow[DETAILED_COL.VOLUME_CTRL] || row.VolumeCTRL || '');
-    const rawValue = rawRow[DETAILED_COL.VALUE] || row.Value || null;
+    var name = normalizeText(_field(row, 'Name', DETAILED_COL.NAME));
+    var smd = normalizeText(_field(row, 'SMD', DETAILED_COL.SMD));
+    var unit = normalizeText(_field(row, 'Unit', DETAILED_COL.UNIT));
+    var direction = normalizeText(_field(row, 'Direction', DETAILED_COL.DIRECTION));
+    var volumeCtrl = normalizeText(_field(row, 'VolumeCTRL', DETAILED_COL.VOLUME_CTRL));
+    var rawValue = _field(row, 'Value', DETAILED_COL.VALUE) || null;
 
-    const category = classifyTestCategory(name, smd, '');
+    var category = classifyTestCategory(name, smd, '');
     if (category !== 'frequency_response') return;
 
-    const numericValue = Number(rawValue);
+    var numericValue = Number(rawValue);
     if (isNaN(numericValue)) return;
 
     metrics.push({
@@ -221,12 +226,17 @@ function extractFrequencyResponseData(reportData) {
       direction: direction || null,
       amplitude: numericValue,
       unit: unit || 'dB',
-      volumeLevel: volumeCtrl || null,
+      volumeLevel: normalizeVolumeLevel(volumeCtrl)
+        || extractVolumeLevelFromTitle(name)
+        || extractVolumeLevelFromTitle(smd)
+        || extractVolumeLevelFromTitle([smd, name].filter(Boolean).join(' ')),
       frequencyBin: null,
       rowIndex,
     });
   });
 
+  var missingFRLevel = metrics.filter(function(m) { return !m.volumeLevel; }).length;
+  if (missingFRLevel > 0) evidence.push('其中 ' + missingFRLevel + ' 个频响测点未能提取到音量等级');
   evidence.push(`提取到 ${metrics.length} 个频响相关数值`);
 
   return { frequencyResponseMetrics: metrics, evidence };

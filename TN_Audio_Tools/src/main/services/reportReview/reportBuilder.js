@@ -88,6 +88,11 @@ function generateReviewReport(reviewResult) {
         status: checkResult.status,
         issues: checkResult.issues || [],
         evidence: checkResult.evidence || [],
+        logs: checkResult.logs || [],
+        checklist: checkResult.checklist || [],
+        chartData: checkResult.chartData || {},
+        conclusion: checkResult.conclusion || '',
+        rawFindings: checkResult.rawFindings || [],
         data: (() => {
           if (key === 'tableOfContents') return { chapters: checkResult.chapters };
           if (key === 'engineers') return { engineers: checkResult.engineers };

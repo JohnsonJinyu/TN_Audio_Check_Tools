@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, App as AntdApp, Button, Card, Col, Divider, Form, Input, Progress, Row, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
+import { Alert, App as AntdApp, Button, Collapse, Descriptions, Divider, Dropdown, Form, Input, Progress, Radio, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
 import '../styles/pages.css';
 
 function SettingSection({ title, description, children, extra = null }) {
@@ -20,7 +20,8 @@ function SettingSection({ title, description, children, extra = null }) {
 const fallbackSettings = {
   appearance: {
     theme: 'light',
-    language: 'zh-cn'
+    language: 'zh-cn',
+    designStyle: 'apple-light'
   },
   system: {
     enableTray: false,
@@ -40,7 +41,7 @@ const fallbackSettings = {
     apiUrl: '',
     apiKey: '',
     model: '',
-    maxImagesPerAnalysis: 4
+    maxImagesPerAnalysis: 12
   }
 };
 const localeMap = {
@@ -90,7 +91,8 @@ function emitAppearancePreview(appearance) {
   window.dispatchEvent(new CustomEvent(APPEARANCE_PREVIEW_EVENT, {
     detail: {
       theme: appearance.theme || fallbackSettings.appearance.theme,
-      language: appearance.language || fallbackSettings.appearance.language
+      language: appearance.language || fallbackSettings.appearance.language,
+      designStyle: appearance.designStyle || fallbackSettings.appearance.designStyle
     }
   }));
 }
@@ -409,39 +411,48 @@ function Settings() {
     }
   };
 
-  return (
-    <div className="page-container">
-      <Card title="应用设置">
-        {!hasSettingsBridge ? (
-          <Alert
-            style={{ marginBottom: 16 }}
-            type="warning"
-            showIcon
-            message="当前未检测到桌面端设置桥接。"
-            description="设置页已进入安全降级模式，因此不会因为 preload 注入缺失而直接崩溃。可继续查看页面，但设置保存、目录选择、缓存清理和在线更新会受限。"
-          />
-        ) : null}
-        <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
-          <div className="settings-action-bar">
-            <div className="settings-action-bar__meta">
-              <div className="settings-action-bar__title">个性化设置</div>
-              <Typography.Text className="settings-action-bar__status" type={autoSaveMessage.includes('失败') ? 'danger' : 'secondary'}>
-                {saving ? '正在保存...' : autoSaveMessage}
-              </Typography.Text>
-            </div>
-            <Space wrap>
-              <Button onClick={handleResetSettings} loading={saving}>
-                恢复默认
-              </Button>
-              <Button danger onClick={handleClearCache} loading={clearingCache}>
-                清除缓存
-              </Button>
-            </Space>
-          </div>
+  const handleTestConnection = async () => {
+    const apiUrl = form.getFieldValue(['llm', 'apiUrl']) || '';
+    const apiKey = form.getFieldValue(['llm', 'apiKey']) || '';
+    const model = form.getFieldValue(['llm', 'model']) || '';
+    if (!apiUrl || !apiKey) {
+      message.warning('请先填写API地址和Key');
+      return;
+    }
+    message.loading({ content: '正在测试连接...', key: 'llm-test', duration: 0 });
+    try {
+      const res = await window.electron.reportReview.testLlmConnection({ apiUrl, apiKey, model });
+      if (res.ok) {
+        message.success({ content: res.message, key: 'llm-test' });
+      } else {
+        message.error({ content: res.message, key: 'llm-test', duration: 8 });
+      }
+    } catch (e) {
+      message.error({ content: '测试失败: ' + (e.message || '未知错误'), key: 'llm-test', duration: 8 });
+    }
+  };
 
+  return (
+    <div className="page-container settings-page">
+      <div className="settings-page-header">
+        <h2 className="settings-page-title">应用设置</h2>
+        <p className="settings-page-subtitle">管理外观、文件输出、AI集成和更新偏好。更改将自动保存。</p>
+      </div>
+
+      {!hasSettingsBridge ? (
+        <Alert
+          style={{ marginBottom: 20 }}
+          type="warning"
+          showIcon
+          message="当前未检测到桌面端设置桥接。"
+          description="设置页已进入安全降级模式，因此不会因为 preload 注入缺失而直接崩溃。可继续查看页面，但设置保存、目录选择、缓存清理和在线更新会受限。"
+        />
+      ) : null}
+
+      <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
           <SettingSection
             title="外观与系统"
-            description="管理主题、语言和桌面驻留行为。主题会即时切换，语言当前主要影响组件本地化和时间格式。"
+            description="管理主题、设计风格、语言和桌面驻留行为。更改即时生效。"
           >
             <div className="settings-grid settings-grid--two">
               <div className="settings-grid__cell">
@@ -468,39 +479,38 @@ function Settings() {
               </div>
             </div>
 
-            <Alert
-              type="info"
-              showIcon
-              message="主题会立即切换。页面文案目前仍以中文为主，语言设置主要作用于组件文案和日期时间格式。"
-            />
+            <Form.Item label="设计风格" name={['appearance', 'designStyle']}>
+              <Radio.Group optionType="button" buttonStyle="solid">
+                <Radio.Button value="apple-light">Apple Light</Radio.Button>
+                <Radio.Button value="elevenlabs">ElevenLabs</Radio.Button>
+                <Radio.Button value="linear">Linear</Radio.Button>
+                <Radio.Button value="claude">Claude</Radio.Button>
+                <Radio.Button value="vercel">Vercel</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
 
-            <div className="settings-grid settings-grid--two">
-              <div className="settings-switch-card">
-                <div className="settings-switch-card__header">
-                  <div>
-                    <div className="settings-switch-card__title">启用系统托盘</div>
-                    <div className="settings-switch-card__description">最小化或关闭时允许应用继续驻留后台。</div>
-                  </div>
-                  <Form.Item name={['system', 'enableTray']} valuePropName="checked" className="settings-switch-card__control">
-                    <Switch />
-                  </Form.Item>
+            <div className="settings-switch-list">
+              <div className="settings-switch-row">
+                <div className="settings-switch-row__text">
+                  <div className="settings-switch-row__title">启用系统托盘</div>
+                  <div className="settings-switch-row__description">最小化或关闭时允许应用继续驻留后台。</div>
                 </div>
+                <Form.Item name={['system', 'enableTray']} valuePropName="checked" className="settings-switch-row__control">
+                  <Switch />
+                </Form.Item>
               </div>
-
-              <div className="settings-switch-card">
-                <div className="settings-switch-card__header">
-                  <div>
-                    <div className="settings-switch-card__title">开启时最小化到托盘</div>
-                    <div className="settings-switch-card__description">启用系统托盘后，启动应用时直接进入后台托盘。</div>
-                  </div>
-                  <Form.Item
-                    name={['system', 'launchMinimizedToTray']}
-                    valuePropName="checked"
-                    className="settings-switch-card__control"
-                  >
-                    <Switch disabled={!trayEnabled} />
-                  </Form.Item>
+              <div className="settings-switch-row">
+                <div className="settings-switch-row__text">
+                  <div className="settings-switch-row__title">开启时最小化到托盘</div>
+                  <div className="settings-switch-row__description">启用系统托盘后，启动应用时直接进入后台托盘。</div>
                 </div>
+                <Form.Item
+                  name={['system', 'launchMinimizedToTray']}
+                  valuePropName="checked"
+                  className="settings-switch-row__control"
+                >
+                  <Switch disabled={!trayEnabled} />
+                </Form.Item>
               </div>
             </div>
           </SettingSection>
@@ -569,96 +579,90 @@ function Settings() {
               message="当前阶段先完成偏好沉淀，后续新增音频导出链路时会直接复用这里的设置。"
             />
 
-            <Form.Item label="默认输出格式" name={['audio', 'defaultOutputFormat']}>
-              <Select
-                options={[
-                  { label: 'MP3', value: 'mp3' },
-                  { label: 'WAV', value: 'wav' },
-                  { label: 'FLAC', value: 'flac' },
-                  { label: 'AAC', value: 'aac' }
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item label="默认比特率 (kbps)" name={['audio', 'defaultBitrate']}>
-              <Select
-                options={[
-                  { label: '128', value: '128' },
-                  { label: '192', value: '192' },
-                  { label: '256', value: '256' },
-                  { label: '320', value: '320' }
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item label="默认采样率" name={['audio', 'defaultSampleRate']}>
-              <Select
-                options={[
-                  { label: '保持原采样率', value: 'original' },
-                  { label: '44.1 kHz', value: '44100' },
-                  { label: '48 kHz', value: '48000' },
-                  { label: '96 kHz', value: '96000' }
-                ]}
-              />
-            </Form.Item>
+            <div className="settings-grid settings-grid--two">
+              <div className="settings-grid__cell">
+                <Form.Item label="默认输出格式" name={['audio', 'defaultOutputFormat']}>
+                  <Select
+                    options={[
+                      { label: 'MP3', value: 'mp3' },
+                      { label: 'WAV', value: 'wav' },
+                      { label: 'FLAC', value: 'flac' },
+                      { label: 'AAC', value: 'aac' }
+                    ]}
+                  />
+                </Form.Item>
+              </div>
+              <div className="settings-grid__cell">
+                <Form.Item label="默认比特率 (kbps)" name={['audio', 'defaultBitrate']}>
+                  <Select
+                    options={[
+                      { label: '128', value: '128' },
+                      { label: '192', value: '192' },
+                      { label: '256', value: '256' },
+                      { label: '320', value: '320' }
+                    ]}
+                  />
+                </Form.Item>
+              </div>
+              <div className="settings-grid__cell">
+                <Form.Item label="默认采样率" name={['audio', 'defaultSampleRate']}>
+                  <Select
+                    options={[
+                      { label: '保持原采样率', value: 'original' },
+                      { label: '44.1 kHz', value: '44100' },
+                      { label: '48 kHz', value: '48000' },
+                      { label: '96 kHz', value: '96000' }
+                    ]}
+                  />
+                </Form.Item>
+              </div>
+            </div>
           </SettingSection>
 
           <SettingSection
             title="AI 图表分析"
-            description="利用大模型视觉能力分析报告中的频率响应曲线图表，验证响度与频响趋势是否一致。需要配置公司内部API凭据。"
+            description="利用大模型视觉能力分析报告中的频率响应曲线图表，验证响度与频响趋势是否一致。需配置公司内部API凭据。API Key仅存储在本地，不会上传至任何第三方。"
           >
-            <Form.Item label="启用AI图表分析" name={['llm', 'enabled']} valuePropName="checked">
-              <Switch />
-            </Form.Item>
-            <div style={{ color: 'var(--text-light)', fontSize: 12, marginTop: -16, marginBottom: 16 }}>
-              开启后，在审查详情中可手动触发AI图表验证
+            <div className="settings-switch-list" style={{ marginBottom: 20 }}>
+              <div className="settings-switch-row">
+                <div className="settings-switch-row__text">
+                  <div className="settings-switch-row__title">启用 AI 图表分析</div>
+                  <div className="settings-switch-row__description">开启后，在审查详情中可手动触发 AI 图表验证。</div>
+                </div>
+                <Form.Item name={['llm', 'enabled']} valuePropName="checked" className="settings-switch-row__control">
+                  <Switch />
+                </Form.Item>
+              </div>
             </div>
-            <Form.Item label="API 地址" name={['llm', 'apiUrl']}>
-              <Input placeholder="https://llm.your-company.com" />
-            </Form.Item>
-            <Form.Item label="API Key" name={['llm', 'apiKey']}>
-              <Input.Password placeholder="sk-..." addonAfter={
-                <Button type="link" size="small" style={{ padding: 0 }} onClick={async function() {
-                  var apiUrl = form.getFieldValue(['llm', 'apiUrl']) || '';
-                  var apiKey = form.getFieldValue(['llm', 'apiKey']) || '';
-                  var model = form.getFieldValue(['llm', 'model']) || '';
-                  if (!apiUrl || !apiKey) { message.warning('请先填写API地址和Key'); return; }
-                  message.loading({ content: '正在测试连接...', key: 'llm-test', duration: 0 });
-                  try {
-                    var res = await window.electron.reportReview.testLlmConnection({ apiUrl, apiKey, model });
-                    if (res.ok) { message.success({ content: res.message, key: 'llm-test' }); }
-                    else { message.error({ content: res.message, key: 'llm-test', duration: 8 }); }
-                  } catch(e) { message.error({ content: '测试失败: ' + (e.message || '未知错误'), key: 'llm-test', duration: 8 }); }
-                }}>测试连接</Button>
-              } />
-            </Form.Item>
-            <Form.Item label="模型名称" name={['llm', 'model']}>
-              <Input placeholder="claude-sonnet-4-20250514" />
-            </Form.Item>
-            <Form.Item label="单次最大图片数" name={['llm', 'maxImagesPerAnalysis']}>
-              <Select
-                options={[
-                  { label: '2 张', value: 2 },
-                  { label: '4 张', value: 4 },
-                  { label: '6 张', value: 6 },
-                  { label: '8 张', value: 8 }
-                ]}
-              />
-            </Form.Item>
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginTop: 8 }}
-              message="API Key 仅存储在本地，不会上传至任何第三方。启用后审查报告时自动调用AI分析图表（仅当检测到响度/频响曲线图时）。"
-            />
+
+            <div className="settings-grid settings-grid--two">
+              <div className="settings-grid__cell settings-grid__cell--full">
+                <Form.Item label="API 地址" name={['llm', 'apiUrl']}>
+                  <Input placeholder="https://llm.your-company.com" />
+                </Form.Item>
+              </div>
+              <div className="settings-grid__cell settings-grid__cell--full">
+                <Form.Item label="API Key" name={['llm', 'apiKey']}>
+                  <Input.Password placeholder="sk-..." />
+                </Form.Item>
+              </div>
+              <div className="settings-grid__cell settings-grid__cell--full">
+                <Button onClick={handleTestConnection}>测试连接</Button>
+              </div>
+              <div className="settings-grid__cell">
+                <Form.Item label="模型名称" name={['llm', 'model']}>
+                  <Input placeholder="claude-sonnet-4-20250514" />
+                </Form.Item>
+              </div>
+            </div>
+
           </SettingSection>
 
           <SettingSection
             title="版本更新"
             description="查看当前版本状态，手动触发检查、下载和安装。国内网络较慢时，可优先使用镜像下载在浏览器中获取安装包。"
           >
-            <Card type="inner" className="settings-update-card">
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Space direction="vertical" size={20} style={{ width: '100%' }}>
               <div className="settings-update-header">
                 <div>
                   <div className="settings-update-label">当前状态</div>
@@ -680,19 +684,13 @@ function Settings() {
                   >
                     检查更新
                   </Button>
-                  <Button
-                    onClick={handleDownloadUpdate}
-                    loading={downloadingManually || currentStatus === 'downloading'}
-                    disabled={!canDownload}
-                  >
-                    应用内下载
-                  </Button>
-                  <Button onClick={handleOpenExternalDownload} disabled={!canOpenExternalDownload}>
-                    镜像下载
-                  </Button>
-                  <Button type="primary" ghost onClick={handleInstallUpdate} disabled={!canInstall}>
-                    重启安装
-                  </Button>
+                  <Dropdown menu={{ items: [
+                    { key: 'download', label: '应用内下载', disabled: !canDownload, onClick: handleDownloadUpdate },
+                    { key: 'mirror', label: '镜像下载', disabled: !canOpenExternalDownload, onClick: handleOpenExternalDownload },
+                    { key: 'install', label: '重启安装', disabled: !canInstall, onClick: handleInstallUpdate }
+                  ]}}>
+                    <Button>更多操作</Button>
+                  </Dropdown>
                 </Space>
               </div>
 
@@ -704,35 +702,11 @@ function Settings() {
                 />
               ) : null}
 
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Card size="small" className="settings-update-metric">
-                    <div className="settings-update-label">最近检查</div>
-                    <strong>{formatDateTime(updateState?.lastCheckedAt, selectedLanguage)}</strong>
-                    <div className="settings-update-hint">
-                      {updateState?.lastCheckSource === 'manual'
-                        ? '手动检查'
-                        : updateState?.lastCheckSource === 'auto'
-                          ? '启动自动检查'
-                          : '暂无记录'}
-                    </div>
-                  </Card>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Card size="small" className="settings-update-metric">
-                    <div className="settings-update-label">目标版本</div>
-                    <strong>{updateState?.latestVersion ? `v${updateState.latestVersion}` : '暂无'}</strong>
-                    <div className="settings-update-hint">{updateState?.releaseName || '等待新版本信息'}</div>
-                  </Card>
-                </Col>
-                <Col xs={24} md={8}>
-                  <Card size="small" className="settings-update-metric">
-                    <div className="settings-update-label">最近下载</div>
-                    <strong>{formatDateTime(updateState?.lastDownloadedAt, selectedLanguage)}</strong>
-                    <div className="settings-update-hint">仅安装版支持在线更新</div>
-                  </Card>
-                </Col>
-              </Row>
+              <Descriptions size="small" column={3} bordered style={{ marginTop: 16 }}>
+                <Descriptions.Item label="最近检查">{formatDateTime(updateState?.lastCheckedAt, selectedLanguage)}</Descriptions.Item>
+                <Descriptions.Item label="目标版本">{updateState?.latestVersion ? `v${updateState.latestVersion}` : '暂无'}</Descriptions.Item>
+                <Descriptions.Item label="最近下载">{formatDateTime(updateState?.lastDownloadedAt, selectedLanguage)}</Descriptions.Item>
+              </Descriptions>
 
               {currentStatus === 'downloading' ? (
                 <div>
@@ -750,43 +724,29 @@ function Settings() {
                   message="下载加速建议"
                   description={
                     updateState?.externalDownloadUrl
-                      ? `如果应用内下载速度偏慢，可点击“镜像下载”并使用浏览器直接下载 ${updateState?.assetName || '安装包'}。当前镜像源：${updateState?.mirrorName || '自定义镜像'}。`
-                      : '如果应用内下载速度偏慢，可点击“镜像下载”在浏览器中打开发布页。'
+                      ? '如果应用内下载速度偏慢，可从更多操作菜单选择镜像下载，使用浏览器直接下载 ' + (updateState?.assetName || '安装包') + '。'
+                      : '如果应用内下载速度偏慢，可通过更多操作菜单选择镜像下载，在浏览器中打开发布页。'
                   }
                 />
               ) : null}
 
               {releaseNotes ? (
-                <Alert
-                  type="info"
-                  showIcon
-                  message="版本说明"
-                  description={<div className="settings-update-release-notes">{releaseNotes}</div>}
-                />
+                <Collapse items={[{ key: 'release-notes', label: '版本说明', children: <div className="settings-update-release-notes">{releaseNotes}</div> }]} />
               ) : null}
             </Space>
-            </Card>
           </SettingSection>
 
           <SettingSection
             title="关于应用"
             description="查看当前桌面端版本、构建时间和项目来源信息。"
           >
-            <Row gutter={16}>
-              <Col xs={24} md={12}>
-                <Card type="inner">
-                  <p><strong>应用名称：</strong>TN Audio Toolkit</p>
-                  <p><strong>版本：</strong>{appVersion || '读取中'}</p>
-                  <p><strong>构建日期：</strong>2026-03-24</p>
-                </Card>
-              </Col>
-              <Col xs={24} md={12}>
-                <Card type="inner">
-                  <p><strong>开发者：</strong>JohnsonJinyu</p>
-                  <p><strong>仓库：</strong>TN_Audio_Check_Tools</p>
-                </Card>
-              </Col>
-            </Row>
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="应用名称">TN Audio Toolkit</Descriptions.Item>
+              <Descriptions.Item label="版本">{appVersion || '读取中'}</Descriptions.Item>
+              <Descriptions.Item label="构建日期">2026-03-24</Descriptions.Item>
+              <Descriptions.Item label="开发者">JohnsonJinyu</Descriptions.Item>
+              <Descriptions.Item label="仓库">TN_Audio_Check_Tools</Descriptions.Item>
+            </Descriptions>
           </SettingSection>
 
           {!appSettings ? (
@@ -795,16 +755,23 @@ function Settings() {
             </div>
           ) : null}
 
-          <Space direction="vertical" size={4} style={{ marginTop: 16 }}>
+          <div className="settings-footer">
+            <Space wrap>
+              <Button onClick={handleResetSettings} loading={saving}>
+                恢复默认
+              </Button>
+              <Button danger onClick={handleClearCache} loading={clearingCache}>
+                清除缓存
+              </Button>
+            </Space>
             <Typography.Text type="secondary">
-              当前生效主题：{effectiveSettings.appearance.theme === 'auto' ? '跟随系统' : effectiveSettings.appearance.theme}
+              {autoSaveMessage.includes('失败') ? autoSaveMessage : ''}
+              &ensp;{effectiveSettings.appearance.theme === 'auto' ? '主题：跟随系统' : `主题：${effectiveSettings.appearance.theme}`}
+              &ensp;·&ensp;设计风格：{effectiveSettings.appearance.designStyle || 'elevenlabs'}
+              &ensp;·&ensp;并发：{effectiveSettings.files.maxConcurrentTasks}
             </Typography.Text>
-            <Typography.Text type="secondary">
-              当前默认并发：{effectiveSettings.files.maxConcurrentTasks}
-            </Typography.Text>
-          </Space>
+          </div>
         </Form>
-      </Card>
     </div>
   );
 }

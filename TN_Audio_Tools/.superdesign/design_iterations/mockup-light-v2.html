@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TN Audio Tools — 效果图 v2 · Light Precision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ─────────────────────────────────────────────
+   DESIGN TOKENS
+───────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-canvas:     #f0f3f7;
+  --bg-surface:    #ffffff;
+  --bg-card:       #ffffff;
+  --bg-hover:      #f6f8fb;
+  --bg-input:      #f8fafc;
+
+  /* Borders */
+  --border-subtle: #e8edf3;
+  --border-mid:    #d4dce8;
+  --border-strong: #b8c4d4;
+
+  /* Text */
+  --text-primary:  #0f1929;
+  --text-body:     #3d5166;
+  --text-muted:    #7a92ab;
+  --text-faint:    #a8bccf;
+
+  /* Accents */
+  --teal:          #0d9488;
+  --teal-light:    #e0f5f3;
+  --teal-mid:      #99e2db;
+  --teal-dark:     #0a7a70;
+
+  --violet:        #7c3aed;
+  --violet-light:  #ede9fe;
+
+  --amber:         #d97706;
+  --amber-light:   #fef3c7;
+  --amber-mid:     #fcd34d;
+
+  --green:         #059669;
+  --green-light:   #d1fae5;
+  --green-mid:     #6ee7b7;
+
+  --red:           #dc2626;
+  --red-light:     #fee2e2;
+
+  --sky:           #0284c7;
+  --sky-light:     #e0f2fe;
+
+  /* Font */
+  --font-ui:   'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Radius */
+  --r-sm:  4px;
+  --r-md:  8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  /* Sidebar */
+  --sidebar-w: 228px;
+  --header-h:  52px;
+
+  --shadow-sm: 0 1px 3px rgba(15,25,41,0.06), 0 1px 2px rgba(15,25,41,0.04);
+  --shadow-md: 0 4px 12px rgba(15,25,41,0.08), 0 2px 4px rgba(15,25,41,0.04);
+
+  --trans: 0.15s ease;
+}
+
+/* ─────────────────────────────────────────────
+   RESET
+───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; font-family: var(--font-ui);
+  font-size: 14px; line-height: 1.5;
+  background: var(--bg-canvas); color: var(--text-primary);
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────
+   APP SHELL
+───────────────────────────────────────────── */
+#app { display: flex; height: 100vh; width: 100vw; }
+
+/* ─────────────────────────────────────────────
+   SIDEBAR
+───────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+}
+
+.sidebar-brand {
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.brand-mark {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, var(--teal) 0%, var(--violet) 100%);
+  border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(13,148,136,0.3);
+}
+.brand-mark svg { width: 14px; height: 14px; color: #fff; }
+.brand-text { flex: 1; }
+.brand-name {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 700;
+  color: var(--text-primary); display: block;
+}
+.brand-ver {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-muted);
+}
+
+/* Nav */
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+.nav-group-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 12px 16px 4px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px 8px 14px;
+  margin: 1px 8px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--text-body);
+  font-size: 13px; font-weight: 500;
+  transition: all var(--trans);
+  position: relative;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+}
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  border-color: var(--teal-mid);
+}
+.nav-icon {
+  width: 16px; height: 16px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.7;
+}
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-icon svg { width: 15px; height: 15px; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--amber); color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 9999px;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.status-row { display: flex; align-items: center; gap: 8px; }
+.pulse-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px var(--green-light);
+  animation: breathe 2.2s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,100% { opacity: 1; box-shadow: 0 0 0 2px var(--green-light); }
+  50%      { opacity: 0.7; box-shadow: 0 0 0 4px var(--green-light); }
+}
+.status-text { font-size: 12px; color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────
+   MAIN
+───────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* Header */
+.header {
+  height: var(--header-h);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 12px;
+  flex-shrink: 0; box-shadow: var(--shadow-sm);
+}
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-muted);
+}
+.breadcrumb .sep { color: var(--border-strong); }
+.breadcrumb .cur { color: var(--text-primary); font-weight: 600; }
+
+/* mini waveform */
+.waveform {
+  display: flex; align-items: center; gap: 2px; height: 20px;
+  margin-left: auto; opacity: 0.5;
+}
+.waveform .wb {
+  width: 2px; border-radius: 1px;
+  background: var(--teal);
+  animation: wv 1.4s ease-in-out infinite;
+}
+.waveform .wb:nth-child(1){height:4px; animation-delay:0s}
+.waveform .wb:nth-child(2){height:10px;animation-delay:.1s}
+.waveform .wb:nth-child(3){height:16px;animation-delay:.2s}
+.waveform .wb:nth-child(4){height:20px;animation-delay:.3s}
+.waveform .wb:nth-child(5){height:12px;animation-delay:.4s}
+.waveform .wb:nth-child(6){height:7px; animation-delay:.5s}
+.waveform .wb:nth-child(7){height:14px;animation-delay:.6s}
+.waveform .wb:nth-child(8){height:9px; animation-delay:.7s}
+@keyframes wv {
+  0%,100%{transform:scaleY(.55)} 50%{transform:scaleY(1)}
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: var(--r-md);
+  font-size: 13px; font-weight: 500; font-family: var(--font-ui);
+  cursor: pointer; transition: all var(--trans);
+  border: 1px solid transparent; white-space: nowrap;
+  line-height: 1; user-select: none;
+}
+.btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.btn-primary {
+  background: var(--teal); color: #fff; border-color: var(--teal-dark);
+  box-shadow: 0 1px 4px rgba(13,148,136,0.25);
+}
+.btn-primary:hover { background: var(--teal-dark); }
+.btn-ghost {
+  background: transparent; color: var(--text-body);
+  border-color: var(--border-mid);
+}
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-strong); }
+.btn-danger {
+  background: var(--red-light); color: var(--red);
+  border-color: #fca5a5;
+}
+.btn-danger:hover { background: #fecaca; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* Content area */
+.content {
+  flex: 1; overflow-y: auto;
+  padding: 24px; display: flex; flex-direction: column; gap: 20px;
+}
+
+/* Page display control */
+.page { display: none; flex-direction: column; gap: 20px; }
+.page.visible { display: flex; }
+
+/* ─────────────────────────────────────────────
+   SHARED COMPONENTS
+───────────────────────────────────────────── */
+
+/* Page header */
+.page-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+.page-sub { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+.card-header-icon {
+  width: 28px; height: 28px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.card-header-icon svg { width: 14px; height: 14px; }
+.card-header-icon.teal   { background: var(--teal-light);   color: var(--teal); }
+.card-header-icon.violet { background: var(--violet-light); color: var(--violet); }
+.card-header-icon.amber  { background: var(--amber-light);  color: var(--amber); }
+.card-header-icon.green  { background: var(--green-light);  color: var(--green); }
+.card-header-icon.sky    { background: var(--sky-light);    color: var(--sky); }
+.card-header-icon.red    { background: var(--red-light);    color: var(--red); }
+
+.card-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.card-meta  { margin-left: auto; font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* Alert banner */
+.alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+}
+.alert svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.alert-warn {
+  background: var(--amber-light); color: #92400e;
+  border: 1px solid var(--amber-mid);
+}
+.alert-info {
+  background: var(--sky-light); color: #075985;
+  border: 1px solid #bae6fd;
+}
+.alert-error {
+  background: var(--red-light); color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* Badge */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; font-family: var(--font-mono);
+  padding: 2px 8px; border-radius: var(--r-sm);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.badge-pass   { background: var(--green-light); color: var(--green); }
+.badge-fail   { background: var(--red-light);   color: var(--red); }
+.badge-warn   { background: var(--amber-light); color: var(--amber); }
+.badge-review { background: var(--sky-light);   color: var(--sky); }
+
+/* Tab bar */
+.tabs {
+  display: flex; background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md); padding: 3px; width: fit-content;
+}
+.tab {
+  padding: 5px 16px; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); border-radius: 6px;
+  cursor: pointer; transition: all var(--trans); white-space: nowrap;
+  user-select: none;
+}
+.tab:hover { color: var(--text-body); }
+.tab.active {
+  background: var(--bg-surface); color: var(--teal-dark);
+  font-weight: 600; box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Section divider */
+.section-lbl {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 10px;
+}
+.section-lbl::after {
+  content: ''; flex: 1; height: 1px; background: var(--border-subtle);
+}
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead th {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted);
+  padding: 9px 16px; text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-canvas);
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer; transition: background var(--trans);
+}
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--bg-hover); }
+.data-table td {
+  padding: 10px 16px; font-size: 12px; color: var(--text-body);
+  vertical-align: middle;
+}
+.td-mono { font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); }
+.td-file { font-family: var(--font-mono); font-size: 11px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+/* Progress bar */
+.prog-bar { height: 6px; background: var(--border-subtle); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+/* Upload zone */
+.upload-zone {
+  border: 1.5px dashed var(--border-mid);
+  border-radius: var(--r-lg); padding: 28px;
+  text-align: center; cursor: pointer;
+  background: var(--bg-input);
+  transition: all var(--trans);
+  position: relative; overflow: hidden;
+}
+.upload-zone:hover {
+  border-color: var(--teal-mid);
+  background: var(--teal-light);
+}
+.upload-icon-box {
+  width: 44px; height: 44px; margin: 0 auto 12px;
+  background: var(--bg-surface); border: 1px solid var(--border-mid);
+  border-radius: var(--r-lg);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--teal); box-shadow: var(--shadow-sm);
+}
+.upload-icon-box svg { width: 20px; height: 20px; }
+.upload-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.upload-sub { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* Check item */
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.check-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md); padding: 11px 14px;
+  transition: all var(--trans);
+}
+.check-item:hover { border-color: var(--border-mid); box-shadow: var(--shadow-sm); }
+.check-status-dot {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.check-status-dot svg { width: 11px; height: 11px; }
+.check-status-dot.pass   { background: var(--green-light); color: var(--green); }
+.check-status-dot.fail   { background: var(--red-light);   color: var(--red); }
+.check-status-dot.warn   { background: var(--amber-light); color: var(--amber); }
+.check-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.check-detail { font-size: 11px; color: var(--text-muted); margin-top: 3px; font-family: var(--font-mono); }
+
+/* Form elements */
+.field-group { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-size: 11px; font-weight: 600; color: var(--text-body); letter-spacing: 0.04em; }
+.field-input {
+  background: var(--bg-input); border: 1px solid var(--border-mid);
+  border-radius: var(--r-md); padding: 8px 12px;
+  font-size: 13px; color: var(--text-primary); font-family: var(--font-ui);
+  outline: none; width: 100%; transition: border-color var(--trans);
+}
+.field-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(13,148,136,0.12); }
+.field-input::placeholder { color: var(--text-faint); }
+.field-select {
+  background: var(--bg-input); border: 1px solid var(--border-mid);
+  border-radius: var(--r-md); padding: 8px 12px;
+  font-size: 13px; color: var(--text-primary); font-family: var(--font-ui);
+  outline: none; cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a92ab' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 30px; width: 100%;
+}
+.field-select:focus { border-color: var(--teal); }
+
+/* Toggle switch */
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
+}
+.toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.toggle-info { flex: 1; }
+.toggle-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+.toggle-desc { font-size: 12px; color: var(--text-muted); }
+
+.switch {
+  position: relative; display: inline-block;
+  width: 40px; height: 22px; flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch-slider {
+  position: absolute; inset: 0;
+  background: var(--border-strong); border-radius: 11px;
+  cursor: pointer; transition: background var(--trans);
+}
+.switch-slider::before {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%;
+  transition: transform var(--trans);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.switch input:checked + .switch-slider { background: var(--teal); }
+.switch input:checked + .switch-slider::before { transform: translateX(18px); }
+
+/* Settings section */
+.settings-section {
+  background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.settings-section-hd {
+  padding: 14px 20px; border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  display: flex; align-items: center; gap: 10px;
+}
+.settings-section-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.settings-section-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.settings-section-body { padding: 16px 20px; }
+
+/* Version info card */
+.version-card {
+  background: linear-gradient(135deg, var(--teal-light) 0%, var(--violet-light) 100%);
+  border: 1px solid var(--teal-mid); border-radius: var(--r-lg);
+  padding: 20px; display: flex; align-items: center; gap: 16px;
+}
+
+/* Spectrum bars */
+.spectrum-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 80px;
+  padding: 0 4px;
+}
+.sb {
+  flex: 1; min-width: 4px;
+  background: linear-gradient(to top, var(--teal), rgba(13,148,136,0.3));
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Util */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+.col-2  { display: grid; grid-template-columns: 1fr 320px; gap: 12px; }
+.flex   { display: flex; }
+.flex-center { display: flex; align-items: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.gap-6  { gap: 6px; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.divider { width: 1px; height: 100%; background: var(--border-subtle); }
+.divider-h { width: 100%; height: 1px; background: var(--border-subtle); margin: 16px 0; }
+.text-mono { font-family: var(--font-mono); }
+.text-muted { color: var(--text-muted); }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.p-16 { padding: 16px; }
+.p-20 { padding: 20px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12 Q6 4 12 12 Q18 20 22 12"/><circle cx="12" cy="12" r="2" fill="white" stroke="none"/></svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">TN_Audio</span>
+      <span class="brand-ver">Tools v2.0</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group-label">主功能</div>
+    <div class="nav-item active" data-page="dashboard">
+      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>总览面板
+    </div>
+    <div class="nav-item" data-page="review">
+      <span class="nav-icon"><i data-lucide="file-search"></i></span>报告审查
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-item" data-page="extract">
+      <span class="nav-icon"><i data-lucide="table-2"></i></span>数据提取
+    </div>
+
+    <div class="nav-group-label">工具</div>
+    <div class="nav-item" data-page="spectrum">
+      <span class="nav-icon"><i data-lucide="activity"></i></span>频谱分析
+    </div>
+
+    <div class="nav-group-label">系统</div>
+    <div class="nav-item" data-page="settings">
+      <span class="nav-icon"><i data-lucide="settings-2"></i></span>设置
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="status-row">
+      <div class="pulse-dot"></div>
+      <span class="status-text">AI 引擎就绪</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ══════════ MAIN ══════════ -->
+<div class="main">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="breadcrumb">
+      <span>TN_Audio</span>
+      <span class="sep">/</span>
+      <span class="cur" id="bc">总览面板</span>
+    </div>
+    <div class="waveform">
+      <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+      <div class="wb"></div><div class="wb"></div><div class="wb"></div>
+      <div class="wb"></div><div class="wb"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="hdr-btn-open" style="margin-left:12px;">
+      <i data-lucide="folder-open"></i>打开报告
+    </button>
+    <button class="btn btn-primary btn-sm" id="hdr-btn-start">
+      <i data-lucide="zap"></i>开始审查
+    </button>
+  </header>
+
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- ═══════ DASHBOARD ═══════ -->
+    <div class="page visible" id="page-dashboard">
+
+      <div class="page-hd">
+        <div>
+          <div class="page-title">总览面板</div>
+          <div class="page-sub">最后同步 · 2026-05-15 14:32:07 &nbsp;·&nbsp; 数据来自本地存储</div>
+        </div>
+        <button class="btn btn-ghost btn-sm">
+          <i data-lucide="refresh-cw"></i>刷新
+        </button>
+      </div>
+
+      <!-- Alert -->
+      <div class="alert alert-warn">
+        <i data-lucide="alert-triangle"></i>
+        <span>检测到 <strong>3 份报告</strong>存在时序顺序异常，建议优先进入「报告审查」处理。</span>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid-4">
+        <!-- Stat 1 -->
+        <div class="card" style="position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--teal);"></div>
+          <div class="p-16">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">累计审查</div>
+              <div class="card-header-icon teal" style="width:32px;height:32px;"><i data-lucide="file-text"></i></div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--text-primary);line-height:1;">142</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
+              <span style="color:var(--green);font-weight:600;">↑ 12</span> 本周新增
+            </div>
+          </div>
+        </div>
+        <!-- Stat 2 -->
+        <div class="card" style="position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--green);"></div>
+          <div class="p-16">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">通过率</div>
+              <div class="card-header-icon green" style="width:32px;height:32px;"><i data-lucide="trending-up"></i></div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--green);line-height:1;">87<span style="font-size:18px;font-weight:400;color:var(--text-muted);">%</span></div>
+            <div style="margin-top:8px;">
+              <div class="prog-bar"><div class="prog-fill" style="width:87%;background:var(--green);"></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- Stat 3 -->
+        <div class="card" style="position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--amber);"></div>
+          <div class="p-16">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">待处理异常</div>
+              <div class="card-header-icon amber" style="width:32px;height:32px;"><i data-lucide="alert-circle"></i></div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--amber);line-height:1;">3</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">需人工复核</div>
+          </div>
+        </div>
+        <!-- Stat 4 -->
+        <div class="card" style="position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--violet);"></div>
+          <div class="p-16">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">数据提取批次</div>
+              <div class="card-header-icon violet" style="width:32px;height:32px;"><i data-lucide="database"></i></div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--violet);line-height:1;">38</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">
+              <span style="color:var(--green);font-weight:600;">↑ 5</span> 本周
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two-col: recent reviews + category chart -->
+      <div class="col-2">
+        <!-- Recent reviews -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon teal"><i data-lucide="clock"></i></div>
+            <span class="card-title">近期审查记录</span>
+            <span class="card-meta">最新 5 条</span>
+            <button class="btn btn-ghost btn-sm" style="margin-left:8px;">查看全部</button>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>报告文件名</th>
+                <th>时间</th>
+                <th>状态</th>
+                <th>问题数</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr onclick="gotoPage('review')">
+                <td class="td-file">TMO_VoLTE_AMR_WB_Handset_LAMU26.docx</td>
+                <td class="td-time">05-15 14:02</td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td class="td-mono" style="color:var(--green)">0</td>
+              </tr>
+              <tr onclick="gotoPage('review')">
+                <td class="td-file">Utah_HA_VOLTE_EVS_SWB_0521.docx</td>
+                <td class="td-time">05-15 11:47</td>
+                <td><span class="badge badge-warn">WARN</span></td>
+                <td class="td-mono" style="color:var(--amber)">2</td>
+              </tr>
+              <tr onclick="gotoPage('review')">
+                <td class="td-file">LAMU_HA_WCDMA_AMR_NB_Report.docx</td>
+                <td class="td-time">05-14 16:23</td>
+                <td><span class="badge badge-fail">FAIL</span></td>
+                <td class="td-mono" style="color:var(--red)">5</td>
+              </tr>
+              <tr onclick="gotoPage('review')">
+                <td class="td-file">Utah_HE_NB_Handset_Audio_Report.docx</td>
+                <td class="td-time">05-14 09:11</td>
+                <td><span class="badge badge-pass">PASS</span></td>
+                <td class="td-mono" style="color:var(--green)">0</td>
+              </tr>
+              <tr onclick="gotoPage('review')">
+                <td class="td-file">MOTO_Checklist_VoLTE_WB_Draft.docx</td>
+                <td class="td-time">05-13 17:55</td>
+                <td><span class="badge badge-review">审查中</span></td>
+                <td class="td-mono" style="color:var(--sky)">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Category chart -->
+        <div class="card" style="display:flex;flex-direction:column;">
+          <div class="card-header">
+            <div class="card-header-icon violet"><i data-lucide="bar-chart-2"></i></div>
+            <span class="card-title">分类通过率</span>
+          </div>
+          <div class="p-16 flex-1" style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <div class="flex-between" style="margin-bottom:5px;">
+                <span style="font-size:12px;color:var(--text-body);">文档结构</span>
+                <span class="text-mono" style="font-size:12px;color:var(--teal);font-weight:600;">94%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:94%;background:var(--teal);"></div></div>
+            </div>
+            <div>
+              <div class="flex-between" style="margin-bottom:5px;">
+                <span style="font-size:12px;color:var(--text-body);">元数据完整性</span>
+                <span class="text-mono" style="font-size:12px;color:var(--green);font-weight:600;">88%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:88%;background:var(--green);"></div></div>
+            </div>
+            <div>
+              <div class="flex-between" style="margin-bottom:5px;">
+                <span style="font-size:12px;color:var(--text-body);">时序逻辑</span>
+                <span class="text-mono" style="font-size:12px;color:var(--amber);font-weight:600;">71%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:71%;background:var(--amber);"></div></div>
+            </div>
+            <div>
+              <div class="flex-between" style="margin-bottom:5px;">
+                <span style="font-size:12px;color:var(--text-body);">内容一致性</span>
+                <span class="text-mono" style="font-size:12px;color:var(--violet);font-weight:600;">83%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:83%;background:var(--violet);"></div></div>
+            </div>
+
+            <div class="divider-h"></div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">RLR 频谱预览</div>
+              <div class="spectrum-bars" style="height:56px;">
+                <div class="sb" style="height:32%;"></div><div class="sb" style="height:55%;"></div>
+                <div class="sb" style="height:80%;"></div><div class="sb" style="height:95%;"></div>
+                <div class="sb" style="height:100%;"></div><div class="sb" style="height:85%;"></div>
+                <div class="sb" style="height:68%;"></div><div class="sb" style="height:52%;"></div>
+                <div class="sb" style="height:40%;"></div><div class="sb" style="height:30%;"></div>
+                <div class="sb" style="height:22%;"></div><div class="sb" style="height:18%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dashboard -->
+
+
+    <!-- ═══════ REPORT REVIEW ═══════ -->
+    <div class="page" id="page-review">
+
+      <div class="page-hd">
+        <div>
+          <div class="page-title">报告审查</div>
+          <div class="page-sub">点击或拖拽选择报告 · AI 自动检查结构 / 元数据 / 时序 / 内容一致性</div>
+        </div>
+      </div>
+
+      <!-- ① UPLOAD + FILE SELECTION CARD -->
+      <div class="card">
+        <div class="p-20" style="display:flex;flex-direction:column;gap:14px;">
+
+          <!-- Drop zone -->
+          <div class="upload-zone" style="border-color:#a78bfa;background:#faf8ff;min-height:130px;">
+            <div class="upload-icon-box" style="color:#7c3aed;border-color:#ddd6fe;">
+              <i data-lucide="search"></i>
+            </div>
+            <div class="upload-title">点击或拖拽选择多个文件</div>
+            <div class="upload-sub" style="line-height:1.8;">
+              支持 .doc / .docx / .xlsx &nbsp;·&nbsp; 同名 .docx + .xlsx 文件自动配对，可获得最完整的 17 项检查
+            </div>
+          </div>
+
+          <!-- Warning: legacy .doc detected -->
+          <div class="alert alert-warn" style="font-size:12px;">
+            <i data-lucide="alert-triangle"></i>
+            <div>
+              <strong>检测到 .doc 格式报告</strong> &nbsp;—&nbsp;
+              旧版二进制格式，需本机安装 Microsoft Word 或 WPS 才能获得完整检查能力。建议另存为 .docx 后重新导入。
+            </div>
+          </div>
+
+          <!-- Selected files panel -->
+          <div style="background:#faf8ff;border:1px solid #ddd6fe;border-radius:var(--r-md);padding:14px 16px;">
+            <!-- Header row -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-size:13px;font-weight:600;color:#7c3aed;">
+                ✓ 已选择 &nbsp;1 组配对 &nbsp;+&nbsp; 1 份单独报告
+              </span>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;">清空已选</button>
+            </div>
+
+            <!-- File chips -->
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+              <!-- Paired chip (purple) -->
+              <div style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;border:1px solid #c4b5fd;color:#5b21b6;border-radius:9999px;padding:5px 12px 5px 10px;font-size:12px;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;">
+                <i data-lucide="link" style="width:12px;height:12px;flex-shrink:0;"></i>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">LAMU26_HA_VoLTE_WB</span>
+                <span style="opacity:0.55;font-size:11px;white-space:nowrap;">&nbsp;(.docx + .xlsx)</span>
+                <span style="cursor:pointer;margin-left:2px;opacity:0.5;line-height:1;flex-shrink:0;">×</span>
+              </div>
+              <!-- Solo chip (gray) -->
+              <div style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border:1px solid var(--border-mid);color:var(--text-body);border-radius:9999px;padding:5px 12px 5px 10px;font-size:12px;font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;">
+                <i data-lucide="file-text" style="width:12px;height:12px;flex-shrink:0;"></i>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Utah_HA_EVS_SWB_0521.docx</span>
+                <span style="cursor:pointer;margin-left:2px;opacity:0.5;line-height:1;flex-shrink:0;">×</span>
+              </div>
+            </div>
+
+            <!-- Batch progress bar -->
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:12px;font-weight:500;color:#7c3aed;">正在处理：LAMU26_HA_VoLTE_WB &nbsp;(配对审查)</span>
+                <span class="text-mono" style="font-size:12px;color:var(--text-muted);">1 / 2</span>
+              </div>
+              <div class="prog-bar" style="height:7px;margin-bottom:6px;">
+                <div class="prog-fill" style="width:50%;background:linear-gradient(90deg,var(--teal),#7c3aed);"></div>
+              </div>
+              <div style="display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
+                <span style="color:var(--green);font-weight:500;">成功 1</span>
+                <span>失败 0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Start button row -->
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="btn btn-primary" style="height:46px;padding:0 32px;font-size:15px;font-weight:600;border-radius:10px;background:#7c3aed;border-color:#6d28d9;box-shadow:0 2px 8px rgba(124,58,237,.3);">
+              <i data-lucide="zap"></i>开始审查（2）
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ② REVIEW AREA INFO CARDS -->
+      <div class="section-lbl">审查范围说明</div>
+      <div class="grid-3">
+        <div class="card" style="cursor:pointer;transition:box-shadow var(--trans);" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div class="card-header">
+            <div class="card-header-icon sky"><i data-lucide="file-check-2"></i></div>
+            <span class="card-title">文档完整性审查</span>
+            <span style="margin-left:auto;background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 8px;border-radius:9999px;">Word 审查</span>
+          </div>
+          <div class="p-16" style="font-size:12px;color:var(--text-body);line-height:1.75;">
+            核对 Word 报告章节、附件与必要说明是否齐全。若章节缺失、目录不对应，通常产生警告或复核项。适合收到报告后快速判断是否具备继续分析的条件。
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:box-shadow var(--trans);" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div class="card-header">
+            <div class="card-header-icon violet"><i data-lucide="line-chart"></i></div>
+            <span class="card-title">曲线章节定位</span>
+            <span style="margin-left:auto;background:var(--violet-light);color:var(--violet);font-size:10px;font-weight:600;padding:2px 8px;border-radius:9999px;">曲线证据</span>
+          </div>
+          <div class="p-16" style="font-size:12px;color:var(--text-body);line-height:1.75;">
+            定位响度、频响、回声等关键曲线章节，确认被系统正确识别。章节缺页或命名异常会影响自动结论的可靠性。适合在出现「需复核」时优先核查图表章节。
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:box-shadow var(--trans);" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div class="card-header">
+            <div class="card-header-icon amber"><i data-lucide="git-compare"></i></div>
+            <span class="card-title">跨报告一致性复核</span>
+            <span style="margin-left:auto;background:var(--amber-light);color:var(--amber);font-size:10px;font-weight:600;padding:2px 8px;border-radius:9999px;">一致性</span>
+          </div>
+          <div class="p-16" style="font-size:12px;color:var(--text-body);line-height:1.75;">
+            对同批次报告做横向比较，识别异常差异。≥ 2 份报告审查后自动触发。适合快速定位需要重点复看的样本。
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ LATEST RESULT DIGEST CARDS -->
+      <div class="section-lbl">最近审查结果</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+
+        <!-- PASS -->
+        <div class="card" style="border-left:4px solid var(--green);">
+          <div class="p-16" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="flex-shrink:0;min-width:60px;text-align:center;">
+              <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--green);">PASS</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">通过</div>
+            </div>
+            <div style="width:1px;height:36px;background:var(--border-subtle);flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                TMO_VoLTE_AMR_WB_Handset_LAMU26.docx
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-family:var(--font-mono);">2026-05-15 14:02 &nbsp;·&nbsp; 配对审查（.docx + .xlsx）</div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;">
+              <span class="badge badge-pass">通过 14</span>
+              <span class="badge badge-warn">警告 1</span>
+              <span style="background:var(--sky-light);color:var(--sky);font-family:var(--font-mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);">复核 1</span>
+              <span class="badge badge-fail">错误 0</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0;"><i data-lucide="eye"></i>查看详情</button>
+          </div>
+        </div>
+
+        <!-- WARNING -->
+        <div class="card" style="border-left:4px solid var(--amber);">
+          <div class="p-16" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="flex-shrink:0;min-width:60px;text-align:center;">
+              <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--amber);">WARN</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">有警告</div>
+            </div>
+            <div style="width:1px;height:36px;background:var(--border-subtle);flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                Utah_HA_VOLTE_EVS_SWB_0521.docx
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-family:var(--font-mono);">2026-05-15 11:47 &nbsp;·&nbsp; 单独审查</div>
+              <div style="margin-top:6px;font-size:11px;color:var(--amber);background:var(--amber-light);padding:3px 8px;border-radius:var(--r-sm);display:inline-block;font-family:var(--font-mono);">
+                ⚠ 第 3—4 组时间戳间隔超过 72 h
+              </div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;">
+              <span class="badge badge-pass">通过 11</span>
+              <span class="badge badge-warn">警告 3</span>
+              <span style="background:var(--sky-light);color:var(--sky);font-family:var(--font-mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);">复核 0</span>
+              <span class="badge badge-fail">错误 2</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0;"><i data-lucide="eye"></i>查看详情</button>
+          </div>
+        </div>
+
+        <!-- ERROR -->
+        <div class="card" style="border-left:4px solid var(--red);">
+          <div class="p-16" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="flex-shrink:0;min-width:60px;text-align:center;">
+              <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--red);">ERROR</div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">有错误</div>
+            </div>
+            <div style="width:1px;height:36px;background:var(--border-subtle);flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                LAMU_HA_WCDMA_AMR_NB_Report.docx
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-family:var(--font-mono);">2026-05-14 16:23 &nbsp;·&nbsp; 单独审查</div>
+              <div style="margin-top:6px;font-size:11px;color:var(--red);background:var(--red-light);padding:3px 8px;border-radius:var(--r-sm);display:inline-block;font-family:var(--font-mono);">
+                ✕ 目录章节顺序错误 &nbsp;·&nbsp; 基本信息缺失
+              </div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;">
+              <span class="badge badge-pass">通过 8</span>
+              <span class="badge badge-warn">警告 2</span>
+              <span style="background:var(--sky-light);color:var(--sky);font-family:var(--font-mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);">复核 1</span>
+              <span class="badge badge-fail">错误 5</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0;"><i data-lucide="eye"></i>查看详情</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ FULL HISTORY TABLE -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon teal"><i data-lucide="history"></i></div>
+          <span class="card-title">全部审查历史</span>
+          <span class="card-meta">共 142 条</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm"><i data-lucide="download"></i>导出</button>
+            <button class="btn btn-danger btn-sm"><i data-lucide="trash-2"></i>清空历史</button>
+          </div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>报告文件</th>
+              <th>审查时间</th>
+              <th>审查状态</th>
+              <th>检查统计 <span style="font-weight:400;opacity:.55;">(通过 / 警告 / 复核 / 错误)</span></th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td-file">TMO_VoLTE_AMR_WB_Handset_LAMU26.docx</td>
+              <td class="td-time">2026-05-15 14:02</td>
+              <td><span class="badge badge-pass">通过</span></td>
+              <td><div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <span class="badge badge-pass">14</span>
+                <span class="badge badge-warn">1</span>
+                <span style="background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);font-family:var(--font-mono);">1</span>
+                <span class="badge badge-fail">0</span>
+              </div></td>
+              <td><button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i>查看详情</button></td>
+            </tr>
+            <tr>
+              <td class="td-file">Utah_HA_VOLTE_EVS_SWB_0521.docx</td>
+              <td class="td-time">2026-05-15 11:47</td>
+              <td><span class="badge badge-warn">有警告</span></td>
+              <td><div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <span class="badge badge-pass">11</span>
+                <span class="badge badge-warn">3</span>
+                <span style="background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);font-family:var(--font-mono);">0</span>
+                <span class="badge badge-fail">2</span>
+              </div></td>
+              <td><button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i>查看详情</button></td>
+            </tr>
+            <tr>
+              <td class="td-file">LAMU_HA_WCDMA_AMR_NB_Report.docx</td>
+              <td class="td-time">2026-05-14 16:23</td>
+              <td><span class="badge badge-fail">有错误</span></td>
+              <td><div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <span class="badge badge-pass">8</span>
+                <span class="badge badge-warn">2</span>
+                <span style="background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);font-family:var(--font-mono);">1</span>
+                <span class="badge badge-fail">5</span>
+              </div></td>
+              <td><button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i>查看详情</button></td>
+            </tr>
+            <tr>
+              <td class="td-file">Utah_HE_NB_Handset_Audio_Report.docx</td>
+              <td class="td-time">2026-05-14 09:11</td>
+              <td><span class="badge badge-pass">通过</span></td>
+              <td><div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <span class="badge badge-pass">16</span>
+                <span class="badge badge-warn">0</span>
+                <span style="background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);font-family:var(--font-mono);">0</span>
+                <span class="badge badge-fail">0</span>
+              </div></td>
+              <td><button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i>查看详情</button></td>
+            </tr>
+            <tr>
+              <td class="td-file">MOTO_Checklist_VoLTE_WB_Draft.docx</td>
+              <td class="td-time">2026-05-13 17:55</td>
+              <td><span class="badge badge-review" style="background:var(--sky-light);color:var(--sky);">需复核</span></td>
+              <td><div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <span class="badge badge-pass">9</span>
+                <span class="badge badge-warn">1</span>
+                <span style="background:var(--sky-light);color:var(--sky);font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);font-family:var(--font-mono);">3</span>
+                <span class="badge badge-fail">1</span>
+              </div></td>
+              <td><button class="btn btn-ghost btn-sm"><i data-lucide="eye"></i>查看详情</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /review -->
+
+
+    <!-- ═══════ DATA EXTRACT ═══════ -->
+    <div class="page" id="page-extract">
+
+      <div class="page-hd">
+        <div>
+          <div class="page-title">测试数据提取</div>
+          <div class="page-sub">从报告中自动提取数值 → 回填到 Checklist Excel</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon teal"><i data-lucide="file-text"></i></div>
+            <span class="card-title">源报告文件</span>
+          </div>
+          <div class="p-16">
+            <div class="upload-zone">
+              <div class="upload-icon-box"><i data-lucide="file-text"></i></div>
+              <div class="upload-title" style="font-size:12px;">Word 或 Excel 报告</div>
+              <div class="upload-sub">.docx / .xlsx</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon green"><i data-lucide="table-2"></i></div>
+            <span class="card-title">目标 Checklist 模板</span>
+          </div>
+          <div class="p-16">
+            <div class="upload-zone">
+              <div class="upload-icon-box" style="color:var(--green);"><i data-lucide="table-2"></i></div>
+              <div class="upload-title" style="font-size:12px;">Checklist 模板</div>
+              <div class="upload-sub">.xlsx 模板文件</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon amber"><i data-lucide="sliders-horizontal"></i></div>
+          <span class="card-title">提取配置</span>
+        </div>
+        <div class="p-16">
+          <div class="grid-4" style="gap:16px;">
+            <div class="field-group">
+              <label class="field-label">客户</label>
+              <select class="field-select">
+                <option>T-Mobile</option><option>MOTOROLA</option>
+                <option>SAMSUNG</option><option>ATT</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">网络</label>
+              <select class="field-select">
+                <option>VoLTE</option><option>WCDMA</option>
+                <option>GSM</option><option>5G NR</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">编解码器</label>
+              <select class="field-select">
+                <option>EVS SWB</option><option>EVS WB</option>
+                <option>AMR-WB</option><option>AMR-NB</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">终端模式</label>
+              <select class="field-select">
+                <option>Handset</option><option>Headset</option>
+                <option>Handsfree</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-8">
+        <button class="btn btn-primary">
+          <i data-lucide="play"></i>开始提取
+        </button>
+        <button class="btn btn-ghost">
+          <i data-lucide="eye"></i>预览提取项
+        </button>
+        <button class="btn btn-ghost">
+          <i data-lucide="download"></i>导出结果
+        </button>
+      </div>
+
+      <!-- Progress (示意) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-icon sky"><i data-lucide="loader"></i></div>
+          <span class="card-title">提取进度</span>
+          <span class="card-meta" style="color:var(--teal);">已完成 18 / 22 项</span>
+        </div>
+        <div class="p-16" style="display:flex;flex-direction:column;gap:10px;">
+          <div>
+            <div class="flex-between" style="margin-bottom:5px;">
+              <span style="font-size:12px;color:var(--text-body);">Receiving Sensitivity</span>
+              <span class="text-mono" style="font-size:11px;color:var(--green);">✓ 完成</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--green);"></div></div>
+          </div>
+          <div>
+            <div class="flex-between" style="margin-bottom:5px;">
+              <span style="font-size:12px;color:var(--text-body);">POLQA / MOS</span>
+              <span class="text-mono" style="font-size:11px;color:var(--green);">✓ 完成</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--green);"></div></div>
+          </div>
+          <div>
+            <div class="flex-between" style="margin-bottom:5px;">
+              <span style="font-size:12px;color:var(--text-body);">Ambient Noise Scene</span>
+              <span class="text-mono" style="font-size:11px;color:var(--teal);">提取中…</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:65%;background:var(--teal);"></div></div>
+          </div>
+          <div>
+            <div class="flex-between" style="margin-bottom:5px;">
+              <span style="font-size:12px;color:var(--text-body);">Echo Control</span>
+              <span class="text-mono" style="font-size:11px;color:var(--text-muted);">等待中</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill" style="width:0%;background:var(--teal);"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /extract -->
+
+
+    <!-- ═══════ SPECTRUM ANALYZER ═══════ -->
+    <div class="page" id="page-spectrum">
+
+      <div class="page-hd">
+        <div>
+          <div class="page-title">频谱分析</div>
+          <div class="page-sub">音频文件 FFT 频谱可视化 · 功能开发中</div>
+        </div>
+      </div>
+
+      <div class="alert alert-info">
+        <i data-lucide="info"></i>
+        <div>
+          <strong>功能开发中</strong> &nbsp;—&nbsp;
+          频谱分析模块尚未完全实现，当前展示界面框架，控件处于禁用状态，预计在后续版本上线。
+        </div>
+      </div>
+
+      <div class="grid-2" style="grid-template-columns:240px 1fr;">
+
+        <!-- Controls -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon teal"><i data-lucide="sliders-horizontal"></i></div>
+            <span class="card-title">分析设置</span>
+          </div>
+          <div class="p-16" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="field-group">
+              <label class="field-label">分析类型</label>
+              <select class="field-select" disabled style="opacity:0.5;cursor:not-allowed;">
+                <option>FFT 分析</option><option>小波变换</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">窗函数</label>
+              <select class="field-select" disabled style="opacity:0.5;cursor:not-allowed;">
+                <option>Hanning</option><option>Hamming</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">FFT 长度</label>
+              <select class="field-select" disabled style="opacity:0.5;cursor:not-allowed;">
+                <option>1024</option><option>2048</option><option>4096</option>
+              </select>
+            </div>
+            <button class="btn btn-ghost w-full" disabled style="opacity:0.5;cursor:not-allowed;">
+              <i data-lucide="upload"></i>选择音频文件
+            </button>
+            <button class="btn btn-primary w-full" disabled style="opacity:0.5;cursor:not-allowed;">
+              <i data-lucide="play"></i>开始分析
+            </button>
+          </div>
+        </div>
+
+        <!-- Spectrum display -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-icon sky"><i data-lucide="activity"></i></div>
+            <span class="card-title">频谱图 — 等待输入</span>
+            <span class="card-meta">0 Hz – 24 kHz</span>
+          </div>
+          <div class="p-16">
+            <!-- Empty state placeholder -->
+            <div style="height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px dashed var(--border-mid);border-radius:var(--r-lg);background:var(--bg-input);gap:10px;">
+              <div class="card-header-icon sky" style="width:44px;height:44px;opacity:0.5;"><i data-lucide="activity"></i></div>
+              <div style="font-size:13px;color:var(--text-muted);">上传音频文件后显示频谱</div>
+            </div>
+
+            <!-- Frequency axis labels -->
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--text-faint);">
+              <span>0 Hz</span><span>4k</span><span>8k</span><span>12k</span><span>16k</span><span>20k</span><span>24 kHz</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /spectrum -->
+
+
+    <!-- ═══════ SETTINGS ═══════ -->
+    <div class="page" id="page-settings">
+
+      <div class="page-hd">
+        <div>
+          <div class="page-title">设置</div>
+          <div class="page-sub">应用配置 · 自动保存</div>
+        </div>
+        <div class="flex-center gap-8">
+          <span id="save-status" style="font-size:12px;color:var(--text-muted);">设置将自动保存</span>
+          <button class="btn btn-primary btn-sm" id="save-btn">
+            <i data-lucide="save"></i>保存设置
+          </button>
+        </div>
+      </div>
+
+      <!-- Version card -->
+      <div class="version-card">
+        <div class="brand-mark" style="width:44px;height:44px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M2 12 Q6 4 12 12 Q18 20 22 12"/><circle cx="12" cy="12" r="2" fill="white" stroke="none"/></svg>
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);">TN Audio Tools</div>
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-body);margin-top:2px;">v2.0.0 · 音频测试报告 AI 检查填写工具</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <span class="badge badge-pass" style="font-size:11px;">已是最新版本</span>
+          <button class="btn btn-ghost btn-sm"><i data-lucide="refresh-cw"></i>检查更新</button>
+        </div>
+      </div>
+
+      <!-- Appearance -->
+      <div class="settings-section">
+        <div class="settings-section-hd">
+          <div class="card-header-icon teal"><i data-lucide="palette"></i></div>
+          <div>
+            <div class="settings-section-title">外观</div>
+            <div class="settings-section-desc">主题、语言与设计风格</div>
+          </div>
+        </div>
+        <div class="settings-section-body">
+          <div class="grid-3" style="gap:16px;">
+            <div class="field-group">
+              <label class="field-label">主题</label>
+              <select class="field-select">
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+                <option value="system">跟随系统</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">语言</label>
+              <select class="field-select">
+                <option value="zh-cn">简体中文</option>
+                <option value="zh-tw">繁體中文</option>
+                <option value="en-us">English (US)</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">设计风格</label>
+              <select class="field-select">
+                <option value="elevenlabs">ElevenLabs（默认）</option>
+                <option value="linear">Linear</option>
+                <option value="claude">Claude</option>
+                <option value="vercel">Vercel</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="settings-section">
+        <div class="settings-section-hd">
+          <div class="card-header-icon sky"><i data-lucide="monitor"></i></div>
+          <div>
+            <div class="settings-section-title">系统行为</div>
+            <div class="settings-section-desc">托盘与启动选项</div>
+          </div>
+        </div>
+        <div class="settings-section-body">
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">启用系统托盘</div>
+              <div class="toggle-desc">关闭主窗口后保留托盘图标，允许后台运行</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-name">启动时最小化到托盘</div>
+              <div class="toggle-desc">应用启动后直接最小化，不显示主窗口</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Files -->
+      <div class="settings-section">
+        <div class="settings-section-hd">
+          <div class="card-header-icon amber"><i data-lucide="folder"></i></div>
+          <div>
+            <div class="settings-section-title">文件与输出</div>
+            <div class="settings-section-desc">默认目录与并发数</div>
+          </div>
+        </div>
+        <div class="settings-section-body" style="display:flex;flex-direction:column;gap:14px;">
+          <div class="field-group">
+            <label class="field-label">默认输出目录</label>
+            <div style="display:flex;gap:8px;">
+              <input class="field-input flex-1" type="text" placeholder="未设置，将使用桌面" />
+              <button class="btn btn-ghost"><i data-lucide="folder-open"></i>浏览</button>
+            </div>
+          </div>
+          <div class="field-group" style="max-width:200px;">
+            <label class="field-label">最大并发任务数</label>
+            <select class="field-select">
+              <option>1</option><option>2</option>
+              <option selected>4</option><option>8</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM -->
+      <div class="settings-section">
+        <div class="settings-section-hd">
+          <div class="card-header-icon violet"><i data-lucide="cpu"></i></div>
+          <div>
+            <div class="settings-section-title">AI / LLM 配置</div>
+            <div class="settings-section-desc">连接外部大模型接口（可选）</div>
+          </div>
+        </div>
+        <div class="settings-section-body">
+          <div class="toggle-row" style="padding-top:0;">
+            <div class="toggle-info">
+              <div class="toggle-name">启用 LLM 辅助分析</div>
+              <div class="toggle-desc">将报告内容发送至大模型进行语义理解，需要配置 API</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="llm-toggle" onchange="toggleLLM(this)" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div id="llm-fields" style="display:none;margin-top:14px;display:none;flex-direction:column;gap:14px;">
+            <div class="grid-2" style="gap:14px;">
+              <div class="field-group">
+                <label class="field-label">API 地址</label>
+                <input class="field-input" type="text" placeholder="https://api.openai.com/v1" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">模型</label>
+                <input class="field-input" type="text" placeholder="gpt-4o" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">API Key</label>
+              <input class="field-input" type="password" placeholder="sk-..." />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div class="settings-section" style="border-color:#fca5a5;">
+        <div class="settings-section-hd" style="background:var(--red-light);">
+          <div class="card-header-icon red"><i data-lucide="trash-2"></i></div>
+          <div>
+            <div class="settings-section-title" style="color:var(--red);">危险区域</div>
+            <div class="settings-section-desc">此操作不可撤销</div>
+          </div>
+        </div>
+        <div class="settings-section-body" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-danger btn-sm">
+            <i data-lucide="trash-2"></i>清除所有审查历史
+          </button>
+          <button class="btn btn-danger btn-sm">
+            <i data-lucide="refresh-ccw"></i>重置所有设置
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /settings -->
+
+  </main>
+</div>
+</div><!-- /app -->
+
+<script>
+lucide.createIcons();
+
+// ── Page navigation ──────────────────────────
+const PAGE_META = {
+  dashboard: '总览面板',
+  review:    '报告审查',
+  extract:   '数据提取',
+  spectrum:  '频谱分析',
+  settings:  '设置',
+};
+
+function gotoPage(key) {
+  if (!PAGE_META[key]) return;
+
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('visible'));
+  // Show target
+  const target = document.getElementById('page-' + key);
+  if (target) target.classList.add('visible');
+
+  // Update nav active
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === key);
+  });
+
+  // Update breadcrumb
+  document.getElementById('bc').textContent = PAGE_META[key];
+
+  // Update header buttons visibility
+  const showAction = ['dashboard', 'review', 'extract'].includes(key);
+  document.getElementById('hdr-btn-open').style.display  = showAction ? '' : 'none';
+  document.getElementById('hdr-btn-start').style.display = showAction ? '' : 'none';
+}
+
+// Bind sidebar nav items
+document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+  el.addEventListener('click', () => gotoPage(el.dataset.page));
+});
+
+// ── LLM toggle ──────────────────────────
+function toggleLLM(checkbox) {
+  const fields = document.getElementById('llm-fields');
+  if (checkbox.checked) {
+    fields.style.display = 'flex';
+  } else {
+    fields.style.display = 'none';
+  }
+}
+
+// ── Tab bar interaction ──────────────────────────
+document.querySelectorAll('.tabs').forEach(bar => {
+  bar.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      bar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+});
+
+// ── Save button feedback ──────────────────────────
+const saveBtn = document.getElementById('save-btn');
+const saveStatus = document.getElementById('save-status');
+if (saveBtn) {
+  saveBtn.addEventListener('click', () => {
+    saveStatus.textContent = '正在保存…';
+    saveStatus.style.color = 'var(--teal)';
+    setTimeout(() => {
+      saveStatus.textContent = '✓ 已保存';
+      saveStatus.style.color = 'var(--green)';
+      setTimeout(() => {
+        saveStatus.textContent = '设置将自动保存';
+        saveStatus.style.color = 'var(--text-muted)';
+      }, 2000);
+    }, 600);
+  });
+}
+
+// ── Header shortcuts ──────────────────────────
+document.getElementById('hdr-btn-start').addEventListener('click', () => gotoPage('review'));
+document.getElementById('hdr-btn-open').addEventListener('click',  () => gotoPage('extract'));
+</script>
+</body>
+</html>

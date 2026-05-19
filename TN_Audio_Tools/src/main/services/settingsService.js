@@ -30,7 +30,7 @@ const DEFAULT_APP_SETTINGS = Object.freeze({
     apiUrl: '',
     apiKey: '',
     model: '',
-    maxImagesPerAnalysis: 4
+    maxImagesPerAnalysis: 12
   }
 });
 

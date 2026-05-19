@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs/promises');
 const createWordReviewService = require('./wordReviewService');
 const { parseReport } = require('../testDataExtraction');
 const {
@@ -6,6 +8,17 @@ const {
 } = require('./checks/contentConsistency');
 const { buildTestDataFacts } = require('./reportTestDataFacts');
 const { determineOverallStatus } = require('./utils');
+
+async function resolveEffectivePath(reportPath, reportData) {
+  // 优先使用 COM 转换后的临时 .docx 路径
+  if (reportData?._convertedDocxPath) {
+    try { await fs.access(reportData._convertedDocxPath); return reportData._convertedDocxPath; } catch (_) {}
+  }
+  if (path.extname(reportPath).toLowerCase() !== '.doc') return reportPath;
+  if (reportData.reportFormat !== 'docx') return reportPath;
+  var docxPath = reportPath.replace(/\.doc$/i, '.docx');
+  try { await fs.access(docxPath); return docxPath; } catch (_) { return reportPath; }
+}
 
 async function reviewWordReport(reportPath) {
   if (!reportPath) {
@@ -18,8 +31,10 @@ async function reviewWordReport(reportPath) {
     throw new Error('无法解析报告文件');
   }
 
+  const effectivePath = await resolveEffectivePath(reportPath, reportData);
+
   const wordReviewService = createWordReviewService();
-  const reviewResult = await wordReviewService.reviewWordReport(reportPath, reportData);
+  const reviewResult = await wordReviewService.reviewWordReport(effectivePath, reportData);
   const report = wordReviewService.generateReviewReport(reviewResult);
 
   return {
@@ -96,17 +111,19 @@ async function reviewPairedReport(docxPath, xlsxPath) {
   const docxData = await parseReport(docxPath);
   const xlsxData = await parseReport(xlsxPath);
 
+  const effectiveDocxPath = await resolveEffectivePath(docxPath, docxData);
+
   const mergedData = {
     ...docxData,
     reportFormat: 'paired',
     detailedRows: xlsxData.detailedRows || [],
     xlsxReportContext: xlsxData.reportContext || {},
-    pairedDocxPath: docxPath,
+    pairedDocxPath: effectiveDocxPath,
     pairedXlsxPath: xlsxPath,
   };
 
   const wordReviewService = createWordReviewService();
-  const reviewResult = await wordReviewService.reviewWordReport(docxPath, mergedData);
+  const reviewResult = await wordReviewService.reviewWordReport(effectiveDocxPath, mergedData);
   const report = wordReviewService.generateReviewReport(reviewResult);
 
   return {

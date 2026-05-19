@@ -1,42 +1,5 @@
-:root {
-  --primary-color: #667eea;
-  --secondary-color: #764ba2;
-  --brand-start: #667eea;
-  --brand-end: #764ba2;
-  --brand-glow: rgba(118, 75, 162, 0.28);
-  --success-color: #52c41a;
-  --warning-color: #faad14;
-  --error-color: #f5222d;
-  --text-color: #1f2937;
-  --text-light: #667085;
-  --bg-light: #f3f6fb;
-  --surface-color: #ffffff;
-  --surface-elevated: #f8fbff;
-  --surface-muted: #eef3fb;
-  --control-bg: #ffffff;
-  --border-color: #d7e0ef;
-  --border-strong: #c6d2e3;
-  --shadow-color: rgba(31, 41, 55, 0.12);
-  --border-radius: 10px;
-}
-
-[data-theme='dark'] {
-  --primary-color: #8ea2ff;
-  --secondary-color: #c38bff;
-  --brand-start: #314b9e;
-  --brand-end: #6d3d96;
-  --brand-glow: rgba(109, 61, 150, 0.34);
-  --text-color: #f4f7ff;
-  --text-light: #c3cee4;
-  --bg-light: #101826;
-  --surface-color: #1d2840;
-  --surface-elevated: #25324a;
-  --surface-muted: #162033;
-  --control-bg: #162033;
-  --border-color: #32415f;
-  --border-strong: #43567a;
-  --shadow-color: rgba(0, 0, 0, 0.32);
-}
+/* CSS custom properties are now defined in theme-*.css files (theme-elevenlabs, theme-linear, theme-claude, theme-vercel) */
+/* Each theme file scopes variables with [data-design-style="..."] for light/dark combinations */
 
 * {
   margin: 0;
@@ -45,9 +8,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-light);
@@ -70,7 +31,7 @@ body {
 
 /* Sider 样式 */
 .ant-layout-sider {
-  background: linear-gradient(180deg, var(--brand-start) 0%, color-mix(in srgb, var(--brand-end) 72%, #ff8ab6) 100%);
+  background: var(--brand-start, #0c0a09);
   box-shadow: 2px 0 12px var(--brand-glow);
 }
 
@@ -122,6 +83,47 @@ body {
 .ant-menu-dark .ant-menu-divider {
   background-color: rgba(255, 255, 255, 0.1);
   margin: 8px 0;
+}
+
+/* Sider 亮色主题 */
+.sider--light.ant-layout-sider {
+  background: var(--brand-start, #f5f5f7) !important;
+  box-shadow: 1px 0 0 var(--border-color);
+}
+
+.logo--light {
+  color: var(--text-color) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.logo--light .logo-icon {
+  filter: none;
+}
+
+.ant-menu-light {
+  background: transparent;
+}
+
+.ant-menu-light .ant-menu-item {
+  color: var(--text-color);
+  border-radius: 8px;
+  margin: 2px 8px;
+  width: auto;
+}
+
+.ant-menu-light .ant-menu-item:hover {
+  color: var(--primary-color);
+  background-color: rgba(0, 102, 204, 0.06);
+}
+
+.ant-menu-light .ant-menu-item-selected {
+  background-color: rgba(0, 102, 204, 0.1) !important;
+  color: var(--primary-color) !important;
+  font-weight: 600;
+}
+
+.ant-menu-light .ant-menu-divider {
+  border-color: var(--border-color);
 }
 
 /* Header 样式 */
@@ -204,6 +206,7 @@ body {
   border-radius: var(--border-radius);
   box-shadow: 0 4px 12px var(--shadow-color);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 页面容器 */
@@ -246,13 +249,13 @@ body {
 
 /* Button 样式 */
 .ant-btn-primary {
-  background: linear-gradient(135deg, var(--brand-start) 0%, var(--brand-end) 100%);
+  background: var(--primary-color);
   border: none;
 }
 
 .ant-btn-primary:hover,
 .ant-btn-primary:focus {
-  background: linear-gradient(135deg, var(--brand-end) 0%, var(--brand-start) 100%);
+  background: var(--secondary-color);
 }
 
 .ant-btn-default {

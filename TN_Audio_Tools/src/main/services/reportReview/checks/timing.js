@@ -27,7 +27,7 @@ function requireTimestamps(testDataFacts) {
 
 /**
  * 2.3.1 相邻测试项间隔检查
- * 除3quest测试外，相邻测试项间隔应≤1分钟（60秒）
+ * 除3quest测试外，相邻测试项间隔应≤5分钟（300秒）
  */
 function checkAdjacentTestItemInterval(testDataFacts) {
   const evidence = [];
@@ -54,12 +54,12 @@ function checkAdjacentTestItemInterval(testDataFacts) {
     if (!items[i].timestamp || !items[i - 1].timestamp) continue;
 
     const deltaSec = (items[i].timestamp - items[i - 1].timestamp) / 1000;
-    if (deltaSec > 60) {
+    if (deltaSec > 300) {
       violations += 1;
-      const severity = deltaSec > 300 ? 'warning' : 'review';
+      const severity = deltaSec > 600 ? 'warning' : 'review';
       issues.push({
         severity,
-        message: `测试项 "${items[i - 1].descriptor}" 与 "${items[i].descriptor}" 之间间隔 ${deltaSec.toFixed(0)} 秒（>60秒）`,
+        message: `测试项 "${items[i - 1].descriptor}" 与 "${items[i].descriptor}" 之间间隔 ${deltaSec.toFixed(0)} 秒（>5分钟）`,
       });
     }
   }
@@ -69,11 +69,11 @@ function checkAdjacentTestItemInterval(testDataFacts) {
   }
 
   if (violations === 0) {
-    evidence.push('✓ 相邻测试项间隔均在1分钟以内');
+    evidence.push('✓ 相邻测试项间隔均在5分钟以内');
     return { issues: [], evidence, status: 'pass' };
   }
 
-  evidence.push(`共发现 ${violations} 个间隔超过1分钟的相邻测试项对`);
+  evidence.push(`共发现 ${violations} 个间隔超过5分钟的相邻测试项对`);
   return { issues, evidence, status: violations > 5 ? 'warning' : 'review' };
 }
 

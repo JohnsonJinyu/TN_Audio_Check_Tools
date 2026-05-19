@@ -269,14 +269,82 @@ function Dashboard({ onNavigate }) {
             color: '#fff',
             border: 'none'
           }}>
-            <h1 style={{ fontSize: '28px', marginBottom: '12px' }}>
-              欢迎使用 TN Audio Toolkit
-            </h1>
-            <p style={{ fontSize: '16px', opacity: 0.9, marginBottom: 0 }}>
-              面向音频测试场景的数据收集、报告审查与频谱分析工作台。
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <h1 style={{ fontSize: '24px', marginBottom: '8px', color: '#fff' }}>
+                  欢迎使用 TN Audio Toolkit
+                </h1>
+                <p style={{ fontSize: '14px', opacity: 0.85, marginBottom: 0, color: '#fff' }}>
+                  面向音频测试场景的数据收集、报告审查与频谱分析工作台。
+                </p>
+              </div>
+              {dashboardData.checkedReports === 0 && dashboardData.reviewHistoryCount === 0 && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <Button
+                    style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.5)', color: '#fff' }}
+                    onClick={() => handleNavigate('report-checker')}
+                  >
+                    开始收集数据 →
+                  </Button>
+                  <Button
+                    style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
+                    onClick={() => handleNavigate('report-review')}
+                  >
+                    查看报告审查 →
+                  </Button>
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
+
+        {/* 首次使用引导 */}
+        {dashboardData.checkedReports === 0 && dashboardData.reviewHistoryCount === 0 && (
+          <Col xs={24}>
+            <Card
+              style={{ border: '1px dashed var(--border-strong)', background: 'var(--surface-elevated)' }}
+              styles={{ body: { padding: '20px 24px' } }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <span style={{ fontSize: 20 }}>🚀</span>
+                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-color)' }}>第一次使用？按以下步骤开始</span>
+              </div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {[
+                  { step: '1', label: '上传测试报告', desc: '进入「测试数据收集」，拖入 Excel/Word 报告', page: 'report-checker', color: '#ff7a45' },
+                  { step: '2', label: '审查报告内容', desc: '进入「报告审查」，对 docx+xlsx 配对进行完整性检查', page: 'report-review', color: '#722ed1' },
+                  { step: '3', label: '查看收集结论', desc: '处理完成后回到此仪表盘查看汇总统计', page: null, color: '#52c41a' }
+                ].map((item) => (
+                  <div
+                    key={item.step}
+                    onClick={() => item.page && handleNavigate(item.page)}
+                    style={{
+                      flex: '1 1 180px',
+                      padding: '14px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1.5px solid ${item.color}30`,
+                      background: `${item.color}08`,
+                      cursor: item.page ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: item.color, color: '#fff',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, flexShrink: 0
+                      }}>{item.step}</span>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-color)' }}>{item.label}</span>
+                      {item.page && <span style={{ fontSize: 12, color: item.color, marginLeft: 'auto' }}>→</span>}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)', lineHeight: 1.5 }}>{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+        )}
 
         {/* 快速统计 */}
         {quickStats.map((stat) => (

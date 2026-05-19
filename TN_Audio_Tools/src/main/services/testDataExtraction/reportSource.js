@@ -252,7 +252,9 @@ function createReportSource({
       const converted = await convertDocToTemporaryDocx(reportPath);
 
       if (converted?.convertedPath) {
-        return await parseDocxReport(converted.convertedPath);
+        const docxData = await parseDocxReport(converted.convertedPath);
+        docxData._convertedDocxPath = converted.convertedPath;
+        return docxData;
       }
 
       const extracted = await wordExtractor.extract(reportPath);

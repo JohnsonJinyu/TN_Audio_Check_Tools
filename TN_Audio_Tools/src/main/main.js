@@ -4,6 +4,8 @@ if (process.env.NODE_ENV === 'development') {
 
 require('./services/testDataExtraction/runtimePolyfills');
 
+const progressBus = require('./services/reportReview/progressBus');
+
 const fs = require('fs/promises');
 const os = require('os');
 const { app, BrowserWindow, Menu, Tray, ipcMain, shell, dialog, nativeImage } = require('electron');
@@ -272,6 +274,15 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
+  // 全局图表分析进度转发：任何模块 emit 的进度都推送到渲染进程
+  progressBus.on('chart-progress', function(data) {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('chart-analysis-progress', data);
+      }
+    } catch (_) {}
+  });
+
   if (isDev) {
     // mainWindow.webContents.openDevTools(); // 启动时不自动打开，可通过菜单手动打开
   }
@@ -503,7 +514,7 @@ ipcMain.handle('report-review:run-cross-report-checks', async (_, payload) => {
   return runCrossReportChecks(payload.results);
 });
 
-ipcMain.handle('report-review:analyze-chart-images', async (_, payload) => {
+ipcMain.handle('report-review:analyze-chart-images', async (event, payload) => {
   const { reportPath, testDataFacts } = payload || {};
   if (!reportPath) {
     throw new Error('缺少报告路径');
@@ -520,23 +531,26 @@ ipcMain.handle('report-review:analyze-chart-images', async (_, payload) => {
 
   try {
     const { extractReportImages } = require('./services/reportReview/imageExtractor');
-    const { analyzeChartImages } = require('./services/reportReview/llmService');
+    const { analyzeGroupedCharts } = require('./services/reportReview/llmService');
 
-    const images = await extractReportImages(reportPath);
-    var chartImages = (images || []).slice(0, settings.llm.maxImagesPerAnalysis || 4);
+    const { images, warnings } = await extractReportImages(reportPath);
+    var chartImages = (images || []);
+    var _ev = (warnings || []).slice();
 
     if (chartImages.length === 0) {
       return {
         status: 'review',
-        issues: [{ severity: 'review', message: '未在报告中检测到任何图片，无法进行AI验证' }],
-        evidence: ['报告中无可提取的图片，请确认报告包含图表']
+        issues: [{ severity: 'review', message: '未在报告中检测到频响/响度曲线图，无法进行AI验证' }],
+        evidence: _ev.length > 0 ? _ev : ['报告中无可提取的图片，请确认报告包含图表']
       };
     }
 
-    return await analyzeChartImages({
+    return await analyzeGroupedCharts({
       images: chartImages,
       testDataFacts: testDataFacts || {},
       settings: settings.llm
+    }, function(progress) {
+      try { progressBus.emit('chart-progress', { imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
     });
   } catch (error) {
     return {

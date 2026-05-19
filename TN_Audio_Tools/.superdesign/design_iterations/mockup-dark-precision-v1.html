@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TN Audio Tools — 效果图 v1 · Dark Precision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ─────────────────────────────────────────────
+   TOKENS
+───────────────────────────────────────────── */
+:root {
+  --bg-base:         #0b0e13;
+  --bg-surface:      #111620;
+  --bg-elevated:     #1a2030;
+  --bg-card:         #141a26;
+  --bg-hover:        #1e2738;
+
+  --border-subtle:   #1e2a3a;
+  --border-mid:      #263244;
+  --border-strong:   #2e3d54;
+
+  --text-primary:    #e2eaf5;
+  --text-secondary:  #8a9dc0;
+  --text-muted:      #4d6080;
+  --text-code:       #9ecfff;
+
+  --accent-cyan:     #00c9b1;
+  --accent-cyan-dim: #00c9b122;
+  --accent-cyan-glow:#00c9b140;
+  --accent-amber:    #f0a832;
+  --accent-amber-dim:#f0a83218;
+  --accent-red:      #e05260;
+  --accent-red-dim:  #e0526018;
+  --accent-green:    #1dd4a0;
+  --accent-green-dim:#1dd4a015;
+  --accent-purple:   #9d7fff;
+
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --font-ui:   'Inter', system-ui, sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --sidebar-w: 220px;
+  --sidebar-collapsed-w: 60px;
+  --header-h: 52px;
+
+  --transition: 0.18s ease;
+}
+
+/* ─────────────────────────────────────────────
+   RESET & BASE
+───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Subtle dot-grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--border-subtle) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─────────────────────────────────────────────
+   LAYOUT SHELL
+───────────────────────────────────────────── */
+#app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ─────────────────────────────────────────────
+   SIDEBAR
+───────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width var(--transition);
+  z-index: 10;
+}
+
+/* Top brand mark */
+.sidebar-brand {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.brand-icon {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-icon svg { width: 14px; height: 14px; color: #fff; }
+
+.brand-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.brand-version {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  letter-spacing: 0.05em;
+}
+
+/* Nav sections */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+.nav-section-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 12px 16px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background var(--transition), color var(--transition);
+  position: relative;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  border-left: 2px solid transparent;
+}
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+  border-left-color: var(--accent-cyan);
+}
+.nav-item.active .nav-icon { color: var(--accent-cyan); }
+
+.nav-icon {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-icon svg { width: 15px; height: 15px; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent-amber);
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 9999px;
+}
+
+/* Sidebar bottom status */
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.sidebar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.status-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────
+   MAIN CONTENT AREA
+───────────────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── HEADER ── */
+.header {
+  height: var(--header-h);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.header-breadcrumb .sep { color: var(--border-strong); }
+.header-breadcrumb .current {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.header-spacer { flex: 1; }
+
+/* Mini waveform in header (decorative) */
+.header-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  opacity: 0.4;
+}
+.header-waveform .bar {
+  width: 2px;
+  background: var(--accent-cyan);
+  border-radius: 1px;
+  animation: wave 1.2s ease-in-out infinite;
+}
+.header-waveform .bar:nth-child(1) { height: 6px;  animation-delay: 0s; }
+.header-waveform .bar:nth-child(2) { height: 12px; animation-delay: 0.1s; }
+.header-waveform .bar:nth-child(3) { height: 18px; animation-delay: 0.2s; }
+.header-waveform .bar:nth-child(4) { height: 22px; animation-delay: 0.3s; }
+.header-waveform .bar:nth-child(5) { height: 14px; animation-delay: 0.4s; }
+.header-waveform .bar:nth-child(6) { height: 8px;  animation-delay: 0.5s; }
+.header-waveform .bar:nth-child(7) { height: 16px; animation-delay: 0.6s; }
+.header-waveform .bar:nth-child(8) { height: 10px; animation-delay: 0.7s; }
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.6); }
+  50%       { transform: scaleY(1.0); }
+}
+
+.header-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+}
+.header-btn-primary {
+  background: var(--accent-cyan);
+  color: var(--bg-base);
+  border-color: var(--accent-cyan);
+}
+.header-btn-primary:hover {
+  background: #00e0c8;
+}
+.header-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-mid);
+}
+.header-btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* ── CONTENT SCROLL AREA ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─────────────────────────────────────────────
+   PAGE: DASHBOARD
+───────────────────────────────────────────── */
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.page-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Stat Cards Row */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--transition), background var(--transition);
+}
+.stat-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+/* Accent stripe on top */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.stat-card.cyan::before  { background: var(--accent-cyan); }
+.stat-card.amber::before { background: var(--accent-amber); }
+.stat-card.green::before { background: var(--accent-green); }
+.stat-card.purple::before{ background: var(--accent-purple); }
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.stat-card.cyan  .stat-value { color: var(--accent-cyan); }
+.stat-card.amber .stat-value { color: var(--accent-amber); }
+.stat-card.green .stat-value { color: var(--accent-green); }
+.stat-card.purple .stat-value { color: var(--accent-purple); }
+
+.stat-sub {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.stat-sub .trend-up   { color: var(--accent-green); }
+.stat-sub .trend-down { color: var(--accent-red); }
+
+/* Corner decoration */
+.stat-decoration {
+  position: absolute;
+  right: 12px; bottom: 8px;
+  opacity: 0.06;
+}
+.stat-decoration svg { width: 36px; height: 36px; }
+
+/* ── Two-column section ── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 12px;
+}
+
+/* Panel card (reusable) */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 8px;
+}
+.panel-header-icon {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-cyan);
+}
+.panel-header-icon svg { width: 14px; height: 14px; }
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+}
+.panel-header-tag {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}
+
+/* ── Recent Review Table ── */
+.review-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.review-table thead th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.review-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition);
+  cursor: pointer;
+}
+.review-table tbody tr:last-child { border-bottom: none; }
+.review-table tbody tr:hover { background: var(--bg-hover); }
+.review-table tbody td {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.review-table .col-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-table .col-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* Status badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.badge.pass   { background: var(--accent-green-dim); color: var(--accent-green); border: 1px solid #1dd4a028; }
+.badge.fail   { background: var(--accent-red-dim);   color: var(--accent-red);   border: 1px solid #e0526028; }
+.badge.warn   { background: var(--accent-amber-dim); color: var(--accent-amber); border: 1px solid #f0a83228; }
+.badge.pending{ background: var(--accent-cyan-dim);  color: var(--accent-cyan);  border: 1px solid #00c9b128; }
+
+/* ── Category bar chart ── */
+.category-list {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cat-row {}
+.cat-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.cat-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.cat-pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cat-bar-bg {
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cat-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+/* ─────────────────────────────────────────────
+   SECTION 2: REPORT REVIEW PREVIEW
+───────────────────────────────────────────── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* Upload zone */
+.upload-zone {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 28px;
+  text-align: center;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.upload-zone:hover {
+  border-color: var(--accent-cyan);
+  background: var(--bg-elevated);
+}
+.upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, var(--accent-cyan-glow) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.upload-zone:hover::before { opacity: 1; }
+
+.upload-icon {
+  width: 40px; height: 40px;
+  margin: 0 auto 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-cyan);
+  position: relative;
+}
+.upload-icon svg { width: 18px; height: 18px; }
+.upload-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.upload-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Check result card */
+.check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.check-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: border-color var(--transition);
+}
+.check-item:hover { border-color: var(--border-strong); }
+.check-status-icon {
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.check-status-icon.pass  { background: var(--accent-green-dim); color: var(--accent-green); }
+.check-status-icon.fail  { background: var(--accent-red-dim);   color: var(--accent-red); }
+.check-status-icon.warn  { background: var(--accent-amber-dim); color: var(--accent-amber); }
+.check-status-icon svg { width: 11px; height: 11px; }
+
+.check-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.check-detail {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+/* ─────────────────────────────────────────────
+   SCROLLBAR
+───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─────────────────────────────────────────────
+   PAGE SWITCH DEMO (tab pill)
+───────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  width: fit-content;
+}
+.tab-item {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.tab-item:hover { color: var(--text-secondary); }
+.tab-item.active {
+  background: var(--bg-elevated);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+/* ─────────────────────────────────────────────
+   SPECTRUM MINI PREVIEW
+───────────────────────────────────────────── */
+.spectrum-mini {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 48px;
+  padding: 8px 0 0;
+}
+.spectrum-mini .sb {
+  flex: 1;
+  background: linear-gradient(to top, var(--accent-cyan), var(--accent-purple));
+  border-radius: 2px 2px 0 0;
+  opacity: 0.7;
+  min-width: 4px;
+}
+
+/* ─────────────────────────────────────────────
+   NOTIFICATION / ALERT BAR
+───────────────────────────────────────────── */
+.alert-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--accent-amber-dim);
+  border: 1px solid #f0a83230;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--accent-amber);
+}
+.alert-bar svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────
+   UTILITY
+───────────────────────────────────────────── */
+.flex-row { display: flex; align-items: center; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.text-mono { font-family: var(--font-mono); }
+.text-sm   { font-size: 12px; }
+.text-xs   { font-size: 11px; }
+.text-muted { color: var(--text-muted); }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+
+/* page switcher demo */
+#page-dashboard, #page-review, #page-extract {
+  display: none;
+}
+#page-dashboard.visible, #page-review.visible, #page-extract.visible {
+  display: contents;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10 Q6 2 12 10 Q18 18 22 10"/><circle cx="12" cy="10" r="2" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <span class="brand-name">TN_Audio</span>
+      <span class="brand-version">v2.0</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">主功能</div>
+
+      <div class="nav-item active" onclick="showPage('dashboard')">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
+        总览面板
+      </div>
+
+      <div class="nav-item" onclick="showPage('review')">
+        <span class="nav-icon"><i data-lucide="file-search"></i></span>
+        报告审查
+        <span class="nav-badge">3</span>
+      </div>
+
+      <div class="nav-item" onclick="showPage('extract')">
+        <span class="nav-icon"><i data-lucide="table-2"></i></span>
+        数据提取
+      </div>
+
+      <div class="nav-section-label">工具</div>
+
+      <div class="nav-item">
+        <span class="nav-icon"><i data-lucide="activity"></i></span>
+        频谱分析
+      </div>
+
+      <div class="nav-item">
+        <span class="nav-icon"><i data-lucide="settings-2"></i></span>
+        设置
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-status">
+        <div class="status-dot"></div>
+        <span class="status-label">引擎就绪</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════ MAIN ═══════════════════ -->
+  <div class="main">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-breadcrumb">
+        <span>TN_Audio</span>
+        <span class="sep">/</span>
+        <span class="current" id="breadcrumb-current">总览面板</span>
+      </div>
+
+      <div class="header-spacer"></div>
+
+      <!-- Decorative waveform -->
+      <div class="header-waveform">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div>
+      </div>
+
+      <button class="header-btn header-btn-ghost" style="margin-left:12px;">
+        <i data-lucide="folder-open" style="width:13px;height:13px;"></i>
+        打开报告
+      </button>
+      <button class="header-btn header-btn-primary">
+        <i data-lucide="zap" style="width:13px;height:13px;"></i>
+        开始审查
+      </button>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+      <!-- ─── PAGE: DASHBOARD ─── -->
+      <div id="page-dashboard" class="visible">
+
+        <!-- Page title -->
+        <div>
+          <div class="page-title">总览面板</div>
+          <div class="page-subtitle">最后更新 · 2026-05-15 14:32:07</div>
+        </div>
+
+        <!-- Alert bar -->
+        <div class="alert-bar">
+          <i data-lucide="alert-triangle"></i>
+          检测到 3 份报告存在时序顺序异常，建议优先审查。
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stat-grid">
+          <div class="stat-card cyan">
+            <div class="stat-label">累计审查报告</div>
+            <div class="stat-value">142</div>
+            <div class="stat-sub"><span class="trend-up">↑ 12</span> 本周新增</div>
+            <div class="stat-decoration"><i data-lucide="file-text"></i></div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">整体通过率</div>
+            <div class="stat-value">87<span style="font-size:16px;font-weight:400;color:var(--text-muted);">%</span></div>
+            <div class="stat-sub"><span class="trend-up">↑ 2.4%</span> 较上周</div>
+            <div class="stat-decoration"><i data-lucide="trending-up"></i></div>
+          </div>
+          <div class="stat-card amber">
+            <div class="stat-label">待处理异常</div>
+            <div class="stat-value">3</div>
+            <div class="stat-sub"><span class="trend-down">↓ 需人工复核</span></div>
+            <div class="stat-decoration"><i data-lucide="alert-circle"></i></div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-label">数据提取批次</div>
+            <div class="stat-value">38</div>
+            <div class="stat-sub"><span class="trend-up">↑ 5</span> 本周</div>
+            <div class="stat-decoration"><i data-lucide="database"></i></div>
+          </div>
+        </div>
+
+        <!-- Two-col section -->
+        <div class="two-col">
+          <!-- Recent reviews table -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-header-icon"><i data-lucide="clock"></i></div>
+              <span class="panel-title">近期审查记录</span>
+              <span class="panel-header-tag">最新 5 条</span>
+            </div>
+            <table class="review-table">
+              <thead>
+                <tr>
+                  <th>报告文件名</th>
+                  <th>时间</th>
+                  <th>状态</th>
+                  <th>发现问题</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="col-name">TMO_VoLTE_AMR_WB_Handset_LAMU26.docx</td>
+                  <td class="col-time">05-15 14:02</td>
+                  <td><span class="badge pass">PASS</span></td>
+                  <td class="text-mono" style="font-size:11px;color:var(--accent-green)">0</td>
+                </tr>
+                <tr>
+                  <td class="col-name">Utah_HA_VOLTE_EVS_SWB_0521.docx</td>
+                  <td class="col-time">05-15 11:47</td>
+                  <td><span class="badge warn">WARN</span></td>
+                  <td class="text-mono" style="font-size:11px;color:var(--accent-amber)">2</td>
+                </tr>
+                <tr>
+                  <td class="col-name">LAMU_HA_WCDMA_AMR_NB_Report.docx</td>
+                  <td class="col-time">05-14 16:23</td>
+                  <td><span class="badge fail">FAIL</span></td>
+                  <td class="text-mono" style="font-size:11px;color:var(--accent-red)">5</td>
+                </tr>
+                <tr>
+                  <td class="col-name">Utah_HE_NB_Handset_Audio_Report.docx</td>
+                  <td class="col-time">05-14 09:11</td>
+                  <td><span class="badge pass">PASS</span></td>
+                  <td class="text-mono" style="font-size:11px;color:var(--accent-green)">0</td>
+                </tr>
+                <tr>
+                  <td class="col-name">MOTO_Checklist_VoLTE_WB_Draft.docx</td>
+                  <td class="col-time">05-13 17:55</td>
+                  <td><span class="badge pending">IN REVIEW</span></td>
+                  <td class="text-mono" style="font-size:11px;color:var(--accent-cyan)">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Category pass rate -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-header-icon"><i data-lucide="bar-chart-2"></i></div>
+              <span class="panel-title">分类通过率</span>
+            </div>
+            <div class="category-list">
+              <div class="cat-row">
+                <div class="cat-header">
+                  <span class="cat-name">文档结构</span>
+                  <span class="cat-pct" style="color:var(--accent-cyan);">94%</span>
+                </div>
+                <div class="cat-bar-bg">
+                  <div class="cat-bar-fill" style="width:94%;background:var(--accent-cyan);"></div>
+                </div>
+              </div>
+              <div class="cat-row">
+                <div class="cat-header">
+                  <span class="cat-name">元数据完整性</span>
+                  <span class="cat-pct" style="color:var(--accent-green);">88%</span>
+                </div>
+                <div class="cat-bar-bg">
+                  <div class="cat-bar-fill" style="width:88%;background:var(--accent-green);"></div>
+                </div>
+              </div>
+              <div class="cat-row">
+                <div class="cat-header">
+                  <span class="cat-name">时序逻辑</span>
+                  <span class="cat-pct" style="color:var(--accent-amber);">71%</span>
+                </div>
+                <div class="cat-bar-bg">
+                  <div class="cat-bar-fill" style="width:71%;background:var(--accent-amber);"></div>
+                </div>
+              </div>
+              <div class="cat-row">
+                <div class="cat-header">
+                  <span class="cat-name">内容一致性</span>
+                  <span class="cat-pct" style="color:var(--accent-purple);">83%</span>
+                </div>
+                <div class="cat-bar-bg">
+                  <div class="cat-bar-fill" style="width:83%;background:var(--accent-purple);"></div>
+                </div>
+              </div>
+
+              <!-- Mini spectrum decoration -->
+              <div style="margin-top:8px;border-top:1px solid var(--border-subtle);padding-top:12px;">
+                <div class="cat-name" style="font-size:10px;margin-bottom:6px;">RLR 频谱预览（最近批次）</div>
+                <div class="spectrum-mini">
+                  <div class="sb" style="height:30%;"></div>
+                  <div class="sb" style="height:55%;"></div>
+                  <div class="sb" style="height:80%;"></div>
+                  <div class="sb" style="height:90%;"></div>
+                  <div class="sb" style="height:100%;"></div>
+                  <div class="sb" style="height:85%;"></div>
+                  <div class="sb" style="height:70%;"></div>
+                  <div class="sb" style="height:60%;"></div>
+                  <div class="sb" style="height:45%;"></div>
+                  <div class="sb" style="height:35%;"></div>
+                  <div class="sb" style="height:25%;"></div>
+                  <div class="sb" style="height:20%;"></div>
+                  <div class="sb" style="height:18%;"></div>
+                  <div class="sb" style="height:15%;"></div>
+                  <div class="sb" style="height:12%;"></div>
+                  <div class="sb" style="height:10%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /page-dashboard -->
+
+
+      <!-- ─── PAGE: REPORT REVIEW ─── -->
+      <div id="page-review">
+
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <div class="page-title">报告审查</div>
+            <div class="page-subtitle">上传 Word 报告 · AI 自动检查结构 / 元数据 / 时序 / 内容</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab-item active">单份审查</div>
+            <div class="tab-item">批量审查</div>
+            <div class="tab-item">历史记录</div>
+          </div>
+        </div>
+
+        <!-- Upload zone -->
+        <div class="upload-zone">
+          <div class="upload-icon">
+            <i data-lucide="upload-cloud"></i>
+          </div>
+          <div class="upload-title">拖拽或点击上传 .docx 报告文件</div>
+          <div class="upload-sub">支持 Word 2007+（.docx） · 单次最大 50 MB</div>
+        </div>
+
+        <!-- Check results (sample loaded state) -->
+        <div class="section-label">检查结果 · TMO_VoLTE_AMR_WB_Handset.docx</div>
+
+        <!-- Summary row -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="panel" style="display:flex;align-items:center;gap:14px;padding:12px 20px;flex:1;min-width:240px;">
+            <div style="font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--accent-green);">PASS</div>
+            <div style="width:1px;height:36px;background:var(--border-mid);"></div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">检查通过率</div>
+              <div style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--text-primary);">14 / 16</div>
+            </div>
+            <div style="width:1px;height:36px;background:var(--border-mid);"></div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">检查耗时</div>
+              <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--accent-cyan);">2.34 s</div>
+            </div>
+          </div>
+          <button class="header-btn header-btn-primary" style="height:48px;padding:0 24px;font-size:13px;">
+            <i data-lucide="download" style="width:14px;height:14px;"></i>
+            导出报告
+          </button>
+        </div>
+
+        <!-- Check items grid -->
+        <div class="check-grid">
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">目录结构完整性</div>
+              <div class="check-detail">发现 24 个章节，顺序正确</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">目录页码对齐</div>
+              <div class="check-detail">所有章节页码与正文一致</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">基本信息完整性</div>
+              <div class="check-detail">设备型号 / 网络 / 编解码器 已填写</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon warn"><i data-lucide="alert-triangle"></i></div>
+            <div>
+              <div class="check-label">测试工程师信息</div>
+              <div class="check-detail">检测到 2 名工程师姓名拼写可疑</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon fail"><i data-lucide="x"></i></div>
+            <div>
+              <div class="check-label">时序相邻间隔</div>
+              <div class="check-detail">第 3 组与第 4 组时间戳间隔 &gt; 72h</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">响度频响趋势</div>
+              <div class="check-detail">NB / WB 频响曲线趋势正常</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">POLQA 数值合理性</div>
+              <div class="check-detail">所有 MOS 分值在 1.0–4.5 范围内</div>
+            </div>
+          </div>
+          <div class="check-item">
+            <div class="check-status-icon pass"><i data-lucide="check"></i></div>
+            <div>
+              <div class="check-label">跨网络 Codec 一致性</div>
+              <div class="check-detail">同 Codec 不同网络结果差异在允许范围</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /page-review -->
+
+
+      <!-- ─── PAGE: DATA EXTRACT ─── -->
+      <div id="page-extract">
+        <div>
+          <div class="page-title">测试数据提取</div>
+          <div class="page-subtitle">从报告中自动提取数值 → 写入 Checklist Excel</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <!-- Source file -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-header-icon"><i data-lucide="file-text"></i></div>
+              <span class="panel-title">源报告文件</span>
+            </div>
+            <div style="padding:16px;">
+              <div class="upload-zone" style="padding:20px;">
+                <div class="upload-icon">
+                  <i data-lucide="file-text"></i>
+                </div>
+                <div class="upload-title" style="font-size:12px;">Word 或 Excel 报告</div>
+                <div class="upload-sub">.docx / .xlsx</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target checklist -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-header-icon"><i data-lucide="table-2"></i></div>
+              <span class="panel-title">目标 Checklist</span>
+            </div>
+            <div style="padding:16px;">
+              <div class="upload-zone" style="padding:20px;">
+                <div class="upload-icon">
+                  <i data-lucide="table-2"></i>
+                </div>
+                <div class="upload-title" style="font-size:12px;">Checklist 模板</div>
+                <div class="upload-sub">.xlsx 模板文件</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Config row -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-header-icon"><i data-lucide="sliders-horizontal"></i></div>
+            <span class="panel-title">提取配置</span>
+          </div>
+          <div style="padding:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;">客户</div>
+              <div style="background:var(--bg-elevated);border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text-secondary);">T-Mobile</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;">网络</div>
+              <div style="background:var(--bg-elevated);border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text-secondary);">VoLTE</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;">编解码器</div>
+              <div style="background:var(--bg-elevated);border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text-secondary);">EVS SWB</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase;">终端模式</div>
+              <div style="background:var(--bg-elevated);border:1px solid var(--border-mid);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text-secondary);">Handset</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button class="header-btn header-btn-primary" style="height:40px;padding:0 24px;">
+            <i data-lucide="play" style="width:13px;height:13px;"></i>
+            开始提取
+          </button>
+          <button class="header-btn header-btn-ghost" style="height:40px;">
+            <i data-lucide="eye" style="width:13px;height:13px;"></i>
+            预览提取项
+          </button>
+        </div>
+      </div><!-- /page-extract -->
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // Init Lucide icons
+  lucide.createIcons();
+
+  // Simple page switcher
+  const pageMap = {
+    dashboard: { id: 'page-dashboard', label: '总览面板' },
+    review:    { id: 'page-review',    label: '报告审查' },
+    extract:   { id: 'page-extract',   label: '数据提取' },
+  };
+
+  const navItems = document.querySelectorAll('.nav-item');
+
+  function showPage(key) {
+    // Hide all pages
+    Object.values(pageMap).forEach(p => {
+      document.getElementById(p.id).classList.remove('visible');
+    });
+    // Show selected
+    if (pageMap[key]) {
+      document.getElementById(pageMap[key].id).classList.add('visible');
+      document.getElementById('breadcrumb-current').textContent = pageMap[key].label;
+    }
+    // Update nav active state
+    navItems.forEach(el => {
+      el.classList.remove('active');
+      const onclick = el.getAttribute('onclick');
+      if (onclick && onclick.includes(`'${key}'`)) {
+        el.classList.add('active');
+      }
+    });
+  }
+</script>
+</body>
+</html>

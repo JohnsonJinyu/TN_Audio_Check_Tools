@@ -1,6 +1,7 @@
-import React from 'react';
-import { Alert, Card, Col, Collapse, Divider, Row, Space, Tag } from 'antd';
-import { CheckOutlined, CloseOutlined, ExclamationOutlined } from '@ant-design/icons';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Card, Col, Collapse, Divider, Progress, Row, Space, Spin, Tag } from 'antd';
+import { CheckOutlined, CloseOutlined, ExclamationOutlined, ExperimentOutlined } from '@ant-design/icons';
+import MonotonicityChart from './MonotonicityChart';
 
 function getStatusColor(status) {
   const colorMap = {
@@ -31,11 +32,56 @@ function getStatusText(status) {
 }
 
 export default function ReviewResultContent({ resultData }) {
+  const [aiAnalyzing, setAiAnalyzing] = useState({});
+  const [aiResults, setAiResults] = useState({});
+  const [aiProgress, setAiProgress] = useState({});
+  const progressUnsubscribeRef = useRef({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(progressUnsubscribeRef.current).forEach(fn => { if (typeof fn === 'function') fn(); });
+    };
+  }, []);
+
   if (!resultData) {
     return null;
   }
 
   const { report, reviewResult } = resultData;
+  const reportPath = report?.reportPath || report?.path || '';
+
+  const handleAiReanalyze = async (sectionKey) => {
+    setAiAnalyzing(prev => ({ ...prev, [sectionKey]: true }));
+    setAiResults(prev => ({ ...prev, [sectionKey]: null }));
+    setAiProgress(prev => ({ ...prev, [sectionKey]: { current: 0, total: 0, fileName: '' } }));
+
+    try {
+      if (typeof progressUnsubscribeRef.current[sectionKey] === 'function') {
+        progressUnsubscribeRef.current[sectionKey]();
+      }
+    } catch (_) {}
+
+    var unsub = null;
+    try {
+      if (window.electron && window.electron.reportReview && window.electron.reportReview.onChartAnalysisProgress) {
+        unsub = window.electron.reportReview.onChartAnalysisProgress(function(data) {
+          setAiProgress(prev => ({ ...prev, [sectionKey]: data }));
+        });
+        progressUnsubscribeRef.current[sectionKey] = unsub;
+      }
+    } catch (_) {}
+
+    try {
+      const res = await window.electron.reportReview.analyzeChartImages({ reportPath });
+      setAiResults(prev => ({ ...prev, [sectionKey]: res }));
+    } catch (e) {
+      setAiResults(prev => ({ ...prev, [sectionKey]: { status: 'error', issues: [{ severity: 'error', message: 'AI分析失败: ' + (e.message || '未知错误') }] } }));
+    } finally {
+      setAiAnalyzing(prev => ({ ...prev, [sectionKey]: false }));
+      try { if (typeof unsub === 'function') unsub(); } catch (_) {}
+      try { delete progressUnsubscribeRef.current[sectionKey]; } catch (_) {}
+    }
+  };
   if (!reviewResult) {
     return <Alert type="error" message="审查结果数据格式异常，无法显示" />;
   }
@@ -134,14 +180,117 @@ export default function ReviewResultContent({ resultData }) {
             <div>
               <p style={{ marginBottom: 12, color: 'var(--text-light)' }}>{section.description || '无详细说明'}</p>
 
+              {/* AI 综合诊断结论 */}
+              {section.conclusion && (
+                <Alert
+                  type={section.status === 'error' ? 'error' : section.status === 'warning' ? 'warning' : 'info'}
+                  message="AI 综合诊断结论"
+                  description={section.conclusion}
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+
+              {/* 逐项检查清单 — 显示每一项的对错状态 */}
+              {Array.isArray(section.checklist) && section.checklist.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <h4 style={{ marginBottom: 8 }}>
+                    逐项检查清单（{section.checklist.length} 项）：
+                    <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-light)', marginLeft: 12 }}>
+                      通过 {section.checklist.filter(function(c) { return c.status === 'pass'; }).length}
+                      {section.checklist.filter(function(c) { return c.status === 'warning'; }).length > 0 && ' | 警告 ' + section.checklist.filter(function(c) { return c.status === 'warning'; }).length}
+                      {section.checklist.filter(function(c) { return c.status === 'error'; }).length > 0 && ' | 错误 ' + section.checklist.filter(function(c) { return c.status === 'error'; }).length}
+                    </span>
+                  </h4>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--surface-muted)' }}>
+                          {section.checklist[0]?.direction != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>方向</th>}
+                          {section.checklist[0]?.volumeLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>等级</th>}
+                          {section.checklist[0]?.role != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>类型</th>}
+                          {section.checklist[0]?.fromLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>从</th>}
+                          {section.checklist[0]?.toLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>到</th>}
+                          {section.checklist[0]?.imageIndex != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>图#</th>}
+                          <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>结果</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>详情</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.checklist.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: item.status === 'error' ? '#fff2f0' : item.status === 'warning' ? '#fffbe6' : 'transparent' }}>
+                            {item.direction != null && <td style={{ padding: '6px 8px' }}><Tag color="blue" style={{ margin: 0 }}>{item.direction}</Tag></td>}
+                            {item.volumeLevel != null && <td style={{ padding: '6px 8px' }}>{item.volumeLevel || '-'}</td>}
+                            {item.role != null && <td style={{ padding: '6px 8px' }}>{item.role === 'reference' ? 'FR基准' : item.role === 'loudness_rlr' ? 'RLR响度' : item.role === 'loudness_slr' ? 'SLR响度' : item.role || '-'}</td>}
+                            {item.fromLevel != null && <td style={{ padding: '6px 8px' }}>{item.fromLevel}</td>}
+                            {item.toLevel != null && <td style={{ padding: '6px 8px' }}>{item.toLevel}</td>}
+                            {item.imageIndex != null && <td style={{ padding: '6px 8px' }}>#{item.imageIndex}</td>}
+                            <td style={{ padding: '6px 8px' }}>
+                              <Tag color={item.status === 'pass' ? 'success' : item.status === 'warning' ? 'orange' : item.status === 'error' ? 'red' : 'default'} style={{ margin: 0 }}>
+                                {item.status === 'pass' ? '通过' : item.status === 'warning' ? '警告' : item.status === 'error' ? '错误' : item.status}
+                              </Tag>
+                            </td>
+                            <td style={{ padding: '6px 8px', maxWidth: 350, fontSize: 11 }}>
+                              {item.detail || '-'}
+                              {(item.expectedBehavior || item.actualBehavior) && (
+                                <div style={{ marginTop: 2, color: 'var(--text-light)' }}>
+                                  {item.expectedBehavior && <div>期望: {item.expectedBehavior}</div>}
+                                  {item.actualBehavior && <div>实际: {item.actualBehavior}</div>}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 响度-等级趋势折线图 */}
+              {section.chartData && Object.keys(section.chartData).length > 0 && (
+                <MonotonicityChart data={section.chartData} />
+              )}
+
+              {/* 异常问题项 — 仅当有error/warning */}
               {Array.isArray(section.issues) && section.issues.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <h4 style={{ marginBottom: 8 }}>问题项：</h4>
-                  {section.issues.map((issue, idx) => (
+                  <h4 style={{ marginBottom: 8 }}>异常详情：</h4>
+                  {section.issues.filter(function(i) { return i.severity === 'error'; }).map((issue, idx) => (
                     <Alert
-                      key={idx}
-                      message={issue?.message || '未提供问题说明'}
-                      type={issue?.severity === 'error' ? 'error' : (issue?.severity === 'warning' ? 'warning' : 'info')}
+                      key={'err-' + idx}
+                      message={
+                        <Space wrap size={[4, 4]}>
+                          {issue.meta?.direction && <Tag color="blue">{issue.meta.direction}</Tag>}
+                          {issue.meta?.volumeLevel && <Tag color="geekblue">{issue.meta.volumeLevel}</Tag>}
+                          {issue.meta?.frequencyRange && <Tag color="purple">{issue.meta.frequencyRange}</Tag>}
+                          {issue.meta?.imageIndex != null && <Tag>图#{issue.meta.imageIndex}</Tag>}
+                          <span>{issue.message}</span>
+                        </Space>
+                      }
+                      description={issue.meta?.expectedBehavior && (
+                        <div style={{ fontSize: 12 }}>
+                          <div>期望: {issue.meta.expectedBehavior}</div>
+                          <div>实际: {issue.meta.actualBehavior}</div>
+                        </div>
+                      )}
+                      type="error"
+                      showIcon
+                      style={{ marginBottom: 8 }}
+                    />
+                  ))}
+                  {section.issues.filter(function(i) { return i.severity === 'warning'; }).map((issue, idx) => (
+                    <Alert
+                      key={'warn-' + idx}
+                      message={
+                        <Space wrap size={[4, 4]}>
+                          {issue.meta?.direction && <Tag color="blue">{issue.meta.direction}</Tag>}
+                          {issue.meta?.volumeLevel && <Tag color="geekblue">{issue.meta.volumeLevel}</Tag>}
+                          {issue.meta?.frequencyRange && <Tag color="purple">{issue.meta.frequencyRange}</Tag>}
+                          <span>{issue.message}</span>
+                        </Space>
+                      }
+                      type="warning"
                       showIcon
                       style={{ marginBottom: 8 }}
                     />
@@ -149,14 +298,94 @@ export default function ReviewResultContent({ resultData }) {
                 </div>
               )}
 
+              {/* 诊断证据 */}
               {Array.isArray(section.evidence) && section.evidence.length > 0 && (
-                <div>
-                  <h4 style={{ marginBottom: 8 }}>证据记录：</h4>
+                <div style={{ marginBottom: 12 }}>
+                  <h4 style={{ marginBottom: 8 }}>诊断依据：</h4>
                   <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                     {section.evidence.map((item, idx) => (
                       <li key={idx} style={{ marginBottom: 4, color: 'var(--text-light)', fontSize: 12 }}>{item}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* 分析日志 — 可折叠，默认关闭 */}
+              {Array.isArray(section.logs) && section.logs.length > 0 && (
+                <Collapse
+                  ghost
+                  size="small"
+                  items={[{
+                    key: 'logs',
+                    label: <span style={{ fontSize: 11, color: 'var(--text-light)' }}>分析日志（{section.logs.length} 条）</span>,
+                    children: (
+                      <ul style={{ margin: 0, paddingLeft: 20 }}>
+                        {section.logs.map((item, idx) => (
+                          <li key={idx} style={{ marginBottom: 2, color: 'var(--text-light)', fontSize: 11 }}>{item}</li>
+                        ))}
+                      </ul>
+                    )
+                  }]}
+                />
+              )}
+
+              {section.status === 'review' && reportPath && (
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space>
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<ExperimentOutlined />}
+                        loading={aiAnalyzing[section.key]}
+                        onClick={() => handleAiReanalyze(section.key)}
+                      >
+                        AI 分析图表
+                      </Button>
+                      <span style={{ fontSize: 12, color: 'var(--text-light)' }}>逐张分析报告中的频响曲线图</span>
+                    </Space>
+                    {aiProgress[section.key] && (aiProgress[section.key].imageTotal > 0 || aiProgress[section.key].imageCount > 0) && (
+                      <div style={{ marginTop: 8, padding: 10, background: 'var(--surface-muted)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                        <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Tag color={aiProgress[section.key].status === 'done' ? 'success' : aiProgress[section.key].status === 'analyzing' ? 'processing' : aiProgress[section.key].status === 'preparing' ? 'default' : 'default'}>
+                            {aiProgress[section.key].status === 'done' ? '已完成' : aiProgress[section.key].status === 'analyzing' ? 'AI分析中' : aiProgress[section.key].status === 'preparing' ? '准备中' : aiProgress[section.key].status || '处理中'}
+                          </Tag>
+                          <span style={{ fontSize: 12, fontWeight: 500 }}>
+                            {aiProgress[section.key].status === 'preparing' ? '图片 ' + aiProgress[section.key].imageCurrent + '/' + aiProgress[section.key].imageTotal : ''}
+                            {aiProgress[section.key].status === 'analyzing' && aiProgress[section.key].imageTotal > 1 ? '批次 ' + aiProgress[section.key].imageCurrent + '/' + aiProgress[section.key].imageTotal : ''}
+                            {aiProgress[section.key].status === 'done' ? '分析完成' : ''}
+                          </span>
+                        </div>
+                        {aiProgress[section.key].status === 'preparing' && aiProgress[section.key].imageTotal > 0 && (
+                          <Progress percent={Math.round((aiProgress[section.key].imageCurrent / aiProgress[section.key].imageTotal) * 100)} size="small" style={{ marginBottom: 4 }} strokeColor="#1677ff" />
+                        )}
+                        {aiProgress[section.key].status === 'analyzing' && aiProgress[section.key].imageTotal > 1 && (
+                          <Progress percent={Math.round((aiProgress[section.key].imageCurrent / aiProgress[section.key].imageTotal) * 100)} size="small" style={{ marginBottom: 4 }} />
+                        )}
+                        <div style={{ marginTop: 4 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-light)' }}>
+                            {aiProgress[section.key].status === 'preparing' && aiProgress[section.key].fileName ? '准备: ' + aiProgress[section.key].fileName : ''}
+                            {aiProgress[section.key].status === 'analyzing' ? '批次: ' + (aiProgress[section.key].fileName || '') + (aiProgress[section.key].imageCount ? ' (' + aiProgress[section.key].imageCount + ' 张曲线图)' : '') : ''}
+                            {aiProgress[section.key].status === 'done' ? (aiProgress[section.key].fileName || '') + (aiProgress[section.key].imageCount ? ' (' + aiProgress[section.key].imageCount + ' 张)' : '') : ''}
+                          </span>
+                        </div>
+                        {aiProgress[section.key].detail && (
+                          <div style={{ marginTop: 2 }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-light)', fontStyle: 'italic' }}>{aiProgress[section.key].detail}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Space>
+                  {aiResults[section.key] && (
+                    <Alert
+                      style={{ marginTop: 8 }}
+                      type={aiResults[section.key].status === 'pass' ? 'success' : aiResults[section.key].status === 'error' ? 'error' : 'warning'}
+                      showIcon
+                      message={aiResults[section.key].status === 'pass' ? 'AI 分析通过' : 'AI 分析结果'}
+                      description={aiResults[section.key].issues?.map(i => i.message).join('; ') || '无具体问题'}
+                    />
+                  )}
                 </div>
               )}
 

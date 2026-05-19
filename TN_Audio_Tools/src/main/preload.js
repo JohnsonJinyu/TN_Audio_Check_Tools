@@ -53,6 +53,11 @@ contextBridge.exposeInMainWorld('electron', {
     runCrossReportChecks: (payload) => ipcRenderer.invoke('report-review:run-cross-report-checks', payload),
     uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload),
     analyzeChartImages: (payload) => ipcRenderer.invoke('report-review:analyze-chart-images', payload),
+    onChartAnalysisProgress: (callback) => {
+      const handler = (_, data) => callback(data);
+      ipcRenderer.on('chart-analysis-progress', handler);
+      return () => ipcRenderer.removeListener('chart-analysis-progress', handler);
+    },
     testLlmConnection: (payload) => ipcRenderer.invoke('llm:test-connection', payload)
   }
 });

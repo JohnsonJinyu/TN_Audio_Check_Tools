@@ -31,8 +31,8 @@
 }
 
 .dashboard-tip-card {
-  background: #f6f8fb;
-  border: 1px solid #e6f7ff;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-color);
 }
 
 .dashboard-tip-card p {
@@ -52,12 +52,12 @@
 .tool-card {
   border-radius: 8px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  border: 2px solid #f0f0f0;
+  border: 2px solid var(--border-color);
 }
 
 .tool-card:hover {
-  border-color: #1890ff;
-  box-shadow: 0 5px 12px rgba(24, 144, 255, 0.12);
+  border-color: var(--primary-color);
+  box-shadow: 0 5px 12px var(--shadow-color);
 }
 
 .tool-icon {
@@ -188,6 +188,16 @@
   border-radius: 14px;
   border: 1px solid #ebe7ff;
   box-shadow: 0 5px 14px rgba(54, 67, 120, 0.05);
+}
+
+/* 测试数据收集页主卡片 - 橙色标识 */
+.report-checker-main-card {
+  border-left: 3px solid #ff7a45 !important;
+}
+
+/* 报告审查页专属CSS类 (用于未来进一步样式化) */
+.report-review-main-card {
+  border-left: 3px solid #722ed1 !important;
 }
 
 .report-checker-guide-card {
@@ -481,42 +491,87 @@
   box-shadow: 0 3px 10px var(--shadow-color);
 }
 
+/* 设置页 — 控件宽度约束：section body 适中，Select/Input 不过度拉伸 */
+.settings-page .settings-section__body {
+  max-width: 760px;
+}
+
+.settings-page .settings-section__body .ant-select {
+  max-width: 300px;
+}
+
+.settings-page .settings-section__body .ant-input {
+  max-width: 420px;
+}
+
+.settings-page .settings-section__body .settings-grid__cell--full .ant-input {
+  max-width: 520px;
+}
+
+.settings-page .settings-section__body .ant-input-password {
+  max-width: 420px;
+}
+
+/* 设置页标题区 */
+.settings-page-header {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.settings-page-title {
+  margin: 0 0 6px !important;
+  color: var(--text-color) !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+
+.settings-page-subtitle {
+  margin: 0;
+  color: var(--text-light);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 设置分区 — 现代分割线风格 */
 .settings-section {
-  margin-top: 22px;
-  padding: 18px 18px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 82%, var(--surface-color)) 0%, var(--surface-color) 100%);
-  box-shadow: 0 3px 10px var(--shadow-color);
+  margin-top: 0;
+  padding: 28px 0 12px;
+  border-top: 1px solid var(--border-color);
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .settings-section__header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
+  justify-content: flex-start;
+  gap: 20px;
+  margin-bottom: 18px;
 }
 
 .settings-section__title {
   margin: 0;
   color: var(--text-color);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.3;
 }
 
 .settings-section__description {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   color: var(--text-light);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .settings-section__extra {
   color: var(--text-light);
   font-size: 12px;
   white-space: nowrap;
+  padding-top: 2px;
 }
 
 .settings-section__body > .ant-alert {
@@ -526,11 +581,6 @@
 .settings-section__body > .ant-form-item:last-child,
 .settings-switch-list > .ant-form-item:last-child {
   margin-bottom: 0;
-}
-
-.settings-switch-list {
-  display: grid;
-  gap: 8px;
 }
 
 .settings-grid {
@@ -550,38 +600,53 @@
   grid-column: 1 / -1;
 }
 
-.settings-switch-card {
-  min-height: 92px;
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 84%, var(--surface-color)) 0%, var(--surface-color) 100%);
-}
-
-.settings-switch-card__header {
+/* Switch 行 — 无边框列表样式 */
+.settings-switch-list {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
 }
 
-.settings-switch-card__title {
+.settings-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s;
+}
+
+.settings-switch-row:first-child {
+  padding-top: 4px;
+}
+
+.settings-switch-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.settings-switch-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-switch-row__title {
   color: var(--text-color);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
 }
 
-.settings-switch-card__description {
-  margin-top: 6px;
+.settings-switch-row__description {
+  margin-top: 3px;
   color: var(--text-light);
   font-size: 12px;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
-.settings-switch-card__control {
+.settings-switch-row__control {
   margin-bottom: 0 !important;
-  padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .settings-inline-note {
@@ -629,18 +694,19 @@
 
 .settings-action-bar {
   position: sticky;
-  top: -8px;
+  top: -24px;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: -4px 0 20px;
-  padding: 14px 16px;
+  margin: 0 0 24px;
+  padding: 12px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 3px 10px var(--shadow-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .settings-action-bar__meta {
@@ -667,18 +733,71 @@
   gap: 16px;
 }
 
-.settings-update-metric {
-  height: 100%;
-  border-radius: 12px;
+/* 版本更新指标格 */
+.settings-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--border-color);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 8%, var(--surface-color)) 0%, var(--surface-elevated) 100%);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
-.settings-update-metric strong {
+.settings-metric-cell {
+  padding: 14px 16px;
+  border-right: 1px solid var(--border-color);
+}
+
+.settings-metric-cell:last-child {
+  border-right: none;
+}
+
+.settings-metric-cell strong {
   display: block;
   color: var(--text-color);
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.4;
+  margin: 4px 0;
+}
+
+/* 关于应用信息列表 */
+.settings-about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-about-row {
+  display: flex;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+}
+
+.settings-about-row:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.settings-about-row dt {
+  flex-shrink: 0;
+  width: 72px;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.settings-about-row dd {
+  margin: 0;
+  color: var(--text-color);
+}
+
+/* 设置页底部 */
+.settings-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-update-label {
@@ -703,18 +822,16 @@
 }
 
 [data-theme='dark'] .settings-action-bar {
-  background: rgba(25, 35, 52, 0.96);
+  background: var(--surface-elevated);
   border-color: var(--border-strong);
 }
 
 [data-theme='dark'] .settings-section {
-  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-color) 100%);
   border-color: var(--border-strong);
 }
 
-[data-theme='dark'] .settings-switch-card {
+[data-theme='dark'] .settings-switch-row {
   border-color: var(--border-strong);
-  background: linear-gradient(180deg, rgba(36, 50, 72, 0.94) 0%, var(--surface-color) 100%);
 }
 
 [data-theme='dark'] .settings-inline-note {
@@ -722,14 +839,24 @@
   background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-elevated));
 }
 
-[data-theme='dark'] .settings-update-card {
-  background: var(--surface-elevated);
+[data-theme='dark'] .settings-metric-grid {
   border-color: var(--border-strong);
 }
 
-[data-theme='dark'] .settings-update-metric {
+[data-theme='dark'] .settings-metric-cell {
   border-color: var(--border-strong);
-  background: linear-gradient(135deg, rgba(122, 184, 255, 0.08) 0%, rgba(33, 45, 64, 0.95) 100%);
+}
+
+[data-theme='dark'] .settings-about-row {
+  border-color: var(--border-strong);
+}
+
+[data-theme='dark'] .settings-page-header {
+  border-color: var(--border-strong);
+}
+
+[data-theme='dark'] .settings-footer {
+  border-color: var(--border-strong);
 }
 
 @media (max-width: 900px) {
