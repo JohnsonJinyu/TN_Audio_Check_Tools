@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Col, Collapse, Divider, Progress, Row, Space, Spin, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined, ExclamationOutlined, ExperimentOutlined } from '@ant-design/icons';
 import MonotonicityChart from './MonotonicityChart';
+import LoudnessFrComparisonCard from './components/LoudnessFrComparisonCard';
 
 function getStatusColor(status) {
   const colorMap = {
@@ -29,6 +30,21 @@ function getStatusText(status) {
   };
 
   return textMap[status] || status;
+}
+
+function groupComparisonCards(cards) {
+  return (cards || []).reduce(function(acc, card) {
+    var key = card.direction || 'unknown';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(card);
+    return acc;
+  }, {});
+}
+
+function getComparisonGroupTitle(direction) {
+  if (direction === 'RCV') return '接收方向同等级曲线对比（RLR vs 接收频响）';
+  if (direction === 'SND') return '发送方向曲线对比（SLR vs 发送频响）';
+  return '方向待确认的同等级曲线对比';
 }
 
 export default function ReviewResultContent({ resultData }) {
@@ -180,70 +196,165 @@ export default function ReviewResultContent({ resultData }) {
             <div>
               <p style={{ marginBottom: 12, color: 'var(--text-light)' }}>{section.description || '无详细说明'}</p>
 
-              {/* AI 综合诊断结论 */}
-              {section.conclusion && (
-                <Alert
-                  type={section.status === 'error' ? 'error' : section.status === 'warning' ? 'warning' : 'info'}
-                  message="AI 综合诊断结论"
-                  description={section.conclusion}
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                />
+              {section.key === 'contentLoudnessFRTrend' && Array.isArray(section.comparisonCards) && section.comparisonCards.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <Card
+                    size="small"
+                    style={{
+                      marginBottom: 16,
+                      borderRadius: 24,
+                      border: '1px solid #e7e5e4',
+                      background: '#fafaf9',
+                    }}
+                    bodyStyle={{ padding: 20 }}
+                  >
+                    <div style={{ fontSize: 12, color: '#78716c', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                      趋势摘要
+                    </div>
+                    <div style={{ fontSize: 16, color: '#1c1917', lineHeight: 1.8 }}>
+                      {section.conclusion || '已按方向与等级生成曲线对比卡片，可直接查看 FR 与响度图的对应关系。'}
+                    </div>
+                  </Card>
+
+                  {Object.entries(groupComparisonCards(section.comparisonCards)).map(function(entry) {
+                    var direction = entry[0];
+                    var cards = entry[1];
+                    var shouldHideLevel = direction === 'SND' && cards.length === 1;
+                    return (
+                      <div key={direction} style={{ marginBottom: 20 }}>
+                        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Tag color="blue" style={{ borderRadius: 999, margin: 0 }}>{direction}</Tag>
+                          <span style={{ fontSize: 15, fontWeight: 500, color: '#292524' }}>
+                            {getComparisonGroupTitle(direction)}
+                          </span>
+                        </div>
+                        <Row gutter={[16, 16]}>
+                          {cards.map(function(card, idx) {
+                            return (
+                              <Col xs={24} key={direction + '-' + card.level + '-' + idx}>
+                                <LoudnessFrComparisonCard card={card} hideLevel={shouldHideLevel} />
+                              </Col>
+                            );
+                          })}
+                        </Row>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 判定结论 */}
+              {section.conclusion && section.key !== 'contentLoudnessFRTrend' && (
+                <div style={{ marginBottom: 12 }}>
+                  <h4 style={{ marginBottom: 8 }}>判定结论：</h4>
+                  <p style={{ margin: 0, color: 'var(--text-light)', fontSize: 12 }}>{section.conclusion}</p>
+                </div>
               )}
 
               {/* 逐项检查清单 — 显示每一项的对错状态 */}
               {Array.isArray(section.checklist) && section.checklist.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <h4 style={{ marginBottom: 8 }}>
-                    逐项检查清单（{section.checklist.length} 项）：
-                    <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-light)', marginLeft: 12 }}>
-                      通过 {section.checklist.filter(function(c) { return c.status === 'pass'; }).length}
-                      {section.checklist.filter(function(c) { return c.status === 'warning'; }).length > 0 && ' | 警告 ' + section.checklist.filter(function(c) { return c.status === 'warning'; }).length}
-                      {section.checklist.filter(function(c) { return c.status === 'error'; }).length > 0 && ' | 错误 ' + section.checklist.filter(function(c) { return c.status === 'error'; }).length}
-                    </span>
-                  </h4>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--surface-muted)' }}>
-                          {section.checklist[0]?.direction != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>方向</th>}
-                          {section.checklist[0]?.volumeLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>等级</th>}
-                          {section.checklist[0]?.role != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>类型</th>}
-                          {section.checklist[0]?.fromLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>从</th>}
-                          {section.checklist[0]?.toLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>到</th>}
-                          {section.checklist[0]?.imageIndex != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>图#</th>}
-                          <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>结果</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>详情</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {section.checklist.map((item, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: item.status === 'error' ? '#fff2f0' : item.status === 'warning' ? '#fffbe6' : 'transparent' }}>
-                            {item.direction != null && <td style={{ padding: '6px 8px' }}><Tag color="blue" style={{ margin: 0 }}>{item.direction}</Tag></td>}
-                            {item.volumeLevel != null && <td style={{ padding: '6px 8px' }}>{item.volumeLevel || '-'}</td>}
-                            {item.role != null && <td style={{ padding: '6px 8px' }}>{item.role === 'reference' ? 'FR基准' : item.role === 'loudness_rlr' ? 'RLR响度' : item.role === 'loudness_slr' ? 'SLR响度' : item.role || '-'}</td>}
-                            {item.fromLevel != null && <td style={{ padding: '6px 8px' }}>{item.fromLevel}</td>}
-                            {item.toLevel != null && <td style={{ padding: '6px 8px' }}>{item.toLevel}</td>}
-                            {item.imageIndex != null && <td style={{ padding: '6px 8px' }}>#{item.imageIndex}</td>}
-                            <td style={{ padding: '6px 8px' }}>
-                              <Tag color={item.status === 'pass' ? 'success' : item.status === 'warning' ? 'orange' : item.status === 'error' ? 'red' : 'default'} style={{ margin: 0 }}>
-                                {item.status === 'pass' ? '通过' : item.status === 'warning' ? '警告' : item.status === 'error' ? '错误' : item.status}
-                              </Tag>
-                            </td>
-                            <td style={{ padding: '6px 8px', maxWidth: 350, fontSize: 11 }}>
-                              {item.detail || '-'}
-                              {(item.expectedBehavior || item.actualBehavior) && (
-                                <div style={{ marginTop: 2, color: 'var(--text-light)' }}>
-                                  {item.expectedBehavior && <div>期望: {item.expectedBehavior}</div>}
-                                  {item.actualBehavior && <div>实际: {item.actualBehavior}</div>}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {section.key === 'contentLoudnessFRTrend' ? (
+                    <Collapse
+                      ghost
+                      size="small"
+                      items={[{
+                        key: 'trend-checklist',
+                        label: (
+                          <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
+                            查看结构化明细（{section.checklist.length} 项）
+                          </span>
+                        ),
+                        children: (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--surface-muted)' }}>
+                                  {section.checklist[0]?.direction != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>方向</th>}
+                                  {section.checklist[0]?.volumeLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>等级</th>}
+                                  {section.checklist[0]?.role != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>类型</th>}
+                                  {section.checklist[0]?.imageIndex != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>图#</th>}
+                                  <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>结果</th>
+                                  <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>详情</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {section.checklist.map((item, idx) => (
+                                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: item.status === 'error' ? '#fff2f0' : item.status === 'warning' ? '#fffbe6' : 'transparent' }}>
+                                    {item.direction != null && <td style={{ padding: '6px 8px' }}><Tag color="blue" style={{ margin: 0 }}>{item.direction}</Tag></td>}
+                                    {item.volumeLevel != null && <td style={{ padding: '6px 8px' }}>{item.volumeLevel || '-'}</td>}
+                                    {item.role != null && <td style={{ padding: '6px 8px' }}>{item.role === 'reference' ? 'FR基准' : item.role === 'loudness_rlr' ? 'RLR响度' : item.role === 'loudness_slr' ? 'SLR响度' : item.role || '-'}</td>}
+                                    {item.imageIndex != null && <td style={{ padding: '6px 8px' }}>#{item.imageIndex}</td>}
+                                    <td style={{ padding: '6px 8px' }}>
+                                      <Tag color={item.status === 'pass' ? 'success' : item.status === 'warning' ? 'orange' : item.status === 'error' ? 'red' : 'default'} style={{ margin: 0 }}>
+                                        {item.status === 'pass' ? '通过' : item.status === 'warning' ? '警告' : item.status === 'error' ? '错误' : item.status}
+                                      </Tag>
+                                    </td>
+                                    <td style={{ padding: '6px 8px', maxWidth: 350, fontSize: 11 }}>
+                                      {item.detail || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )
+                      }]}
+                    />
+                  ) : (
+                    <>
+                      <h4 style={{ marginBottom: 8 }}>
+                        逐项检查清单（{section.checklist.length} 项）：
+                        <span style={{ fontSize: 12, fontWeight: 'normal', color: 'var(--text-light)', marginLeft: 12 }}>
+                          通过 {section.checklist.filter(function(c) { return c.status === 'pass'; }).length}
+                          {section.checklist.filter(function(c) { return c.status === 'warning'; }).length > 0 && ' | 警告 ' + section.checklist.filter(function(c) { return c.status === 'warning'; }).length}
+                          {section.checklist.filter(function(c) { return c.status === 'error'; }).length > 0 && ' | 错误 ' + section.checklist.filter(function(c) { return c.status === 'error'; }).length}
+                        </span>
+                      </h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--surface-muted)' }}>
+                              {section.checklist[0]?.direction != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>方向</th>}
+                              {section.checklist[0]?.volumeLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>等级</th>}
+                              {section.checklist[0]?.role != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>类型</th>}
+                              {section.checklist[0]?.fromLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>从</th>}
+                              {section.checklist[0]?.toLevel != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>到</th>}
+                              {section.checklist[0]?.imageIndex != null && <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>图#</th>}
+                              <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>结果</th>
+                              <th style={{ padding: '6px 8px', textAlign: 'left', whiteSpace: 'nowrap' }}>详情</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.checklist.map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: item.status === 'error' ? '#fff2f0' : item.status === 'warning' ? '#fffbe6' : 'transparent' }}>
+                                {item.direction != null && <td style={{ padding: '6px 8px' }}><Tag color="blue" style={{ margin: 0 }}>{item.direction}</Tag></td>}
+                                {item.volumeLevel != null && <td style={{ padding: '6px 8px' }}>{item.volumeLevel || '-'}</td>}
+                                {item.role != null && <td style={{ padding: '6px 8px' }}>{item.role === 'reference' ? 'FR基准' : item.role === 'loudness_rlr' ? 'RLR响度' : item.role === 'loudness_slr' ? 'SLR响度' : item.role || '-'}</td>}
+                                {item.fromLevel != null && <td style={{ padding: '6px 8px' }}>{item.fromLevel}</td>}
+                                {item.toLevel != null && <td style={{ padding: '6px 8px' }}>{item.toLevel}</td>}
+                                {item.imageIndex != null && <td style={{ padding: '6px 8px' }}>#{item.imageIndex}</td>}
+                                <td style={{ padding: '6px 8px' }}>
+                                  <Tag color={item.status === 'pass' ? 'success' : item.status === 'warning' ? 'orange' : item.status === 'error' ? 'red' : 'default'} style={{ margin: 0 }}>
+                                    {item.status === 'pass' ? '通过' : item.status === 'warning' ? '警告' : item.status === 'error' ? '错误' : item.status}
+                                  </Tag>
+                                </td>
+                                <td style={{ padding: '6px 8px', maxWidth: 350, fontSize: 11 }}>
+                                  {item.detail || '-'}
+                                  {(item.expectedBehavior || item.actualBehavior) && (
+                                    <div style={{ marginTop: 2, color: 'var(--text-light)' }}>
+                                      {item.expectedBehavior && <div>期望: {item.expectedBehavior}</div>}
+                                      {item.actualBehavior && <div>实际: {item.actualBehavior}</div>}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

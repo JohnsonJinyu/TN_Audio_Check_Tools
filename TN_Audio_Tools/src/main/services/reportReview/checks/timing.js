@@ -118,7 +118,7 @@ function checkTotalTestSpan(testDataFacts) {
   if (totalHours > 8) {
     issues.push({
       severity: 'error',
-      message: `全部测试项跨度为 ${totalHours.toFixed(1)} 小时，严重超过8小时上限`,
+      message: `全部测试项跨度为 ${totalHours.toFixed(1)} 小时，超过6小时要求，且已达到严重异常阈值（>8小时）`,
     });
     return { issues, evidence, status: 'error' };
   }

@@ -1,5 +1,6 @@
 const axios = require('axios');
-const { compareVolumeLevel, normalizeVolumeLevel } = require('./volumeLevelUtils');
+const { PNG } = require('pngjs');
+const { CANONICAL_LEVELS, compareVolumeLevel, normalizeVolumeLevel } = require('./volumeLevelUtils');
 
 var PROMPT_TEMPLATE = [
   '你是一位专业的音频测试工程师。请分析以下ACQUA音频测试报告中的频率响应/响度曲线图，并与响度数值交叉验证。',
@@ -11,7 +12,7 @@ var PROMPT_TEMPLATE = [
   '- 频响曲线图标题格式: "Sensitivity, frequency RCV" 或 "Sensitivity, frequency SND" + 测试等级',
   '- 测试等级体系（8级，音量从大到小）: MAX > MAX-1 > MAX-2 > MAX-3(NOM) > MAX-4 > MAX-5 > MAX-6 > MAX-7(MIN)',
   '- 其中 NOM = MAX-3(NOM), MIN = MAX-7(MIN)；频响通常只在 MAX、NOM、MIN 三个等级测试',
-  '- RLR值越小=音量越大=曲线越高（RCV方向逆相关），SLR为发送方向正相关',
+  '- 对 Loudness Rating 而言，RLR / SLR 数值越小通常表示实际越响，对应曲线整体应更高',
   '',
   '## 核心检查任务',
   '',
@@ -150,6 +151,82 @@ function parseLlmResponse(text) {
   }
 
   return { findings, overallAssessment, overallSeverity, monotonicityViolations };
+}
+
+function cropPng(png, x, y, width, height) {
+  var out = new PNG({ width: width, height: height });
+  PNG.bitblt(png, out, x, y, width, height, 0, 0);
+  return out;
+}
+
+function haveIdenticalPlotBody(leftImage, rightImage) {
+  if (!leftImage || !rightImage || !leftImage.base64 || !rightImage.base64) return false;
+
+  try {
+    var left = PNG.sync.read(Buffer.from(leftImage.base64, 'base64'));
+    var right = PNG.sync.read(Buffer.from(rightImage.base64, 'base64'));
+    if (!left || !right || left.width !== right.width || left.height !== right.height) return false;
+
+    // 只比对图表主体，排除标题与上下文文字；当前 ACQUA 导出图尺寸固定。
+    var leftPlot = cropPng(left, 60, 35, 255, 205);
+    var rightPlot = cropPng(right, 60, 35, 255, 205);
+
+    for (var i = 0; i < leftPlot.data.length; i++) {
+      if (leftPlot.data[i] !== rightPlot.data[i]) return false;
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function buildDuplicatePlotFinding(task, referenceImage, loudnessImage) {
+  return {
+    direction: task.direction,
+    volumeLevel: task.level || '',
+    role: loudnessImage.category || '',
+    imageIndex: loudnessImage.index,
+    severity: 'error',
+    trendConsistent: false,
+    levelMonotonic: true,
+    frequencyRange: '',
+    expectedBehavior: '响度图应为独立测试曲线，不应与同等级FR基准图的图表主体完全相同',
+    actualBehavior: 'FR基准图与响度图的图表主体像素完全一致，仅标题文字不同',
+    detail: '检测到同等级响度图与FR基准图疑似复用同一底图，请优先核查报告原图是否放错',
+    duplicatePlot: true,
+    referenceImageIndex: referenceImage.index,
+  };
+}
+
+function taskMatchesSwbRule(task, testDataFacts) {
+  var metrics = (testDataFacts && testDataFacts.loudnessMetrics) || [];
+  for (var i = 0; i < metrics.length; i++) {
+    if (String(metrics[i].bandwidth || '').toUpperCase() === 'SWB') return true;
+  }
+
+  var combined = ((task && task.label) || '') + ' ' + ((task && task.direction) || '');
+  (task && task.images || []).forEach(function(img) {
+    combined += ' ' + String(img && img.contextText || '');
+    combined += ' ' + String(img && img.fileName || '');
+  });
+
+  return /SUPERWIDEBAND|\bSWB\b|\b(?:HA|HE|HH|HS)SB\b/i.test(combined);
+}
+
+function isActionableMonotonicityViolation(violation) {
+  if (!violation) return false;
+  var description = String(violation.description || '').trim();
+  var combined = [description, violation.levelA, violation.levelB, violation.direction].filter(Boolean).join(' ');
+
+  if (!combined) return false;
+
+  // 这类返回并不是“检测到异常”，而是 LLM 表示样本不足或无法判定，
+  // 不应在前端以 warning 形式展示成异常发现。
+  if (/(无法验证|无法判断|无法确认|样本不足|数据不足|缺少按等级分组|缺少.*测试数据|未找到足够|仅有\s*1\s*个|只有\s*1\s*个)/i.test(combined)) {
+    return false;
+  }
+
+  return true;
 }
 
 async function analyzeChartImages(params) {
@@ -487,10 +564,79 @@ var GROUP_COMPARE_PROMPT = [
   '  "monotonicityViolations": [',
   '    { "direction": "RCV", "levelA": "MAX-1", "levelB": "MAX-2", "description": "MAX-2曲线幅度反超MAX-1约3dB，违反单调递减" }',
   '  ],',
+  '  注意：只有在明确发现跨等级曲线幅度异常时，才输出 monotonicityViolations。若样本不足、缺少等级、无法判断，请返回空数组 []，不要输出“无法验证/缺少数据”类占位描述。',
   '  "overallAssessment": "综合判定：(1)各等级下FR与响度曲线趋势是否一致 (2)跨等级单调性 (3)具体异常点总结 (4)建议（中文，150字以内）",',
   '  "overallSeverity": "pass"',
   '}',
   'severity: pass=所有曲线趋势一致且单调, warning=个别有轻微偏离, error=明显不一致或严重异常'
+].join('\n');
+
+var LEVEL_COMPARE_PROMPT = [
+  '你是一位专业的音频测试工程师。请只分析下面这一组“同方向、同等级”的曲线图。',
+  '',
+  '## 图片说明',
+  '- 这一组图片都属于同一方向、同一测试等级',
+  '- FR基准图来自 Sensitivity, frequency',
+  '- RLR/SLR 响度图来自 Loudness Rating RCV/SND',
+  '- 你的任务是判断该等级下响度曲线与频响基准的走势是否一致或相似',
+  '',
+  '## 判定要求',
+  '1. 只比较这一组内部的同等级图片，不要做跨等级判断',
+  '2. 观察低频/中频/高频的整体走势、峰谷位置、衰减趋势是否一致或相似',
+  '3. 如果缺少FR图或缺少响度图，请返回 review 语义，不要硬判通过',
+  '',
+  '## 图片组', '%IMAGE_GROUP%',
+  '',
+  '## 输出格式（严格JSON）',
+  '{',
+  '  "findings": [',
+  '    {',
+  '      "direction": "RCV或SND",',
+  '      "volumeLevel": "MAX或MAX-3(NOM)或MAX-7(MIN)",',
+  '      "role": "reference或loudness_rlr或loudness_slr",',
+  '      "trendConsistent": true,',
+  '      "severity": "pass或warning或error",',
+  '      "frequencyRange": "异常频段，无异常留空",',
+  '      "expectedBehavior": "期望走势",',
+  '      "actualBehavior": "实际走势",',
+  '      "detail": "结论（中文）"',
+  '    }',
+  '  ],',
+  '  "overallAssessment": "该等级对比结论（中文，80字以内）",',
+  '  "overallSeverity": "pass"',
+  '}'
+].join('\n');
+
+var MONOTONICITY_PROMPT = [
+  '你是一位专业的音频测试工程师。请只分析下面同一方向下不同等级的响度曲线。',
+  '',
+  '## 分析目标',
+  '1. 判断从 MAX 到 MIN，响度曲线整体幅度是否单调递变',
+  '2. 结合给出的响度数值，判断曲线高低排序是否与数值变化趋势一致',
+  '3. 如果样本不足或缺失等级，请返回空的 monotonicityViolations，不要编造异常',
+  '',
+  '## 图片组', '%IMAGE_GROUP%',
+  '',
+  '## 响度数值', '%LOUDNESS_DATA%',
+  '',
+  '## 输出格式（严格JSON）',
+  '{',
+  '  "findings": [',
+  '    {',
+  '      "direction": "RCV或SND",',
+  '      "volumeLevel": "ALL",',
+  '      "trendConsistent": true,',
+  '      "levelMonotonic": true,',
+  '      "severity": "pass或warning或error",',
+  '      "detail": "跨等级单调性与数值印证结论（中文）"',
+  '    }',
+  '  ],',
+  '  "monotonicityViolations": [',
+  '    { "direction": "RCV", "levelA": "MAX-1", "levelB": "MAX-2", "description": "异常说明" }',
+  '  ],',
+  '  "overallAssessment": "该方向跨等级结论（中文，80字以内）",',
+  '  "overallSeverity": "pass"',
+  '}'
 ].join('\n');
 
 /**
@@ -523,6 +669,53 @@ function _buildImgLabels(batchImgs) {
     var lvlLabel = img.volumeLevel ? '[' + img.volumeLevel + ']' : '[等级未知]';
     return (i + 1) + '. ' + lvlLabel + ' ' + role + ' ' + (img.contextText || img.fileName).slice(0, 150);
   }).join('\n');
+}
+
+function _pickRepresentativeImages(imgs, limit) {
+  if (!Array.isArray(imgs) || imgs.length === 0) return [];
+  return imgs.slice(0, Math.max(1, limit || 1));
+}
+
+function _buildSequentialTaskPlans(dir, frGroups, loudGroups) {
+  var plans = [];
+
+  COMPARE_LEVELS.forEach(function(lvl) {
+    var refs = _pickRepresentativeImages((frGroups[dir][lvl] || []).concat(frGroups.unknown[lvl] || []), 1);
+    var louds = _pickRepresentativeImages((loudGroups[dir][lvl] || []).concat(loudGroups.unknown[lvl] || []), 2);
+    if (refs.length === 0 || louds.length === 0) return;
+    plans.push({
+      type: 'level',
+      direction: dir,
+      level: lvl,
+      label: dir + ' ' + lvl,
+      images: refs.concat(louds)
+    });
+  });
+
+  return plans;
+}
+
+async function _postChartTask(http, apiUrl, apiKey, model, prompt, batchImgs) {
+  var content = [{ type: 'text', text: prompt }];
+  batchImgs.forEach(function(img) {
+    content.push({ type: 'image_url', image_url: { url: 'data:' + img.contentType + ';base64,' + img.base64 } });
+  });
+
+  var response = await http.post(apiUrl + '/v1/chat/completions', {
+    model: model,
+    max_tokens: 1200,
+    temperature: 0.1,
+    messages: [{ role: 'user', content: content }],
+    response_format: { type: 'json_object' }
+  }, {
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    timeout: 90000
+  });
+
+  var text = '';
+  var choice = (response.data && response.data.choices && response.data.choices[0]);
+  if (choice && choice.message && choice.message.content) text = choice.message.content;
+  return parseLlmResponse(text);
 }
 
 /**
@@ -598,86 +791,87 @@ async function analyzeGroupedCharts(params, onProgress) {
 
   var allFindings = [];
   var dirAssessments = [];
-  var allMonotonicityViolations = [];
-  var totalTasks = 0;
-  if (loudnessImgs.some(function(img) {
-    var d = guessDirection(img.contextText || '', img.category || '');
-    return d === 'RCV' || d === 'unknown';
-  })) totalTasks++;
-  if (loudnessImgs.some(function(img) {
-    var d = guessDirection(img.contextText || '', img.category || '');
-    return d === 'SND' || d === 'unknown';
-  })) totalTasks++;
-  var taskDone = 0;
-
+  var failedDirections = [];
+  var incompleteDirections = [];
   var loudnessSummary = buildLoudnessSummary(testDataFacts);
   var http = require('axios');
+  var taskPlans = [];
 
-  // 每个方向一次LLM调用，图片按等级标注
-  for (var _dir of ['RCV', 'SND']) {
-    // 收集该方向的所有图片（按COMPARE_LEVELS顺序 + other）
-    var batchImgs = [];
-    COMPARE_LEVELS.concat(['other']).forEach(function(lvl) {
-      var fRefs = frGroups[_dir][lvl] || [];
-      var lImgs = loudGroups[_dir][lvl] || [];
-      batchImgs = batchImgs.concat(fRefs).concat(lImgs);
+  ['RCV', 'SND'].forEach(function(dir) {
+    var hasFrReference = COMPARE_LEVELS.some(function(lvl) {
+      return (frGroups[dir][lvl] || []).length > 0 || (frGroups.unknown[lvl] || []).length > 0;
     });
-    // 也加入unknown方向的图片
-    COMPARE_LEVELS.concat(['other']).forEach(function(lvl) {
-      batchImgs = batchImgs.concat(frGroups['unknown'][lvl] || []).concat(loudGroups['unknown'][lvl] || []);
+    var hasLoudness = CANONICAL_LEVELS.some(function(lvl) {
+      return (loudGroups[dir][lvl] || []).length > 0 || (loudGroups.unknown[lvl] || []).length > 0;
     });
 
-    if (batchImgs.length === 0) continue;
+    if (!hasLoudness) return;
+    if (!hasFrReference) {
+      incompleteDirections.push(dir);
+      logs.push(dir + '方向缺少FR参考图，无法按规则完成同等级趋势对比');
+      return;
+    }
 
-    // 逐张发射图片准备进度（异步延迟，让前端看到每张图片）
-    await _emitPerImageProgress(batchImgs, _dir, onProgress);
+    var plans = _buildSequentialTaskPlans(dir, frGroups, loudGroups);
+    if (plans.length === 0) {
+      incompleteDirections.push(dir);
+      logs.push(dir + '方向未形成有效的小组任务，已标记人工复核');
+      return;
+    }
+    taskPlans = taskPlans.concat(plans);
+  });
 
-    var imgDescs = _buildImgLabels(batchImgs);
+  var totalTasks = taskPlans.length;
+  var taskDone = 0;
 
-    var prompt = GROUP_COMPARE_PROMPT
-      .replace('%IMAGE_GROUP%', imgDescs)
-      .replace('%LOUDNESS_DATA%', loudnessSummary);
+  for (var task of taskPlans) {
+    await _emitPerImageProgress(task.images, task.label, onProgress);
 
-    var content = [{ type: 'text', text: prompt }];
-    batchImgs.forEach(function(img) {
-      content.push({ type: 'image_url', image_url: { url: 'data:' + img.contentType + ';base64,' + img.base64 } });
-    });
+    if (task.type === 'level') {
+      var referenceImage = task.images.find(function(img) { return img.category === 'fr_reference'; });
+      var loudnessImage = task.images.find(function(img) { return img.category === 'loudness_rlr' || img.category === 'loudness_slr'; });
+      if (referenceImage && loudnessImage && haveIdenticalPlotBody(referenceImage, loudnessImage)) {
+        if (taskMatchesSwbRule(task, testDataFacts)) {
+          logs.push(task.label + ': 检测到FR与响度图图表主体一致，但当前为SWB报告，按已确认规则允许');
+        } else {
+        allFindings.push(buildDuplicatePlotFinding(task, referenceImage, loudnessImage));
+        logs.push(task.label + ': 检测到FR与响度图图表主体完全一致，疑似复用同一底图');
+        taskDone++;
+        if (onProgress) {
+          try { onProgress({ current: taskDone, total: totalTasks, fileName: task.label, status: 'error', imageCount: task.images.length, detail: task.label + ' 检测到疑似重复底图' }); } catch (_) {}
+        }
+        continue;
+        }
+      }
+    }
+
+    var imgDescs = _buildImgLabels(task.images);
+    var prompt = LEVEL_COMPARE_PROMPT.replace('%IMAGE_GROUP%', imgDescs);
 
     if (onProgress) {
-      try { onProgress({ current: taskDone + 1, total: totalTasks, fileName: _dir + '方向', status: 'analyzing', imageCount: batchImgs.length, detail: '正在发送' + _dir + '方向 ' + batchImgs.length + ' 张曲线图给AI分析...' }); } catch (_) {}
+      try { onProgress({ current: taskDone + 1, total: totalTasks, fileName: task.label, status: 'analyzing', imageCount: task.images.length, detail: '正在发送 ' + task.label + ' 共 ' + task.images.length + ' 张曲线图给AI分析...' }); } catch (_) {}
     }
 
     try {
-      var response = await http.post(apiUrl + '/v1/chat/completions', {
-        model: model, max_tokens: 2048, temperature: 0.1,
-        messages: [{ role: 'user', content: content }],
-        response_format: { type: 'json_object' }
-      }, {
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        timeout: 120000
+      var parsed = await _postChartTask(http, apiUrl, apiKey, model, prompt, task.images);
+      parsed.findings.forEach(function(f) {
+        f.direction = f.direction || task.direction;
+        if (task.level && (!f.volumeLevel || f.volumeLevel === 'unknown')) f.volumeLevel = task.level;
       });
-
-      var text = '';
-      var choice = (response.data && response.data.choices && response.data.choices[0]);
-      if (choice && choice.message && choice.message.content) text = choice.message.content;
-      var parsed = parseLlmResponse(text);
-      parsed.findings.forEach(function(f) { f.direction = _dir; });
       allFindings = allFindings.concat(parsed.findings);
       if (parsed.overallAssessment) {
-        dirAssessments.push({ direction: _dir, assessment: parsed.overallAssessment });
+        dirAssessments.push({ direction: task.direction, assessment: '[' + task.label + '] ' + parsed.overallAssessment });
       }
-      logs.push(_dir + '方向: ' + (parsed.overallAssessment || 'OK'));
-      if (parsed.monotonicityViolations && parsed.monotonicityViolations.length > 0) {
-        parsed.monotonicityViolations.forEach(function(v) { v.direction = v.direction || _dir; });
-        allMonotonicityViolations = allMonotonicityViolations.concat(parsed.monotonicityViolations);
-      }
+      logs.push(task.label + ': ' + (parsed.overallAssessment || 'OK'));
+
     } catch (e) {
-      logs.push(_dir + '方向分析失败: ' + (e.message || '未知错误'));
+      if (failedDirections.indexOf(task.direction) === -1) failedDirections.push(task.direction);
+      logs.push(task.label + ' 分析失败: ' + (e.message || '未知错误'));
     }
 
     taskDone++;
     if (onProgress) {
-      try { onProgress({ current: taskDone, total: totalTasks, fileName: _dir + '方向', status: 'done', imageCount: batchImgs.length, detail: _dir + '方向分析完成' }); } catch (_) {}
+      try { onProgress({ current: taskDone, total: totalTasks, fileName: task.label, status: 'done', imageCount: task.images.length, detail: task.label + ' 分析完成' }); } catch (_) {}
     }
   }
 
@@ -687,12 +881,24 @@ async function analyzeGroupedCharts(params, onProgress) {
     else if (f.severity === 'warning') warnCount++;
     else passCount++;
   });
-  logs.push('趋势对比: ' + passCount + ' 通过' + (warnCount > 0 ? ', ' + warnCount + ' 警告' : '') + (errCount > 0 ? ', ' + errCount + ' 异常' : ''));
+  logs.push('趋势对比: ' + passCount + ' 通过' + (warnCount > 0 ? ', ' + warnCount + ' 警告' : '') + (errCount > 0 ? ', ' + errCount + ' 异常' : '') + (incompleteDirections.length > 0 ? ', ' + incompleteDirections.length + ' 方向缺少FR参考图' : '') + (failedDirections.length > 0 ? ', ' + failedDirections.length + ' 方向分析失败' : ''));
 
   var overallSeverity = errCount > 0 ? 'error' : (warnCount > 0 ? 'warning' : 'pass');
+  var overallStatus = (frRefs.length === 0 || incompleteDirections.length > 0 || failedDirections.length > 0 || allFindings.length === 0)
+    ? 'review'
+    : overallSeverity;
 
   // 每个异常finding生成一条issue
   var issues = [];
+  if (frRefs.length === 0) {
+    issues.push({ severity: 'review', message: '未识别到可用于对比的频响参考图，无法按判定规则完成趋势一致性分析' });
+  }
+  incompleteDirections.forEach(function(dir) {
+    issues.push({ severity: 'review', message: dir + '方向缺少频响参考图，无法完成同等级趋势对比' });
+  });
+  failedDirections.forEach(function(dir) {
+    issues.push({ severity: 'review', message: dir + '方向AI分析失败，请人工复核' });
+  });
   allFindings.forEach(function(f, i) {
     if (f.severity !== 'error' && f.severity !== 'warning') return;
     var parts = [];
@@ -721,12 +927,8 @@ async function analyzeGroupedCharts(params, onProgress) {
     });
   });
 
-  if (issues.length === 0 && allMonotonicityViolations.length > 0) {
-    issues.push({
-      severity: 'warning',
-      message: 'AI检测到跨等级曲线幅度单调性异常，详见结论',
-      meta: { source: 'llm_monotonicity', violations: allMonotonicityViolations }
-    });
+  if (issues.length === 0 && overallStatus === 'review') {
+    issues.push({ severity: 'review', message: '可比的频响/响度曲线不足，当前结果需人工复核' });
   }
 
   var conclusion = '';
@@ -738,13 +940,6 @@ async function analyzeGroupedCharts(params, onProgress) {
 
   // 诊断相关evidence（不含操作日志）
   var diagnosticEvidence = [];
-  if (allMonotonicityViolations.length > 0) {
-    diagnosticEvidence.push('AI发现 ' + allMonotonicityViolations.length + ' 处跨等级单调性异常');
-    allMonotonicityViolations.forEach(function(v) {
-      diagnosticEvidence.push('  ' + (v.direction || '?') + ': ' + (v.description || (v.levelA + ' vs ' + v.levelB)));
-    });
-  }
-
   // 完整逐项清单（包含所有finding的pass/warn/error）
   var checklist = allFindings.map(function(f) {
     return {
@@ -767,10 +962,10 @@ async function analyzeGroupedCharts(params, onProgress) {
     evidence: diagnosticEvidence,
     logs: logs,
     checklist: checklist,
-    status: overallSeverity,
+    status: overallStatus,
     conclusion: conclusion,
     rawFindings: allFindings,
-    monotonicityViolations: allMonotonicityViolations,
+    monotonicityViolations: [],
   };
 }
 

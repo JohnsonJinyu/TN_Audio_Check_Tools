@@ -152,12 +152,7 @@ async function reviewWordReport(reportPath, reportData) {
   updateSummary(summary, contentLoudnessFR.status);
 
   // 15. 曲线与数值互相印证（单报告内）
-  // 将LLM视觉分析结果传递给数值互证检查，实现交叉验证
-  const llmContextForCorroboration = {
-    rawFindings: contentLoudnessFR.rawFindings,
-    monotonicityViolations: contentLoudnessFR.monotonicityViolations,
-  };
-  const contentCurveCorroboration = checkCurveValueCorroboration(testDataFacts, llmContextForCorroboration);
+  const contentCurveCorroboration = checkCurveValueCorroboration(testDataFacts);
   allResults.contentCurveValueCorroboration = contentCurveCorroboration;
   updateSummary(summary, contentCurveCorroboration.status);
 

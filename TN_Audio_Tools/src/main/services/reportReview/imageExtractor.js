@@ -14,8 +14,11 @@ var MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 // 排除项（优先级最高 — 明显不相关的测试）
 var EXCLUDE = /Delay|Distortion|Echo|MOS|POLQA|TOSQA|Acoustic\s*Shock|Ambient\s*Noise|D-Value|ANR|Background|Single\s*Talk|Double\s*Talk|Preparation|Level\s*vs|Speech\s*quality|Stability|Sidetone|Channel|idle\s*noise/i;
 
-// FR 参考图 — 新规则精确格式: "Sensitivity, frequency RCV" 或 "Sensitivity, frequency SND"
-var FR_REFERENCE = /Sensitivity,\s*frequency\s*(?:RCV|SND)/i;
+// FR 参考图 — 兼容实际报告中的标题变体:
+// - Sensitivity, frequency RCV/SND
+// - Sensitivity, frequency character. ... MAX/NOM/MIN
+// - Sensitivity frequency charact. Sending ...
+var FR_REFERENCE = /Sensitivity,?\s*frequency(?:\s*(?:RCV|SND|Receiving|Sending|character(?:istic)?\.?|charact\.?))?/i;
 // 旧格式兼容: "Frequency Response"、"频响"、"频率响应"
 var FR_REFERENCE_LEGACY = /Frequency\s*Response|频响|频率响应/i;
 
@@ -35,11 +38,27 @@ function classifyImage(contextText, fileName) {
   if (LOUDNESS_RLR.test(combined)) return { category: 'loudness_rlr', volumeLevel: volumeLevel };
   if (LOUDNESS_SLR.test(combined)) return { category: 'loudness_slr', volumeLevel: volumeLevel };
 
-  // 兜底：方向+等级关键词同时出现，视为响度图
-  if (/(?:MAX(?:-\d+)?|NOM|MIN)\b/i.test(combined) && /Sending|Receiving|SND|RCV|TX|RX|Dir/i.test(combined)) {
+  // 兜底仅限“响度语义不完整但仍明显是响度图”的标题，避免把 P.863 AC 等方向图误判成 RLR/SLR。
+  if (/(?:MAX(?:-\d+)?|NOM|MIN)\b/i.test(combined)
+    && /Sending|Receiving|SND|RCV|TX|RX|Dir/i.test(combined)
+    && /Loudness|Rating|RLR|SLR/i.test(combined)) {
     return { category: 'loudness_rlr', volumeLevel: volumeLevel };
   }
   return { category: 'excluded', volumeLevel: null };
+}
+
+function extractNearbyText(xml, index, radius) {
+  var start = Math.max(0, index - radius);
+  var end = Math.min(xml.length, index + radius);
+  return xml.slice(start, end)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function guessContentType(fileName) {
@@ -144,31 +163,23 @@ async function extractReportImages(reportPath) {
     var docFile = zip.file('word/document.xml');
     if (docFile) {
       var docXml = await docFile.async('string');
-      var paragraphs = docXml.match(/<w:p[ >][\s\S]*?<\/w:p>/gi) || [];
-      var paraTexts = paragraphs.map(function(p) {
-        var texts = p.match(/<w:t[^>]*>([^<]*)<\/w:t>/gi) || [];
-        return texts.map(function(t) { return t.replace(/<\/?w:t[^>]*>/gi, ''); }).join('');
-      }).filter(Boolean);
-
       // DrawingML: <a:blip r:embed="rIdN"/>
-      var dmlMatches = docXml.matchAll(/<(?:\w+:)?blip[^>]*(?:\w+:)?embed="([^"]*)"[^>]*\/?>/gi);
+      var dmlMatches = Array.from(docXml.matchAll(/<(?:\w+:)?blip[^>]*(?:\w+:)?embed="([^"]*)"[^>]*\/?>/gi));
       // VML: <v:imagedata r:id="rIdN"/>
-      var vmlMatches = docXml.matchAll(/<v:imagedata[^>]*r:id="([^"]*)"[^>]*\/?>/gi);
+      var vmlMatches = Array.from(docXml.matchAll(/<v:imagedata[^>]*r:id="([^"]*)"[^>]*\/?>/gi));
 
-      var allRefs = [];
-      for (var _dm of Array.from(dmlMatches)) allRefs.push(_dm[1]);
-      for (var _vm of Array.from(vmlMatches)) allRefs.push(_vm[1]);
+      var allRefs = dmlMatches.map(function(m) {
+        return { rid: m[1], index: m.index || 0 };
+      }).concat(vmlMatches.map(function(m) {
+        return { rid: m[1], index: m.index || 0 };
+      }));
 
-      allRefs.forEach(function(rid, idx) {
+      allRefs.forEach(function(ref) {
+        var rid = ref.rid;
         var target = imageRelMap[rid];
         if (!target) return;
-        var contextParts = [];
-        var startIdx = Math.max(0, idx - 3);
-        var endIdx = Math.min(paraTexts.length - 1, idx + 3);
-        for (var i = startIdx; i <= endIdx; i++) {
-          if (paraTexts[i]) contextParts.push(paraTexts[i]);
-        }
-        var contextText = contextParts.join(' | ');
+
+        var contextText = extractNearbyText(docXml, ref.index || 0, 1200);
         if (!imageContextMap[target] || contextText.length > imageContextMap[target].length) {
           imageContextMap[target] = contextText;
         }

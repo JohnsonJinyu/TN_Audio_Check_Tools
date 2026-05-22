@@ -1,6 +1,139 @@
 const progressBus = require('../progressBus');
 const { normalizeVolumeLevel, compareVolumeLevel } = require('../volumeLevelUtils');
 
+var CARD_COMPARE_LEVELS = ['MAX', 'MAX-3(NOM)', 'MAX-7(MIN)'];
+
+function guessChartDirection(image) {
+  var ctx = String(image && image.contextText || '');
+  var category = String(image && image.category || '');
+  if (/RCV|RX|Receiving|接收/i.test(ctx)) return 'RCV';
+  if (/SND|TX|Sending|发送/i.test(ctx)) return 'SND';
+  if (category === 'loudness_rlr') return 'RCV';
+  if (category === 'loudness_slr') return 'SND';
+  return 'unknown';
+}
+
+function toPreviewImage(image) {
+  if (!image || !image.base64 || !image.contentType) return null;
+  return {
+    fileName: image.fileName || '',
+    imageIndex: image.index,
+    category: image.category || '',
+    volumeLevel: image.volumeLevel || '',
+    contextText: image.contextText || '',
+    src: 'data:' + image.contentType + ';base64,' + image.base64,
+  };
+}
+
+function getCardStatus(items) {
+  if (!items || items.length === 0) return 'review';
+  if (items.some(function(item) { return item.status === 'error'; })) return 'error';
+  if (items.some(function(item) { return item.status === 'warning'; })) return 'warning';
+  if (items.some(function(item) { return item.status === 'pass'; })) return 'pass';
+  return 'review';
+}
+
+function buildCardSummary(items, fallback) {
+  if (!items || items.length === 0) return fallback || '当前等级缺少足够的对比依据，建议人工复核。';
+
+  var summaries = items
+    .map(function(item) { return String(item.detail || '').trim(); })
+    .filter(Boolean)
+    .filter(function(text, index, arr) { return arr.indexOf(text) === index; });
+
+  if (summaries.length === 0) return fallback || '当前等级已完成图片归组，但还没有可展示的AI摘要。';
+  if (summaries.length === 1) return summaries[0];
+  return summaries.slice(0, 2).join(' ');
+}
+
+function buildComparisonCards(images, llmResult) {
+  if (!Array.isArray(images) || images.length === 0) return [];
+
+  var checklist = Array.isArray(llmResult && llmResult.checklist) ? llmResult.checklist : [];
+  var grouped = {};
+
+  images.forEach(function(image) {
+    if (!image || !image.category || image.category === 'excluded') return;
+    var direction = guessChartDirection(image);
+    var level = normalizeVolumeLevel(image.volumeLevel) || 'unknown';
+    if (CARD_COMPARE_LEVELS.indexOf(level) === -1) return;
+    if (!grouped[direction]) grouped[direction] = {};
+    if (!grouped[direction][level]) grouped[direction][level] = { fr: [], loudness: [] };
+
+    if (image.category === 'fr_reference') grouped[direction][level].fr.push(image);
+    else if (image.category === 'loudness_rlr' || image.category === 'loudness_slr') grouped[direction][level].loudness.push(image);
+  });
+
+  var knownDirections = Object.keys(grouped).filter(function(direction) { return direction !== 'unknown'; });
+
+  var cards = [];
+  knownDirections.forEach(function(direction) {
+    var levels = Object.keys(grouped[direction])
+      .filter(function(level) { return CARD_COMPARE_LEVELS.indexOf(level) !== -1; })
+      .sort(compareVolumeLevel);
+    levels.forEach(function(level) {
+      var bucket = grouped[direction][level];
+      if (!bucket || (bucket.fr.length === 0 && bucket.loudness.length === 0)) return;
+
+      var frImages = bucket.fr;
+      var loudnessImages = bucket.loudness;
+
+      var relevantChecklist = checklist.filter(function(item) {
+        return item.direction === direction && normalizeVolumeLevel(item.volumeLevel) === level;
+      });
+      var status = getCardStatus(relevantChecklist);
+      var fallbackSummary = frImages.length === 0
+        ? '缺少对应的频响基准图，当前等级只能展示响度曲线，建议人工复核。'
+        : (loudnessImages.length === 0
+          ? '缺少对应的响度曲线图，当前等级无法完成同等级趋势对比。'
+          : '已归组同等级频响与响度曲线，可直接进行人工对照。');
+
+      cards.push({
+        direction: direction,
+        level: level,
+        status: status,
+        summary: buildCardSummary(relevantChecklist, fallbackSummary),
+        findings: relevantChecklist,
+        frImage: toPreviewImage(frImages[0]),
+        loudnessImages: loudnessImages.slice(0, 2).map(toPreviewImage).filter(Boolean),
+      });
+    });
+  });
+
+  Object.keys(grouped.unknown || {}).filter(function(level) {
+    return CARD_COMPARE_LEVELS.indexOf(level) !== -1;
+  }).sort(compareVolumeLevel).forEach(function(level) {
+    var bucket = grouped.unknown[level];
+    if (!bucket || (bucket.fr.length === 0 && bucket.loudness.length === 0)) return;
+    var alreadyMapped = cards.some(function(card) { return card.level === level && card.frImage; });
+    if (alreadyMapped) return;
+
+    cards.push({
+      direction: 'unknown',
+      level: level,
+      status: 'review',
+      summary: bucket.fr.length > 0 && bucket.loudness.length > 0
+        ? '当前等级的方向信息不完整，但已找到可比的频响与响度曲线，可人工对照。'
+        : '当前等级方向信息不完整，建议结合原报告人工复核。',
+      findings: [],
+      frImage: toPreviewImage(bucket.fr[0]),
+      loudnessImages: bucket.loudness.slice(0, 2).map(toPreviewImage).filter(Boolean),
+    });
+  });
+
+  return cards.sort(function(a, b) {
+    if (a.direction !== b.direction) return a.direction.localeCompare(b.direction);
+    var aIndex = CARD_COMPARE_LEVELS.indexOf(a.level);
+    var bIndex = CARD_COMPARE_LEVELS.indexOf(b.level);
+    if (aIndex !== -1 || bIndex !== -1) {
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    }
+    return compareVolumeLevel(a.level, b.level);
+  });
+}
+
 /**
  * 测试内容合理性检查 (2.2)
  *
@@ -178,17 +311,18 @@ function checkSameNetworkDifferentCodecLoudness(allMetrics) {
  */
 async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, llmSettings) {
   var _ev = [];
+  var comparisonCards = [];
   var _rd = requireTestData(testDataFacts);
   if (!_rd.ok) {
     _ev.push(_rd.reason);
-    return { issues: [{ severity: 'review', message: _rd.reason }], evidence: _ev, status: 'review' };
+    return { issues: [{ severity: 'review', message: _rd.reason }], evidence: _ev, comparisonCards: comparisonCards, status: 'review' };
   }
 
   var _m = testDataFacts.loudnessMetrics || [];
   var _f = testDataFacts.frequencyResponseMetrics || [];
   _ev.push('响度数据 ' + _m.length + ' 条，频响数据 ' + _f.length + ' 条');
 
-  if (llmSettings && llmSettings.enabled && llmSettings.apiUrl && llmSettings.apiKey && reportPath) {
+  if (reportPath) {
     try {
       var { extractReportImages } = require('../imageExtractor');
       var result = await extractReportImages(reportPath);
@@ -198,23 +332,28 @@ async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, rep
       if (warnings.length > 0) _ev = _ev.concat(warnings);
       if (images.length > 0) {
         var chartImages = images;
-        _ev.push('AI分析 ' + chartImages.length + ' 张曲线图');
-        var { analyzeGroupedCharts } = require('../llmService');
-        var llmResult = await analyzeGroupedCharts({ images: chartImages, testDataFacts: testDataFacts, settings: llmSettings }, function(progress) {
-          try { progressBus.emit('chart-progress', { imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
-        });
-        if (llmResult.evidence) _ev = _ev.concat(llmResult.evidence);
-        var frResult = {
-          issues: llmResult.issues || [],
-          evidence: _ev,
-          logs: llmResult.logs || [],
-          checklist: llmResult.checklist || [],
-          status: llmResult.status || 'pass',
-          conclusion: llmResult.conclusion || '',
-          rawFindings: llmResult.rawFindings || [],
-          monotonicityViolations: llmResult.monotonicityViolations || [],
-        };
-        return frResult;
+        comparisonCards = buildComparisonCards(chartImages, null);
+        if (llmSettings && llmSettings.enabled && llmSettings.apiUrl && llmSettings.apiKey) {
+          _ev.push('AI分析 ' + chartImages.length + ' 张曲线图');
+          var { analyzeGroupedCharts } = require('../llmService');
+          var llmResult = await analyzeGroupedCharts({ images: chartImages, testDataFacts: testDataFacts, settings: llmSettings }, function(progress) {
+            try { progressBus.emit('chart-progress', { imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
+          });
+          if (llmResult.evidence) _ev = _ev.concat(llmResult.evidence);
+          comparisonCards = buildComparisonCards(chartImages, llmResult);
+          var frResult = {
+            issues: llmResult.issues || [],
+            evidence: _ev,
+            logs: llmResult.logs || [],
+            checklist: llmResult.checklist || [],
+            comparisonCards: comparisonCards,
+            status: llmResult.status || 'pass',
+            conclusion: llmResult.conclusion || '',
+            rawFindings: llmResult.rawFindings || [],
+            monotonicityViolations: llmResult.monotonicityViolations || [],
+          };
+          return frResult;
+        }
       }
       _ev.push('未检测到响度/频响曲线图，需人工对比。报告中图片总数: ' + (images.length + (warnings ? warnings.length : 0)));
     } catch (e) {
@@ -232,7 +371,7 @@ async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, rep
   } else if (!reportPath) {
     _ev.push('无法提取图片：报告路径为空');
   }
-  return { issues: [{ severity: 'review', message: '请人工对比报告中响度与频响测试项的曲线趋势是否一致' }], evidence: _ev, status: 'review' };
+  return { issues: [{ severity: 'review', message: '请人工对比报告中响度与频响测试项的曲线趋势是否一致' }], evidence: _ev, comparisonCards: comparisonCards, status: 'review' };
 }
 /**
  * 2.2.4 单报告内曲线与数值互相印证
@@ -240,7 +379,7 @@ async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, rep
  * 检查逻辑：不同音量等级下，响度值越大，频响幅值也应越大。
  * 对相同方向、相同类型的测试，按音量等级排列后检查单调性。
  */
-function checkCurveValueCorroboration(testDataFacts, llmContext) {
+function checkCurveValueCorroboration(testDataFacts) {
   const evidence = [];
   const issues = [];
   const checklist = [];
@@ -402,28 +541,6 @@ function checkCurveValueCorroboration(testDataFacts, llmContext) {
       });
     }
   });
-
-  // LLM交叉验证：将AI视觉发现与数值单调性结果对照
-  if (llmContext && llmContext.monotonicityViolations && llmContext.monotonicityViolations.length > 0) {
-    var llmViolations = llmContext.monotonicityViolations;
-    evidence.push('AI视觉交叉验证: 发现 ' + llmViolations.length + ' 处跨等级曲线幅度异常');
-    llmViolations.forEach(function(v) {
-      var alreadyFlagged = issues.some(function(issue) {
-        return issue.message.indexOf(v.direction) !== -1;
-      });
-      if (alreadyFlagged) {
-        // LLM视觉确认了数值异常 → 提升置信度
-        evidence.push('  [AI验证] ' + v.direction + ': ' + (v.description || v.levelA + '与' + v.levelB + '幅度异常') + ' — 与数值分析一致');
-      } else {
-        // LLM发现了数值分析未捕获的异常
-        issues.push({
-          severity: 'warning',
-          message: '[AI视觉发现] ' + (v.direction || '?') + ': ' + (v.description || (v.levelA + '与' + v.levelB + '曲线幅度异常')),
-          meta: { source: 'llm_verified', direction: v.direction, levelA: v.levelA, levelB: v.levelB, description: v.description }
-        });
-      }
-    });
-  }
 
   // 生成折线图数据（按方向，同等级取平均值，按等级排序）
   var chartData = {};

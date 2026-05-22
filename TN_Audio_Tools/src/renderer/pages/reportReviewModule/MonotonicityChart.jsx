@@ -36,7 +36,10 @@ export default function MonotonicityChart({ data }) {
 
   return (
     <div style={{ marginTop: 16 }}>
-      <h4 style={{ marginBottom: 12 }}>响度-等级趋势图：</h4>
+      <h4 style={{ marginBottom: 8 }}>Loudness Rating 值-等级趋势图：</h4>
+      <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-light)' }}>
+        本图展示的是 RLR / SLR rating 数值，不是实际声压级；对 loudness rating 而言，dB 值越小通常表示实际越响，因此图中上方代表更响、下方代表更弱。
+      </div>
       {Object.keys(data).map(function(dir) {
         var points = data[dir];
         if (!points || points.length < 2) return null;
@@ -59,7 +62,7 @@ export default function MonotonicityChart({ data }) {
                 color: analysis.monotonic ? '#52c41a' : '#ff4d4f',
                 border: '1px solid ' + (analysis.monotonic ? '#b7eb8f' : '#ffccc7'),
               }}>
-                {analysis.monotonic ? '单调' + (analysis.trend === 'up' ? '递增' : '递减') : '存在非单调点'}
+                {analysis.monotonic ? 'Rating值连续' + (analysis.trend === 'up' ? '增大' : '减小') : '存在非单调点'}
               </span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
@@ -73,16 +76,17 @@ export default function MonotonicityChart({ data }) {
                   height={50}
                 />
                 <YAxis
+                  reversed
                   domain={[minVal - padding, maxVal + padding]}
                   tick={{ fontSize: 11 }}
-                  label={{ value: 'dB', position: 'insideTopRight', offset: -8, style: { fontSize: 11 } }}
+                  label={{ value: 'Rating dB', position: 'insideTopRight', offset: -8, style: { fontSize: 11 } }}
                 />
                 <Tooltip
                   formatter={function(value, name, props) {
                     var count = props && props.payload && props.payload.count;
                     return [value.toFixed(2) + ' dB' + (count > 1 ? ' (均值, ' + count + '项)' : '')];
                   }}
-                  labelFormatter={function(label) { return '等级: ' + label; }}
+                  labelFormatter={function(label) { return '等级: ' + label + '（rating 越小越响）'; }}
                 />
                 <Line
                   type="monotone"
@@ -120,7 +124,9 @@ export default function MonotonicityChart({ data }) {
             )}
             {analysis.monotonic && (
               <div style={{ marginTop: 4, fontSize: 11, color: '#52c41a' }}>
-                {analysis.trend === 'up' ? '响度值随等级单调递增，趋势正常。' : '响度值随等级单调递减，趋势正常。'}
+                {analysis.trend === 'up'
+                  ? 'Rating 值随等级单调增大，表示实际响度随 MAX → MIN 逐步减小，趋势正常。'
+                  : 'Rating 值随等级单调减小，表示实际响度随 MAX → MIN 逐步增大，趋势正常。'}
               </div>
             )}
           </div>

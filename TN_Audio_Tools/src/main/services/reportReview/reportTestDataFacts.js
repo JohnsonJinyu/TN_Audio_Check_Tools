@@ -1,4 +1,4 @@
-const { normalizeText, normalizeUpperText } = require('./utils');
+const { normalizeText, normalizeUpperText, buildWordData } = require('./utils');
 const { normalizeVolumeLevel, extractVolumeLevelFromTitle } = require('./volumeLevelUtils');
 
 // 列索引仅作为 row.raw 数组格式的回退，优先使用对象属性名
@@ -42,10 +42,11 @@ function classifyTestCategory(name, smd, bgnScenario) {
   var isDelayName = (
     /\b(?:ROUND\s*TRIP|ONE\s*WAY|GROUP)\s*DELAY\b/i.test(nameText) ||
     /\bDELAY\s*TIME\b/i.test(nameText) ||
+    /\bDELAY\b/i.test(nameText) ||
     /时延/.test(nameText)
   );
-  if (isDelayName && !/CALIBRAT|COMPENSAT|OFFSET|LOCK/i.test(nameText)) return 'delay';
   if (fullText.includes('ECHO') && fullText.includes('DELAY')) return 'echo_delay';
+  if (isDelayName && !/CALIBRAT|COMPENSAT|OFFSET|LOCK/i.test(nameText)) return 'delay';
   if (/LOUDNESS|RLR|SLR|STMR/.test(fullText)) return 'loudness';
   if (/FREQUENCY\s*RESPONSE|频响|FREQ\b|SENSITIVITY[\s,]*FREQUENCY/i.test(fullText)) return 'frequency_response';
   if (/MOS-LQO|POLQA|P\.863/.test(fullText)) return 'polqa';
@@ -84,12 +85,191 @@ function parseDateTime(dateVal, timeVal) {
   return null;
 }
 
+function extractSectionNumber(text) {
+  var normalized = normalizeText(text);
+  if (!normalized) return '';
+  var match = normalized.match(/^(\d+(?:\.\d+){1,4}[a-z]?)\b/i);
+  return match ? match[1] : '';
+}
+
+function cleanTimingTitle(text) {
+  return normalizeText(text)
+    .replace(/\bPAGEREF\b\s+_Toc\d+\s+\d+$/i, '')
+    .replace(/\b_?Toc\d+\b/gi, '')
+    .replace(/\s+\d+$/g, '')
+    .trim();
+}
+
+function normalizeTimingTitleKey(text) {
+  return cleanTimingTitle(text)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractWordTimingTitles(reportData) {
+  var wordData = buildWordData(reportData);
+  if (!wordData || (!Array.isArray(wordData.paragraphs) && !Array.isArray(wordData.tables))) return [];
+
+  var headingPatterns = [
+    { regex: /^(\d{1,2}(?:\.\d{1,2}){0,4}[a-z]?)\s+(.{3,})$/i },
+    { regex: /^(?:table|表|figure|图)\s*(\d+(?:\.\d+)*)\s*[:.-]?\s+(.{3,})$/i }
+  ];
+
+  var allLines = [
+    ...(wordData.paragraphs || []).map(function(text, index) {
+      return { text: normalizeText(text), index: index, source: 'paragraph' };
+    }),
+    ...((wordData.tables || []).flatMap(function(table, tableIndex) {
+      return (table.rows || []).map(function(row, rowIndex) {
+        return {
+          text: row.map(function(cell) { return normalizeText(cell); }).filter(Boolean).join(' | '),
+          index: rowIndex,
+          source: 'table-' + tableIndex
+        };
+      });
+    }))
+  ].filter(function(line) { return line.text; });
+
+  var titles = [];
+  allLines.forEach(function(line) {
+    var text = normalizeText(line.text);
+    if (!text || text.length > 240) return;
+    headingPatterns.forEach(function(pattern) {
+      var match = text.match(pattern.regex);
+      if (!match) return;
+      var title = cleanTimingTitle(match[2]);
+      if (!title) return;
+      titles.push({
+        chapterNumber: String(match[1] || '').trim(),
+        title: title,
+        titleKey: normalizeTimingTitleKey(title),
+      });
+    });
+  });
+
+  return Array.from(new Map(
+    titles
+      .filter(function(item) { return item.chapterNumber && item.titleKey; })
+      .map(function(item) { return [item.chapterNumber + '|' + item.titleKey, item]; })
+  ).values());
+}
+
+function scoreTimingTitleMatch(itemText, titleKey) {
+  if (!itemText || !titleKey) return 0;
+  if (itemText.includes(titleKey) || titleKey.includes(itemText)) return 999;
+  var tokens = titleKey.split(' ').filter(function(token) { return token.length >= 3; });
+  var score = 0;
+  tokens.forEach(function(token) {
+    if (itemText.includes(token)) score += 1;
+  });
+  return score;
+}
+
+function buildGroupedTimingItems(reportData, rawItems) {
+  var evidence = [];
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    return { items: [], evidence: evidence };
+  }
+
+  var titleEntries = extractWordTimingTitles(reportData);
+  if (titleEntries.length === 0) {
+    return { items: rawItems, evidence: evidence };
+  }
+
+  var groupedMap = new Map();
+  rawItems.forEach(function(item) {
+    var sectionNumber = extractSectionNumber(item.descriptor)
+      || extractSectionNumber(item.smd)
+      || extractSectionNumber(item.name);
+    if (!sectionNumber) return;
+
+    var candidates = titleEntries.filter(function(entry) { return entry.chapterNumber === sectionNumber; });
+    if (candidates.length === 0) return;
+
+    var itemText = normalizeTimingTitleKey([item.descriptor, item.name, item.smd].filter(Boolean).join(' '));
+    var best = candidates[0];
+    var bestScore = scoreTimingTitleMatch(itemText, candidates[0].titleKey);
+    for (var i = 1; i < candidates.length; i++) {
+      var score = scoreTimingTitleMatch(itemText, candidates[i].titleKey);
+      if (score > bestScore) {
+        best = candidates[i];
+        bestScore = score;
+      }
+    }
+
+    if (bestScore <= 0) return;
+
+    var key = sectionNumber + '|' + best.titleKey;
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        chapterNumber: sectionNumber,
+        descriptor: sectionNumber + ' ' + best.title,
+        name: best.title,
+        smd: sectionNumber,
+        direction: item.direction || null,
+        timestamp: item.timestamp || null,
+        startTimestamp: item.timestamp || null,
+        endTimestamp: item.timestamp || null,
+        bgnScenario: item.bgnScenario || '',
+        testCategory: item.testCategory || 'other',
+        rowIndex: item.rowIndex,
+        sourceRowCount: 0,
+      });
+    }
+
+    var current = groupedMap.get(key);
+    current.sourceRowCount += 1;
+
+    if (!current.direction && item.direction) current.direction = item.direction;
+    if (!current.bgnScenario && item.bgnScenario) current.bgnScenario = item.bgnScenario;
+
+    if (!current.timestamp || (item.timestamp && item.timestamp < current.timestamp)) {
+      current.timestamp = item.timestamp;
+    }
+    if (!current.startTimestamp || (item.timestamp && item.timestamp < current.startTimestamp)) {
+      current.startTimestamp = item.timestamp;
+    }
+    if (!current.endTimestamp || (item.timestamp && item.timestamp > current.endTimestamp)) {
+      current.endTimestamp = item.timestamp;
+    }
+    if (item.rowIndex < current.rowIndex) current.rowIndex = item.rowIndex;
+
+    if (current.testCategory === 'other' && item.testCategory && item.testCategory !== 'other') {
+      current.testCategory = item.testCategory;
+    }
+    if ((current.testCategory !== 'delay' && current.testCategory !== 'echo_delay')
+      && (item.testCategory === 'delay' || item.testCategory === 'echo_delay')) {
+      current.testCategory = item.testCategory;
+    }
+  });
+
+  var groupedItems = Array.from(groupedMap.values())
+    .map(function(item) {
+      item.testCategory = classifyTestCategory(item.name || item.descriptor, item.descriptor || item.smd, item.bgnScenario);
+      return item;
+    })
+    .filter(function(item) { return !!item.timestamp; })
+    .sort(function(a, b) {
+      if (a.timestamp && b.timestamp) return a.timestamp - b.timestamp;
+      return a.rowIndex - b.rowIndex;
+    });
+
+  if (groupedItems.length === 0) {
+    return { items: rawItems, evidence: evidence };
+  }
+
+  evidence.push('Detailed 行级时间戳 ' + rawItems.length + ' 条，按Word标题聚合为 ' + groupedItems.length + ' 个测试项');
+  return { items: groupedItems, evidence: evidence };
+}
+
 /**
  * 从 ACQUA xlsx 的 Detailed sheet 提取测试项时间戳
  */
 function extractTimestamps(reportData) {
   const evidence = [];
-  const testItemTimestamps = [];
+  const rawTestItemTimestamps = [];
   let hasAbsoluteTimestamps = false;
 
   const detailedRows = reportData?.detailedRows || reportData?.detailedRowContexts || [];
@@ -109,7 +289,7 @@ function extractTimestamps(reportData) {
     var timestamp = parseDateTime(dateVal, timeVal);
     if (timestamp) hasAbsoluteTimestamps = true;
 
-    testItemTimestamps.push({
+    rawTestItemTimestamps.push({
       rowIndex,
       descriptor: [smd, name].filter(Boolean).join(' - ') || `Row ${rowIndex + 1}`,
       name,
@@ -122,17 +302,25 @@ function extractTimestamps(reportData) {
   });
 
   if (hasAbsoluteTimestamps) {
-    const validTimestamps = testItemTimestamps.filter((t) => t.timestamp);
+    const validTimestamps = rawTestItemTimestamps.filter((t) => t.timestamp);
     if (validTimestamps.length > 0) {
       const sorted = [...validTimestamps].sort((a, b) => a.timestamp - b.timestamp);
-      evidence.push(`共 ${testItemTimestamps.length} 个测试项，${validTimestamps.length} 个有时间戳`);
+      evidence.push(`Detailed 行级共 ${rawTestItemTimestamps.length} 条，${validTimestamps.length} 条有时间戳`);
       evidence.push(`时间范围: ${sorted[0].timestamp.toISOString()} 至 ${sorted[sorted.length - 1].timestamp.toISOString()}`);
     }
   } else {
     evidence.push('ACQUA Detailed数据中未找到Date/Time时间戳，时序检查将以行序为准');
   }
 
-  return { testItemTimestamps, hasAbsoluteTimestamps, evidence };
+  var grouped = buildGroupedTimingItems(reportData, rawTestItemTimestamps);
+  evidence.push.apply(evidence, grouped.evidence || []);
+
+  return {
+    testItemTimestamps: grouped.items,
+    rawTestItemTimestamps,
+    hasAbsoluteTimestamps,
+    evidence
+  };
 }
 
 /**
@@ -258,6 +446,7 @@ function buildTestDataFacts(reportData) {
 
   return {
     testItemTimestamps: timestamps.testItemTimestamps,
+    rawTestItemTimestamps: timestamps.rawTestItemTimestamps,
     hasAbsoluteTimestamps: timestamps.hasAbsoluteTimestamps,
     loudnessMetrics: loudness.loudnessMetrics,
     frequencyResponseMetrics: frequencyResponse.frequencyResponseMetrics,
