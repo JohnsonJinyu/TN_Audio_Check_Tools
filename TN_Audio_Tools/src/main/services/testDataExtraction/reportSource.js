@@ -236,27 +236,33 @@ function createReportSource({
   }
 
   // 解析入口只负责拿到标准化的搜索数据，不参与后续提取规则判断。
-  async function parseReport(reportPath) {
+  async function parseReport(reportPath, options = {}) {
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     const reportExtension = path.extname(reportPath).toLowerCase();
     if (!supportedReportExtensions.has(reportExtension)) {
       throw new Error('当前仅支持 .xlsx / .xls / .doc / .docx 测试报告');
     }
 
     if (reportExtension === '.xlsx' || reportExtension === '.xls') {
+      if (onProgress) onProgress({ status: 'running', detail: '正在解析 xlsx 测试数据' });
       let xlsxData = await parseXlsxReport(reportPath);
 
       return attachReportContext(xlsxData, reportPath);
     }
 
     if (reportExtension === '.doc') {
-      const converted = await convertDocToTemporaryDocx(reportPath);
+      const converted = await convertDocToTemporaryDocx(reportPath, {
+        onProgress: onProgress
+      });
 
       if (converted?.convertedPath) {
+        if (onProgress) onProgress({ status: 'running', detail: '格式转换完成，正在解析转换后的 Word 报告' });
         const docxData = await parseDocxReport(converted.convertedPath);
         docxData._convertedDocxPath = converted.convertedPath;
         return docxData;
       }
 
+      if (onProgress) onProgress({ status: 'running', detail: '未能完成保真转换，正在回退到文本提取模式' });
       const extracted = await wordExtractor.extract(reportPath);
       const rawText = [
         extracted.getHeaders?.() || '',
@@ -283,6 +289,7 @@ function createReportSource({
       }, reportPath, rawText);
     }
 
+    if (onProgress) onProgress({ status: 'running', detail: '正在解析 Word 报告结构与内容' });
     return parseDocxReport(reportPath);
   }
 

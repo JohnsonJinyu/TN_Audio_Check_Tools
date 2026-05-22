@@ -47,6 +47,24 @@ function getComparisonGroupTitle(direction) {
   return '方向待确认的同等级曲线对比';
 }
 
+function formatTrendSummary(summaryText) {
+  var text = String(summaryText || '').trim();
+  if (!text) return [];
+
+  return text
+    .split(/\s*[;；]\s*(?=\[[A-Z]{3}\]|$)/)
+    .map(function(item) { return String(item || '').trim(); })
+    .filter(Boolean)
+    .map(function(item, index) {
+      var match = item.match(/^(\[[A-Z]{3}\]\s*\[[^\]]+\])\s*(.*)$/);
+      return {
+        key: 'trend-summary-' + index,
+        label: match ? match[1] : '',
+        content: match ? match[2] : item,
+      };
+    });
+}
+
 export default function ReviewResultContent({ resultData }) {
   const [aiAnalyzing, setAiAnalyzing] = useState({});
   const [aiResults, setAiResults] = useState({});
@@ -110,6 +128,9 @@ export default function ReviewResultContent({ resultData }) {
   };
   const CROSS_REPORT_SECTION_KEYS = new Set(['contentSameCodecDiffNetwork', 'contentSameNetworkDiffCodec']);
   let sections = Array.isArray(report?.sections) ? report.sections : [];
+  var trendSummaryItems = formatTrendSummary(
+    sections.find(function(section) { return section.key === 'contentLoudnessFRTrend'; })?.conclusion
+  );
 
   if (resultData.hideCrossReportSections) {
     sections = sections.filter(function(s) { return !CROSS_REPORT_SECTION_KEYS.has(s.key); });
@@ -211,9 +232,36 @@ export default function ReviewResultContent({ resultData }) {
                     <div style={{ fontSize: 12, color: '#78716c', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
                       趋势摘要
                     </div>
-                    <div style={{ fontSize: 16, color: '#1c1917', lineHeight: 1.8 }}>
-                      {section.conclusion || '已按方向与等级生成曲线对比卡片，可直接查看 FR 与响度图的对应关系。'}
-                    </div>
+                    {trendSummaryItems.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {trendSummaryItems.map(function(item) {
+                          return (
+                            <div
+                              key={item.key}
+                              style={{
+                                padding: '12px 14px',
+                                borderRadius: 16,
+                                background: '#ffffff',
+                                border: '1px solid #e7e5e4'
+                              }}
+                            >
+                              {item.label ? (
+                                <div style={{ marginBottom: 6, fontSize: 12, fontWeight: 600, color: '#57534e', letterSpacing: 0.2 }}>
+                                  {item.label}
+                                </div>
+                              ) : null}
+                              <div style={{ fontSize: 15, color: '#1c1917', lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>
+                                {item.content}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 15, color: '#1c1917', lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>
+                        {section.conclusion || '已按方向与等级生成曲线对比卡片，可直接查看 FR 与响度图的对应关系。'}
+                      </div>
+                    )}
                   </Card>
 
                   {Object.entries(groupComparisonCards(section.comparisonCards)).map(function(entry) {

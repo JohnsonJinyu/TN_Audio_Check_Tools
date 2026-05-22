@@ -34,7 +34,7 @@ const { getSettings } = require('../settingsService');
 /**
  * 综合审查 Word 报告
  */
-async function reviewWordReport(reportPath, reportData) {
+async function reviewWordReport(reportPath, reportData, options = {}) {
   if (!reportPath) {
     throw new Error('缺少报告路径');
   }
@@ -43,6 +43,13 @@ async function reviewWordReport(reportPath, reportData) {
     throw new Error('缺少报告数据');
   }
 
+  const progressController = options.progressController || null;
+  const emitStep = function(stepId, detail, status = 'running') {
+    if (!progressController || typeof progressController.emitStep !== 'function') return;
+    progressController.emitStep(stepId, detail, status);
+  };
+
+  emitStep('extract-facts', '正在提取审查事实与上下文');
   const wordData = buildWordData(reportData);
   const reviewFacts = buildReviewFacts(reportPath, wordData);
   const testDataFacts = buildTestDataFacts(reportData);
@@ -61,6 +68,7 @@ async function reviewWordReport(reportPath, reportData) {
 
   // === 文档结构检查（仅Word格式） ===
   if (isWordFormat) {
+    emitStep('structure-metadata', '正在执行文档结构与元数据检查');
     // 1. 提取目录
     const tocInfo = extractTableOfContents(wordData);
     tocInfo.status = tocInfo.chapters.length > 0 || tocInfo.tocLines?.length > 0 ? 'pass' : 'review';
@@ -120,6 +128,7 @@ async function reviewWordReport(reportPath, reportData) {
   }
 
   // === 测试时间检查 (2.3) ===
+  emitStep('timing', '正在执行时序检查');
   // 9. 相邻测试项间隔
   const timingAdjInterval = checkAdjacentTestItemInterval(testDataFacts);
   allResults.timingAdjacentInterval = timingAdjInterval;
@@ -146,15 +155,16 @@ async function reviewWordReport(reportPath, reportData) {
   updateSummary(summary, timingBgnConnection.status);
 
   // === 内容合理性检查 (2.2) ===
-  // 14. 响度与频响趋势一致性（单报告内）
-  const contentLoudnessFR = await checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, getSettings().llm);
-  allResults.contentLoudnessFRTrend = contentLoudnessFR;
-  updateSummary(summary, contentLoudnessFR.status);
-
+  emitStep('curve-values', '正在执行曲线与数值互相印证检查');
   // 15. 曲线与数值互相印证（单报告内）
   const contentCurveCorroboration = checkCurveValueCorroboration(testDataFacts);
   allResults.contentCurveValueCorroboration = contentCurveCorroboration;
   updateSummary(summary, contentCurveCorroboration.status);
+
+  // 14. 响度与频响趋势一致性（单报告内）
+  const contentLoudnessFR = await checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, getSettings().llm, progressController);
+  allResults.contentLoudnessFRTrend = contentLoudnessFR;
+  updateSummary(summary, contentLoudnessFR.status);
 
   // 16-17. 跨报告对比（单报告模式下标记为批量对比待执行）
   allResults.contentSameCodecDiffNetwork = {

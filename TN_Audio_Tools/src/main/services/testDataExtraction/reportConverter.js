@@ -181,13 +181,17 @@ function createReportConverter({ wordExtractor }) {
     ].filter(Boolean).join('\n');
   }
 
-  async function convertDocToTemporaryDocx(reportPath) {
+  async function convertDocToTemporaryDocx(reportPath, options = {}) {
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     const outputDir = path.dirname(reportPath);
     const convertedPath = path.join(outputDir, `${path.parse(reportPath).name}.docx`);
+
+    if (onProgress) onProgress({ status: 'running', detail: '正在准备 .doc 格式转换环境' });
 
     // ① Word.Application COM（最高保真度）
     if (isComProgIdAvailable('Word.Application')) {
       try {
+        if (onProgress) onProgress({ status: 'running', detail: '已检测到 Microsoft Word，正在执行格式转换' });
         const ok = await convertDocViaCom('Word.Application', reportPath, convertedPath);
         if (ok) return { tempDir: outputDir, convertedPath };
       } catch (_) { /* 静默回退 */ }
@@ -196,6 +200,7 @@ function createReportConverter({ wordExtractor }) {
     // ② KWPS.Application COM（WPS，已预装）
     if (isComProgIdAvailable('KWPS.Application')) {
       try {
+        if (onProgress) onProgress({ status: 'running', detail: 'Word 转换不可用，正在尝试 WPS 格式转换' });
         const ok = await convertDocViaCom('KWPS.Application', reportPath, convertedPath);
         if (ok) return { tempDir: outputDir, convertedPath };
       } catch (_) { /* 静默回退 */ }
@@ -203,11 +208,13 @@ function createReportConverter({ wordExtractor }) {
 
     // ③ LibreOffice CLI
     try {
+      if (onProgress) onProgress({ status: 'running', detail: '正在尝试 LibreOffice 进行格式转换' });
       const loResult = await convertDocViaLibreOffice(reportPath, outputDir);
       if (loResult) return loResult;
     } catch (_) { /* 静默回退 */ }
 
     // ④ word-extractor 文本重建（永久保底）
+    if (onProgress) onProgress({ status: 'running', detail: '正在使用文本重建方式生成临时 .docx' });
     const rawText = normalizeDocText(await extractDocText(reportPath));
     if (!rawText) {
       return null;

@@ -35,14 +35,29 @@ export default function ReportReviewPage() {
   const [selectedReviewArea, setSelectedReviewArea] = useState(null);
   const [crossReportResults, setCrossReportResults] = useState(null);
   const [crossReportModalVisible, setCrossReportModalVisible] = useState(false);
+  const [reviewProgress, setReviewProgress] = useState(null);
   const [chartProgress, setChartProgress] = useState(null);
+  const reviewProgressUnsubRef = useRef(null);
   const chartProgressUnsubRef = useRef(null);
 
   useEffect(() => {
     return () => {
+      try { if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current(); } catch (_) {}
       try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
     };
   }, []);
+
+  const listenForReviewProgress = () => {
+    try {
+      if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current();
+      if (window.electron && window.electron.reportReview && window.electron.reportReview.onReviewProgress) {
+        const unsub = window.electron.reportReview.onReviewProgress(function(data) {
+          setReviewProgress(data);
+        });
+        reviewProgressUnsubRef.current = unsub;
+      }
+    } catch (_) {}
+  };
 
   const listenForChartProgress = () => {
     try {
@@ -57,8 +72,11 @@ export default function ReportReviewPage() {
   };
 
   const stopChartProgress = () => {
+    try { if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current(); } catch (_) {}
+    reviewProgressUnsubRef.current = null;
     try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
     chartProgressUnsubRef.current = null;
+    setReviewProgress(null);
     setChartProgress(null);
   };
 
@@ -110,6 +128,8 @@ export default function ReportReviewPage() {
 
     setSelectedReportPaths(nextFilePaths);
     setBatchProgress(null);
+    setReviewProgress(null);
+    setChartProgress(null);
 
     const { pairs, solo } = detectFilePairs(nextFilePaths);
     const parts = [];
@@ -149,6 +169,7 @@ export default function ReportReviewPage() {
     const { pairs, solo } = detectFilePairs(selectedReportPaths);
     const totalTasks = pairs.length + solo.length;
 
+    listenForReviewProgress();
     listenForChartProgress();
     setReviewLoading(true);
     setBatchProgress({
@@ -156,6 +177,7 @@ export default function ReportReviewPage() {
       completed: 0,
       successCount: 0,
       failedCount: 0,
+      currentGroupIndex: totalTasks > 0 ? 1 : 0,
       currentFileName: pairs.length > 0
         ? getProgressLabel(pairs[0].docx, '配对审查', pairs[0].baseName)
         : getProgressLabel(solo[0], '正在审查', getReportName(solo[0]))
@@ -175,6 +197,7 @@ export default function ReportReviewPage() {
           completed: taskIndex,
           successCount,
           failedCount,
+          currentGroupIndex: taskIndex + 1,
           currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
         });
 
@@ -201,6 +224,7 @@ export default function ReportReviewPage() {
           completed: taskIndex,
           successCount,
           failedCount,
+          currentGroupIndex: Math.min(taskIndex + 1, totalTasks),
           currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
         });
       }
@@ -212,6 +236,7 @@ export default function ReportReviewPage() {
           completed: taskIndex,
           successCount,
           failedCount,
+          currentGroupIndex: taskIndex + 1,
           currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
 
@@ -237,6 +262,7 @@ export default function ReportReviewPage() {
           completed: taskIndex,
           successCount,
           failedCount,
+          currentGroupIndex: Math.min(taskIndex + 1, totalTasks),
           currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
       }
@@ -451,7 +477,9 @@ export default function ReportReviewPage() {
                         <div style={{ marginTop: 14 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6, color: reviewSelectionPanelColor.accentColor, fontWeight: 500 }}>
                             <span>
-                              {reviewLoading ? `正在处理：${batchProgress.currentFileName || '-'}` : '本轮批量审查已结束'}
+                              {reviewLoading
+                                ? `正在处理第 ${batchProgress.currentGroupIndex || Math.min(batchProgress.completed + 1, batchProgress.total)}/${batchProgress.total} 组：${batchProgress.currentFileName || '-'}`
+                                : '本轮批量审查已结束'}
                             </span>
                             <span>{batchProgress.completed}/{batchProgress.total}</span>
                           </div>
@@ -464,16 +492,36 @@ export default function ReportReviewPage() {
                             <span>成功 {batchProgress.successCount}</span>
                             <span>失败 {batchProgress.failedCount}</span>
                           </div>
-                          {chartProgress && chartProgress.imageTotal > 0 && (
+                          {reviewProgress && reviewProgress.totalSteps > 0 && (
                             <div style={{ marginTop: 10, padding: 8, background: 'rgba(0,0,0,0.03)', borderRadius: 6 }}>
                               <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
-                                图表分析 {chartProgress.imageCurrent}/{chartProgress.imageTotal}: {chartProgress.fileName}
+                                当前组进度：第 {reviewProgress.stepIndex}/{reviewProgress.totalSteps} 步 · {reviewProgress.stepLabel}
                               </div>
                               <Progress
-                                percent={Math.round((chartProgress.imageCurrent / chartProgress.imageTotal) * 100)}
+                                percent={reviewProgress.percent || Math.round((reviewProgress.stepIndex / reviewProgress.totalSteps) * 100)}
                                 size="small"
-                                format={() => chartProgress.imageCurrent + '/' + chartProgress.imageTotal}
+                                format={() => reviewProgress.stepIndex + '/' + reviewProgress.totalSteps}
                               />
+                              <div style={{ marginTop: 6, fontSize: 11, color: reviewSelectionPanelColor.metaColor }}>
+                                {reviewProgress.detail || '-'}
+                              </div>
+                              {chartProgress && reviewProgress.stepId === 'chart-analyze' && chartProgress.imageTotal > 0 && (
+                                <div style={{ marginTop: 8 }}>
+                                  <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
+                                    图表分析批次 {chartProgress.imageCurrent}/{chartProgress.imageTotal}: {chartProgress.fileName}
+                                  </div>
+                                  <Progress
+                                    percent={Math.round((chartProgress.imageCurrent / chartProgress.imageTotal) * 100)}
+                                    size="small"
+                                    format={() => chartProgress.imageCurrent + '/' + chartProgress.imageTotal}
+                                  />
+                                  {chartProgress.detail ? (
+                                    <div style={{ marginTop: 6, fontSize: 11, color: reviewSelectionPanelColor.metaColor }}>
+                                      {chartProgress.detail}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

@@ -309,9 +309,13 @@ function checkSameNetworkDifferentCodecLoudness(allMetrics) {
  * 检查逻辑：同一份报告内，发送方向(SND/TX)和接收方向(RCV/RX)的响度测试
  * 如果有多条数据，其变化趋势应与对应方向的频响幅值趋势一致。
  */
-async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, llmSettings) {
+async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, reportPath, llmSettings, progressController) {
   var _ev = [];
   var comparisonCards = [];
+  var emitStep = function(stepId, detail, status) {
+    if (!progressController || typeof progressController.emitStep !== 'function') return;
+    progressController.emitStep(stepId, detail, status || 'running');
+  };
   var _rd = requireTestData(testDataFacts);
   if (!_rd.ok) {
     _ev.push(_rd.reason);
@@ -324,6 +328,7 @@ async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, rep
 
   if (reportPath) {
     try {
+      emitStep('chart-prepare', '正在提取报告中的图表并匹配上下文');
       var { extractReportImages } = require('../imageExtractor');
       var result = await extractReportImages(reportPath);
       // 兼容新旧返回格式
@@ -334,10 +339,11 @@ async function checkLoudnessFrequencyResponseTrendConsistency(testDataFacts, rep
         var chartImages = images;
         comparisonCards = buildComparisonCards(chartImages, null);
         if (llmSettings && llmSettings.enabled && llmSettings.apiUrl && llmSettings.apiKey) {
+          emitStep('chart-analyze', '正在上传并分析图表批次');
           _ev.push('AI分析 ' + chartImages.length + ' 张曲线图');
           var { analyzeGroupedCharts } = require('../llmService');
           var llmResult = await analyzeGroupedCharts({ images: chartImages, testDataFacts: testDataFacts, settings: llmSettings }, function(progress) {
-            try { progressBus.emit('chart-progress', { imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
+            try { progressBus.emitChartProgress({ imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
           });
           if (llmResult.evidence) _ev = _ev.concat(llmResult.evidence);
           comparisonCards = buildComparisonCards(chartImages, llmResult);

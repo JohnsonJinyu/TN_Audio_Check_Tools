@@ -275,10 +275,18 @@ function createWindow() {
   mainWindow.loadURL(startUrl);
 
   // 全局图表分析进度转发：任何模块 emit 的进度都推送到渲染进程
-  progressBus.on('chart-progress', function(data) {
+  progressBus.on(progressBus.events.CHART_PROGRESS_EVENT, function(data) {
     try {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('chart-analysis-progress', data);
+      }
+    } catch (_) {}
+  });
+
+  progressBus.on(progressBus.events.REVIEW_PROGRESS_EVENT, function(data) {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('report-review-progress', data);
       }
     } catch (_) {}
   });
@@ -550,7 +558,7 @@ ipcMain.handle('report-review:analyze-chart-images', async (event, payload) => {
       testDataFacts: testDataFacts || {},
       settings: settings.llm
     }, function(progress) {
-      try { progressBus.emit('chart-progress', { imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
+      try { progressBus.emitChartProgress({ imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
     });
   } catch (error) {
     return {

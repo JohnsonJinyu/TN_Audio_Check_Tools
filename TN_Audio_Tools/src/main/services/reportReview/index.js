@@ -2,12 +2,93 @@ const path = require('path');
 const fs = require('fs/promises');
 const createWordReviewService = require('./wordReviewService');
 const { parseReport } = require('../testDataExtraction');
+const progressBus = require('./progressBus');
 const {
   checkSameCodecDifferentNetworkLoudness,
   checkSameNetworkDifferentCodecLoudness,
 } = require('./checks/contentConsistency');
 const { buildTestDataFacts } = require('./reportTestDataFacts');
 const { determineOverallStatus } = require('./utils');
+
+function isLegacyDocPath(reportPath) {
+  const lowerPath = String(reportPath || '').toLowerCase();
+  return lowerPath.endsWith('.doc') && !lowerPath.endsWith('.docx');
+}
+
+function isXlsxPath(reportPath) {
+  return /\.(xlsx|xls)$/i.test(String(reportPath || ''));
+}
+
+function buildReviewSteps(options) {
+  const reportPath = options?.reportPath || '';
+  const xlsxPath = options?.xlsxPath || '';
+  const isPaired = Boolean(xlsxPath);
+  const isXlsxOnly = !isPaired && isXlsxPath(reportPath);
+  const steps = [
+    { id: 'identify', label: '识别文件与审查模式' },
+  ];
+
+  if (isLegacyDocPath(reportPath)) {
+    steps.push({ id: 'convert', label: '格式转换' });
+  }
+
+  if (isPaired || !isXlsxOnly) {
+    steps.push({ id: 'parse-word', label: '解析 Word 报告' });
+  }
+
+  if (isPaired || isXlsxOnly) {
+    steps.push({ id: 'parse-xlsx', label: '解析 xlsx 测试数据' });
+  }
+
+  steps.push({ id: 'extract-facts', label: '提取审查事实与上下文' });
+
+  if (!isXlsxOnly) {
+    steps.push({ id: 'structure-metadata', label: '执行文档结构与元数据检查' });
+  }
+
+  steps.push({ id: 'timing', label: '执行时序检查' });
+  steps.push({ id: 'curve-values', label: '执行曲线与数值检查' });
+
+  if (!isXlsxOnly) {
+    steps.push({ id: 'chart-prepare', label: '提取并整理图表' });
+    steps.push({ id: 'chart-analyze', label: '上传并分析图表批次' });
+  }
+
+  steps.push({ id: 'summarize', label: '汇总结果并生成报告' });
+  return steps;
+}
+
+function createReviewProgressController(options) {
+  const groupLabel = options?.groupLabel || '';
+  const mode = options?.mode || 'single';
+  const steps = buildReviewSteps(options);
+
+  function emitStep(stepId, detail, status = 'running', extra = {}) {
+    const stepIndex = steps.findIndex((step) => step.id === stepId);
+    if (stepIndex < 0) return;
+
+    const step = steps[stepIndex];
+    progressBus.emitReviewProgress({
+      mode,
+      groupLabel,
+      stepId,
+      stepLabel: step.label,
+      stepIndex: stepIndex + 1,
+      totalSteps: steps.length,
+      percent: status === 'done' && stepIndex === steps.length - 1
+        ? 100
+        : Math.round(((stepIndex + 1) / steps.length) * 100),
+      detail: detail || step.label,
+      status,
+      ...extra,
+    });
+  }
+
+  return {
+    steps,
+    emitStep,
+  };
+}
 
 async function resolveEffectivePath(reportPath, reportData) {
   // 优先使用 COM 转换后的临时 .docx 路径
@@ -25,7 +106,26 @@ async function reviewWordReport(reportPath) {
     throw new Error('缺少报告路径');
   }
 
-  const reportData = await parseReport(reportPath);
+  const progressController = createReviewProgressController({
+    reportPath,
+    groupLabel: path.parse(reportPath).name,
+    mode: 'single',
+  });
+
+  const parseStepId = isXlsxPath(reportPath) ? 'parse-xlsx' : 'parse-word';
+  progressController.emitStep('identify', '正在识别文件格式与审查模式');
+  progressController.emitStep(parseStepId, '正在准备解析报告');
+
+  const reportData = await parseReport(reportPath, {
+    onProgress(progress) {
+      const detail = progress?.detail || '';
+      if (isLegacyDocPath(reportPath) && /转换|重建/.test(detail)) {
+        progressController.emitStep('convert', detail, progress?.status || 'running');
+        return;
+      }
+      progressController.emitStep(parseStepId, detail || '正在解析报告', progress?.status || 'running');
+    }
+  });
 
   if (!reportData || !reportData.reportFormat) {
     throw new Error('无法解析报告文件');
@@ -34,8 +134,12 @@ async function reviewWordReport(reportPath) {
   const effectivePath = await resolveEffectivePath(reportPath, reportData);
 
   const wordReviewService = createWordReviewService();
-  const reviewResult = await wordReviewService.reviewWordReport(effectivePath, reportData);
+  const reviewResult = await wordReviewService.reviewWordReport(effectivePath, reportData, {
+    progressController
+  });
+  progressController.emitStep('summarize', '正在汇总检查结果并生成报告');
   const report = wordReviewService.generateReviewReport(reviewResult);
+  progressController.emitStep('summarize', '当前报告组审查完成', 'done');
 
   return {
     reportPath,
@@ -108,8 +212,31 @@ async function reviewPairedReport(docxPath, xlsxPath) {
     throw new Error('配对审查需要同时提供 .docx 和 .xlsx 文件路径');
   }
 
-  const docxData = await parseReport(docxPath);
-  const xlsxData = await parseReport(xlsxPath);
+  const progressController = createReviewProgressController({
+    reportPath: docxPath,
+    xlsxPath,
+    groupLabel: path.parse(docxPath).name,
+    mode: 'paired',
+  });
+
+  progressController.emitStep('identify', '正在识别配对报告与审查模式');
+  progressController.emitStep('parse-word', '正在准备解析 Word 报告');
+  const docxData = await parseReport(docxPath, {
+    onProgress(progress) {
+      const detail = progress?.detail || '';
+      if (isLegacyDocPath(docxPath) && /转换|重建/.test(detail)) {
+        progressController.emitStep('convert', detail, progress?.status || 'running');
+        return;
+      }
+      progressController.emitStep('parse-word', detail || '正在解析 Word 报告', progress?.status || 'running');
+    }
+  });
+  progressController.emitStep('parse-xlsx', '正在解析配对 xlsx 测试数据');
+  const xlsxData = await parseReport(xlsxPath, {
+    onProgress(progress) {
+      progressController.emitStep('parse-xlsx', progress?.detail || '正在解析 xlsx 测试数据', progress?.status || 'running');
+    }
+  });
 
   const effectiveDocxPath = await resolveEffectivePath(docxPath, docxData);
 
@@ -123,8 +250,12 @@ async function reviewPairedReport(docxPath, xlsxPath) {
   };
 
   const wordReviewService = createWordReviewService();
-  const reviewResult = await wordReviewService.reviewWordReport(effectiveDocxPath, mergedData);
+  const reviewResult = await wordReviewService.reviewWordReport(effectiveDocxPath, mergedData, {
+    progressController
+  });
+  progressController.emitStep('summarize', '正在汇总配对审查结果并生成报告');
   const report = wordReviewService.generateReviewReport(reviewResult);
+  progressController.emitStep('summarize', '当前报告组审查完成', 'done');
 
   return {
     docxPath,
