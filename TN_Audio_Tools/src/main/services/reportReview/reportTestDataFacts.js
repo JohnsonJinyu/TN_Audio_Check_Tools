@@ -85,6 +85,19 @@ function parseDateTime(dateVal, timeVal) {
   return null;
 }
 
+function formatLocalDateTime(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+
+  var year = date.getFullYear();
+  var month = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  var hours = String(date.getHours()).padStart(2, '0');
+  var minutes = String(date.getMinutes()).padStart(2, '0');
+  var seconds = String(date.getSeconds()).padStart(2, '0');
+
+  return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+}
+
 function extractSectionNumber(text) {
   var normalized = normalizeText(text);
   if (!normalized) return '';
@@ -306,7 +319,7 @@ function extractTimestamps(reportData) {
     if (validTimestamps.length > 0) {
       const sorted = [...validTimestamps].sort((a, b) => a.timestamp - b.timestamp);
       evidence.push(`Detailed 行级共 ${rawTestItemTimestamps.length} 条，${validTimestamps.length} 条有时间戳`);
-      evidence.push(`时间范围: ${sorted[0].timestamp.toISOString()} 至 ${sorted[sorted.length - 1].timestamp.toISOString()}`);
+      evidence.push(`时间范围: ${formatLocalDateTime(sorted[0].timestamp)} 至 ${formatLocalDateTime(sorted[sorted.length - 1].timestamp)}`);
     }
   } else {
     evidence.push('ACQUA Detailed数据中未找到Date/Time时间戳，时序检查将以行序为准');
@@ -462,6 +475,7 @@ module.exports = {
   DETAILED_COL,
   classifyTestCategory,
   parseDateTime,
+  formatLocalDateTime,
   extractTimestamps,
   extractLoudnessMetrics,
   extractFrequencyResponseData,

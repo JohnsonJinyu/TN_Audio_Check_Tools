@@ -126,7 +126,7 @@ function parseLlmResponse(text) {
             severity: f.severity === 'error' ? 'error' : (f.severity === 'warning' ? 'warning' : 'pass'),
             detail: f.detail || '',
             direction: f.direction || 'unknown',
-            volumeLevel: f.volumeLevel || '',
+            volumeLevel: normalizeVolumeLevel(f.volumeLevel || '') || f.volumeLevel || '',
             role: f.role || '',
             imageIndex: f.imageIndex,
             trendConsistent: f.trendConsistent,
@@ -151,6 +151,22 @@ function parseLlmResponse(text) {
   }
 
   return { findings, overallAssessment, overallSeverity, monotonicityViolations };
+}
+
+function isAliasOnlyLevelMismatchFinding(finding) {
+  if (!finding || (finding.severity !== 'error' && finding.severity !== 'warning')) return false;
+
+  var combined = [finding.detail, finding.expectedBehavior, finding.actualBehavior, finding.volumeLevel]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+
+  var looksLikeMismatch = /等级不匹配|无法进行同等级对比|不匹配/.test(combined);
+  if (!looksLikeMismatch) return false;
+
+  var nomAliasOnly = /\bNOM\b/.test(combined) && /MAX\s*[-–]?\s*3\s*\(\s*NOM\s*\)/.test(combined);
+  var minAliasOnly = /\bMIN\b/.test(combined) && /MAX\s*[-–]?\s*7\s*\(\s*MIN\s*\)/.test(combined);
+  return nomAliasOnly || minAliasOnly;
 }
 
 function cropPng(png, x, y, width, height) {
@@ -858,7 +874,13 @@ async function analyzeGroupedCharts(params, onProgress) {
         f.direction = f.direction || task.direction;
         if (task.level && (!f.volumeLevel || f.volumeLevel === 'unknown')) f.volumeLevel = task.level;
       });
-      allFindings = allFindings.concat(parsed.findings);
+      var filteredFindings = parsed.findings.filter(function(f) {
+        return !isAliasOnlyLevelMismatchFinding(f);
+      });
+      if (filteredFindings.length !== parsed.findings.length) {
+        logs.push(task.label + ': 已忽略 ' + (parsed.findings.length - filteredFindings.length) + ' 条仅由等级别名差异触发的误报');
+      }
+      allFindings = allFindings.concat(filteredFindings);
       if (parsed.overallAssessment) {
         dirAssessments.push({ direction: task.direction, assessment: '[' + task.label + '] ' + parsed.overallAssessment });
       }

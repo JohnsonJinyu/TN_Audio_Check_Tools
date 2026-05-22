@@ -1,3 +1,5 @@
+const { formatLocalDateTime } = require('../reportTestDataFacts');
+
 /**
  * 测试时间检查 (2.3)
  *
@@ -108,11 +110,10 @@ function checkTotalTestSpan(testDataFacts) {
   const lastTs = itemsInSheetOrder[itemsInSheetOrder.length - 1].timestamp;
   const totalHours = (lastTs - firstTs) / 3600000;
 
-  const formatTs = (ts) => ts.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
   evidence.push(`首个测试时间: ${itemsInSheetOrder[0].descriptor}`);
-  evidence.push(`  └ ${formatTs(firstTs)}`);
+  evidence.push(`  └ ${formatLocalDateTime(firstTs)}`);
   evidence.push(`末个测试时间: ${itemsInSheetOrder[itemsInSheetOrder.length - 1].descriptor}`);
-  evidence.push(`  └ ${formatTs(lastTs)}`);
+  evidence.push(`  └ ${formatLocalDateTime(lastTs)}`);
   evidence.push(`总时长: ${totalHours.toFixed(1)} 小时`);
 
   if (totalHours > 8) {
@@ -173,7 +174,7 @@ function checkDelayTestTiming(testDataFacts) {
     const violatingNonDelay = nonDelayItems.filter((t) => t.timestamp < latestDelay);
     issues.push({
       severity: 'warning',
-      message: `时延测试未完全排在所有测试之前：最新时延测试在 ${latestDelay.toISOString()}，但有 ${violatingNonDelay.length} 个非时延测试在其之前执行`,
+      message: `时延测试未完全排在所有测试之前：最新时延测试在 ${formatLocalDateTime(latestDelay)}，但有 ${violatingNonDelay.length} 个非时延测试在其之前执行`,
     });
     evidence.push(
       `违规示例: ${violatingNonDelay.slice(0, 3).map((t) => t.descriptor).join('; ')}`
