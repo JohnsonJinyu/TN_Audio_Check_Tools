@@ -25,6 +25,16 @@
       "label": "Headset",
       "terminalModes": ["HE", "HS"],
       "rulePath": "./moto_rules_headset.json5"
+    },
+    "electrical_interface": {
+      "label": "Electrical Interface (Analogue)",
+      "terminalModes": ["EI", "EIA"],
+      "rulePath": "./moto_rules_electrical_interface.json5"
+    },
+    "electrical_interface_digital": {
+      "label": "Electrical Interface (Digital)",
+      "terminalModes": ["EID"],
+      "rulePath": "./moto_rules_electrical_interface_digital.json5"
     }
   }
 }

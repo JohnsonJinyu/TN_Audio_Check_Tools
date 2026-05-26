@@ -15,6 +15,8 @@ function normalizeText(value, textNormalizeConfig = {}) {
   normalized = normalized
     .replace(/\bh(?:a|e|h)(?:nb|wb|sb|swb)(max(?:-\d+)?|nom|min)\b/gi, ' HABAND $1 ')
     .replace(/\bh(?:a|e|h)(?:nb|wb|sb|swb)\b/gi, ' HABAND ')
+    .replace(/\bei(?:nb|wb|sb|swb)(max(?:-\d+)?|nom|min)\b/gi, ' EIBAND $1 ')
+    .replace(/\bei(?:nb|wb|sb|swb)\b/gi, ' EIBAND ')
     .replace(/\bbgn\b/gi, ' NOISE ')
     .replace(/\bbackground\s+noise\b/gi, ' NOISE ')
     .replace(/\bin\s+noise\b/gi, ' NOISE ')
@@ -283,7 +285,7 @@ function getAmbientNoiseSceneCandidates(rowName) {
     crossroad: ['Crossroad', 'Crossroads', 'Xroad', 'Outside Traffic Crossroads'],
     tstation: ['Train Station', 'TStation', 'Train'],
     fullsizecar: ['Fullsize Car 130 km/h', 'Fullsize Car', 'FullsizeCar', 'Car'],
-    cafeteria: ['Cafeteria', 'Cafeteria Noise', 'Count'],
+    cafeteria: ['Cafeteria', 'Cafeteria Noise', 'Cafe', 'Count'],
     mensa: ['Mensa'],
     callcenter: ['Callcenter', 'Call Center', 'CallC', 'CallCenter', 'Work Noise Office Callcenter']
   };
@@ -328,6 +330,10 @@ function getAmbientNoiseSceneKey(value) {
   }
 
   if (normalized.includes('cafeteria')) {
+    return 'cafeteria';
+  }
+
+  if (normalized === 'cafe') {
     return 'cafeteria';
   }
 
@@ -653,14 +659,14 @@ function selectFallbackOnlyRow(reportData, item, textNormalizeConfig, globalMatc
   );
 }
 
-function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId) {
-  if (!rowContext || !item.formula) {
+function getFormulaRowNumericValue(rowContext, targetField, textNormalizeConfig) {
+  if (!rowContext) {
     return null;
   }
 
   let rawValue = null;
 
-  if (item.formula.targetField === 'marginValue') {
+  if (targetField === 'marginValue') {
     rawValue = getHeaderBasedCell(rowContext, ['margin'], textNormalizeConfig);
   }
 
@@ -676,22 +682,73 @@ function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, 
     rawValue = extractRowNumericCell(rowContext) || getLastMeaningfulNumericToken(rowContext.text);
   }
 
-  const numericValue = parseNumericValue(rawValue);
+  return parseNumericValue(rawValue);
+}
+
+function resolveFormulaReferenceNumericValue(reportData, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId) {
+  if (!item?.formula) {
+    return null;
+  }
+
+  if (item.formula.referenceRow) {
+    const referenceRow = selectCandidateRow(
+      reportData,
+      {
+        coreKeywords: item.formula.referenceRow.coreKeywords || [],
+        fallbackKeywords: item.formula.referenceRow.fallbackKeywords || [],
+        exactRowKeywords: item.formula.referenceRow.exactRowKeywords || [],
+        requiredSuffix: item.formula.referenceRow.requiredSuffix || [],
+        forbiddenSuffix: item.formula.referenceRow.forbiddenSuffix || []
+      },
+      textNormalizeConfig,
+      globalMatchConfig
+    );
+
+    return getFormulaRowNumericValue(referenceRow, item.formula.referenceRow.targetField, textNormalizeConfig);
+  }
+
+  const shouldUseBaseItemValue = item.formula.useBaseItemValue === true
+    && item.formula.baseItemId
+    && extractedResultsByItemId instanceof Map;
+
+  if (!shouldUseBaseItemValue) {
+    return null;
+  }
+
+  const baseResult = extractedResultsByItemId.get(Number(item.formula.baseItemId));
+  return parseNumericValue(baseResult?.value);
+}
+
+function extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId) {
+  if (!rowContext || !item.formula) {
+    return null;
+  }
+
+  const numericValue = getFormulaRowNumericValue(rowContext, item.formula.targetField, textNormalizeConfig);
   if (numericValue === null) {
     return null;
   }
 
-  const shouldUseBaseItemValue = item.formula?.useBaseItemValue === true
-    && rowContext?.sourceKind
-    && rowContext.sourceKind !== 'html-table';
+  const referenceNumericValue = resolveFormulaReferenceNumericValue(
+    reportData,
+    item,
+    textNormalizeConfig,
+    globalMatchConfig,
+    extractedResultsByItemId
+  );
 
-  if (shouldUseBaseItemValue && item.formula.baseItemId && extractedResultsByItemId instanceof Map) {
-    const baseResult = extractedResultsByItemId.get(Number(item.formula.baseItemId));
-    const baseNumericValue = parseNumericValue(baseResult?.value);
+  if (referenceNumericValue !== null) {
+    const operation = String(item.formula.operation || 'reverseSubtract').trim();
 
-    if (baseNumericValue !== null) {
-      return formatComputedNumber(baseNumericValue - numericValue);
+    if (operation === 'add') {
+      return formatComputedNumber(numericValue + referenceNumericValue);
     }
+
+    if (operation === 'subtract') {
+      return formatComputedNumber(numericValue - referenceNumericValue);
+    }
+
+    return formatComputedNumber(referenceNumericValue - numericValue);
   }
 
   return formatComputedNumber(Number(item.formula.standardValue) - numericValue);
@@ -1065,7 +1122,7 @@ function resolveAmbientNoiseAverageValue(reportData, item, textNormalizeConfig) 
 
 function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeConfig) {
   const normalizedChecklistDesc = normalizeText(item.checklistDesc || '', textNormalizeConfig);
-  if (!normalizedChecklistDesc.includes('ambient noise') || !normalizedChecklistDesc.includes('average')) {
+  if (!normalizedChecklistDesc.includes('ambient noise') || !/(?:^|\s)(?:average|avg)(?:\s|$)/i.test(normalizedChecklistDesc)) {
     return null;
   }
 
@@ -1087,10 +1144,17 @@ function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeC
       ? /average\s+n-mos/i
       : /average\s+g-mos/i;
   const calculatedValuePattern = /calculated\s+value[^0-9-]*(-?\d+(?:\.\d+)?)/i;
+  const getSceneLabel = (text) => /speech quality bgn\s*\(([^)]+)\)/i.exec(text)?.[1]
+    || /quality in ambient noise,\s*([^|]+)/i.exec(text)?.[1]
+    || '';
 
   for (const rowContext of getRowsForMatching(reportData, true)) {
     const rowText = String(rowContext?.text || '').trim();
     if (!rowText || !metricPattern.test(rowText)) {
+      continue;
+    }
+
+    if (getAmbientNoiseSceneKey(getSceneLabel(rowText))) {
       continue;
     }
 
@@ -1117,6 +1181,10 @@ function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeC
   for (let lineIndex = 0; lineIndex < reportData.lines.length; lineIndex += 1) {
     const line = String(reportData.lines[lineIndex] || '').trim();
     if (!metricPattern.test(line)) {
+      continue;
+    }
+
+    if (getAmbientNoiseSceneKey(getSceneLabel(line))) {
       continue;
     }
 
@@ -1156,6 +1224,56 @@ function resolveAmbientNoiseOverallAverageValue(reportData, item, textNormalizeC
     }
   }
 
+  const sceneAverageValues = new Map();
+
+  for (const rowContext of getRowsForMatching(reportData, true)) {
+    const rowText = String(rowContext?.text || '').trim();
+    const normalizedRowText = normalizeText(rowText, textNormalizeConfig);
+    if (!rowText || !/(?:^|\s)(?:average|avg)(?:\s|$)/i.test(normalizedRowText)) {
+      continue;
+    }
+
+    const rowMetricKey = normalizedRowText.includes('s-mos')
+      ? 'smos'
+      : normalizedRowText.includes('n-mos')
+        ? 'nmos'
+        : normalizedRowText.includes('g-mos')
+          ? 'gmos'
+          : null;
+
+    if (rowMetricKey !== metricKey) {
+      continue;
+    }
+
+    const sceneLabel = /speech quality bgn\s*\(([^)]+)\)/i.exec(rowText)?.[1]
+      || /quality in ambient noise,\s*([^|]+)/i.exec(rowText)?.[1]
+      || '';
+    const sceneKey = getAmbientNoiseSceneKey(sceneLabel);
+    if (!sceneKey) {
+      continue;
+    }
+
+    const numericValue = parseNumericValue(extractMetricRowValue(rowContext.cells) || getLastMeaningfulNumericToken(rowText));
+    if (numericValue === null || numericValue > 5) {
+      continue;
+    }
+
+    sceneAverageValues.set(sceneKey, numericValue);
+  }
+
+  if (sceneAverageValues.size > 0) {
+    const averageValue = Array.from(sceneAverageValues.values()).reduce((sum, value) => sum + value, 0) / sceneAverageValues.size;
+    const formattedValue = formatComputedNumber(averageValue);
+    if (formattedValue !== null) {
+      return {
+        matched: true,
+        value: formattedValue,
+        sourcePreview: makeSourcePreview(`ambient scene average aggregate ${metricKey}: ${Array.from(sceneAverageValues.entries()).map(([sceneKey, value]) => `${sceneKey}=${value}`).join(', ')}`),
+        sourceType: 'ambient-average-aggregate'
+      };
+    }
+  }
+
   return null;
 }
 
@@ -1188,7 +1306,7 @@ function resolveAmbientNoiseSceneAverageRowValue(reportData, item, textNormalize
     }
 
     const normalizedRowText = normalizeText(rowText, textNormalizeConfig);
-    if (!normalizedRowText.includes('quality in ambient noise') || !normalizedRowText.includes('average')) {
+    if ((!normalizedRowText.includes('quality in ambient noise') && !normalizedRowText.includes('speech quality bgn')) || !normalizedRowText.includes('average')) {
       continue;
     }
 
@@ -1204,7 +1322,8 @@ function resolveAmbientNoiseSceneAverageRowValue(reportData, item, textNormalize
       continue;
     }
 
-    const sceneMatch = /quality in ambient noise,\s*([^|]+)/i.exec(rowText);
+    const sceneMatch = /quality in ambient noise,\s*([^|]+)/i.exec(rowText)
+      || /speech quality bgn\s*\(([^)]+)\)/i.exec(rowText);
     const sceneKey = getAmbientNoiseSceneKey(sceneMatch?.[1] || '');
     if (!sceneKey || !sceneKeys.has(sceneKey)) {
       continue;
@@ -1255,7 +1374,7 @@ function resolveAmbientNoiseMetricRowValue(reportData, item, textNormalizeConfig
       return false;
     }
 
-    const match = identifier.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:H(?:A|E|H)(?:NB|WB|SB|SWB))$/i);
+    const match = identifier.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:H(?:A|E|H)|EI)(?:NB|WB|SB|SWB)$/i);
     if (!match) {
       return false;
     }
@@ -1321,7 +1440,7 @@ function resolveAmbientNoiseMetricLineValue(reportData, item, textNormalizeConfi
       continue;
     }
 
-    const identifierMatch = line.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:H(?:A|E|H)(?:NB|WB|SB|SWB))(.*)$/i);
+    const identifierMatch = line.match(/^([A-Z]+)_MOS_([A-Za-z0-9]+)_(?:(?:H(?:A|E|H)|EI)(?:NB|WB|SB|SWB))(.*)$/i);
     if (!identifierMatch) {
       continue;
     }
@@ -1660,12 +1779,12 @@ function resolveRowBasedValue(reportData, item, textNormalizeConfig, globalMatch
   }
 
   if (item.extractType === 'formula_calc') {
-    let value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
+    let value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
     if (!value) {
       const fallbackRowContext = selectFallbackOnlyRow(reportData, item, textNormalizeConfig, globalMatchConfig);
       if (fallbackRowContext) {
         rowContext = fallbackRowContext;
-        value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, extractedResultsByItemId);
+        value = extractFormulaValue(reportData, rowContext, item, textNormalizeConfig, globalMatchConfig, extractedResultsByItemId);
       }
     }
 

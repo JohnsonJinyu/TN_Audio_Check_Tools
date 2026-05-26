@@ -570,6 +570,65 @@ function buildSkipReasonStats(excelResults) {
   };
 }
 
+function buildSourcePolicy({ excelResults, wordResults }) {
+  const excelCount = excelResults.length;
+  const wordCount = wordResults.length;
+
+  if (excelCount > 0 && wordCount === 0) {
+    return {
+      status: 'pass',
+      preferredSource: 'excel',
+      currentMode: 'excel_only',
+      confidence: 'high',
+      confidenceLabel: '高',
+      manualConfirmationLevel: 'none',
+      manualConfirmationRequired: false,
+      summary: '当前批次仅使用 Excel 报告，按主数据源处理。',
+      detail: 'Excel 结构化数据稳定性更高，适合作为 checklist 自动填表的默认主通道。'
+    };
+  }
+
+  if (excelCount > 0 && wordCount > 0) {
+    return {
+      status: 'review',
+      preferredSource: 'excel',
+      currentMode: 'excel_plus_word',
+      confidence: 'medium',
+      confidenceLabel: '中',
+      manualConfirmationLevel: 'recommended',
+      manualConfirmationRequired: false,
+      summary: '当前批次同时包含 Excel 与 Word，默认以 Excel 为主、Word 为辅。',
+      detail: 'Word 结果可用于辅助补充和证据审查，但不应被视为与 Excel 同级稳定的数据源。'
+    };
+  }
+
+  if (wordCount > 0) {
+    return {
+      status: 'warning',
+      preferredSource: 'excel',
+      currentMode: 'word_only',
+      confidence: 'low',
+      confidenceLabel: '低',
+      manualConfirmationLevel: 'required',
+      manualConfirmationRequired: true,
+      summary: '当前批次仅导入 Word 报告，程序已允许继续提取，但结果必须人工确认。',
+      detail: 'Word 报告更容易受表格拆分、换行、标题变体和版式变化影响，准确性与稳定性低于 Excel。'
+    };
+  }
+
+  return {
+    status: 'not_applicable',
+    preferredSource: 'excel',
+    currentMode: 'none',
+    confidence: 'not_applicable',
+    confidenceLabel: '未触发',
+    manualConfirmationLevel: 'none',
+    manualConfirmationRequired: false,
+    summary: '当前没有可用于提取的数据源。',
+    detail: '请先上传 Excel 或 Word 报告。'
+  };
+}
+
 function buildBatchConclusion({ results, checklistPath }) {
   const successResults = (results || []).filter((item) => item.status === 'success');
   const excelResults = successResults.filter((item) => item.reportKind === 'excel');
@@ -595,7 +654,7 @@ function buildBatchConclusion({ results, checklistPath }) {
         : excelItems.length > 0
           ? 'excel'
           : 'word',
-      hasChecklistOutput: excelItems.some((item) => item.outputPath),
+      hasChecklistOutput: items.some((item) => item.outputPath),
       excelCount: excelItems.length,
       wordCount: wordItems.length,
       reportNames: items.map((item) => getReportBaseName(item.reportPath)),
@@ -627,10 +686,18 @@ function buildBatchConclusion({ results, checklistPath }) {
   const wordFindingCount = wordResults.reduce((sum, item) => sum + (item.audit?.documentCompleteness?.findings?.length || 0), 0);
   const loudnessDetectedCount = wordResults.filter((item) => item.audit?.curveReview?.loudness?.detected).length;
   const frequencyDetectedCount = wordResults.filter((item) => item.audit?.curveReview?.frequencyResponse?.detected).length;
+  const uniqueOutputCount = new Set(successResults.map((item) => item.outputPath).filter(Boolean)).size;
+  const sourcePolicy = buildSourcePolicy({ excelResults, wordResults });
 
   const suggestedActions = [];
   if (!checklistPath && excelResults.length > 0) {
     suggestedActions.push('当前存在 Excel 报告但未提供 checklist，无法完成自动填表与覆盖性评估。');
+  }
+  if (sourcePolicy.currentMode === 'word_only') {
+    suggestedActions.push('当前批次仅导入 Word 报告。程序输出仅可作为兼容提取结果，写入 checklist 后必须由音频工程师逐项人工确认。');
+  }
+  if (sourcePolicy.currentMode === 'excel_plus_word') {
+    suggestedActions.push('当前批次同时包含 Excel 与 Word。后续请优先以 Excel 为主数据源，Word 结果只作为辅助复核和补充证据。');
   }
   if (totalMissingCount > 0) {
     suggestedActions.push(`Excel 覆盖性评估识别到 ${totalMissingCount} 个漏测项，建议先优先处理这些 checklist 缺口。`);
@@ -647,6 +714,7 @@ function buildBatchConclusion({ results, checklistPath }) {
 
   return {
     runConfig: buildRunConfigSummary(results || []),
+    sourcePolicy,
     overview: {
       totalReports: results.length,
       successCount: successResults.length,
@@ -654,7 +722,7 @@ function buildBatchConclusion({ results, checklistPath }) {
       excelCount: (results || []).filter((item) => item.reportKind === 'excel').length,
       wordCount: (results || []).filter((item) => item.reportKind === 'word').length,
       checklistCount: checklistPath ? 1 : 0,
-      outputCount: excelResults.filter((item) => item.outputPath).length
+      outputCount: uniqueOutputCount
     },
     excelCoverage: {
       status: aggregateStatus(excelResults.map((item) => item.audit?.coverage?.status || 'not_applicable')),

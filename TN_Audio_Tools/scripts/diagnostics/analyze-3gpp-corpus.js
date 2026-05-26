@@ -1,20 +1,20 @@
-require('../src/main/services/reportChecker/runtimePolyfills');
+require('../../src/main/services/reportChecker/runtimePolyfills');
 
 const fs = require('fs');
 const path = require('path');
 const JSON5 = require('json5');
 const XLSX = require('xlsx');
 const WordExtractor = require('word-extractor');
-const { createReportConverter } = require('../src/main/services/reportChecker/reportConverter');
-const { createReportSource } = require('../src/main/services/reportChecker/reportSource');
-const { resolveOutputCell } = require('../src/main/services/reportChecker/checklistLayout');
+const { createReportConverter } = require('../../src/main/services/reportChecker/reportConverter');
+const { createReportSource } = require('../../src/main/services/reportChecker/reportSource');
+const { resolveOutputCell } = require('../../src/main/services/reportChecker/checklistLayout');
 const {
   createSearchData,
   resolveRowBasedValue,
   resolveAnchorValue,
   resolveTableValue,
   resolveRegexValue
-} = require('../src/main/services/reportChecker/reportAnalysis');
+} = require('../../src/main/services/reportChecker/reportAnalysis');
 
 const CORPUS_PAIRS = [
   ['Kansas NA_DVT1_VOLTE AMR_NB_2024729.doc', 'Kansas5G NA_DVT1_Source1st_3GPP_Tuning_report_for_Handset_mode_VOLTE_AMR_NB_v5.0.0_0729.xlsx'],
@@ -126,7 +126,7 @@ function diffItems(extractedItems, checklistPath) {
 }
 
 async function analyzeCorpus() {
-  const appPath = path.resolve(__dirname, '..');
+  const appPath = path.resolve(__dirname, '..', '..');
   const corpusDir = process.argv[2]
     ? path.resolve(process.argv[2])
     : path.resolve(appPath, '..', '..', '参考文件', '3GPP Handset report');

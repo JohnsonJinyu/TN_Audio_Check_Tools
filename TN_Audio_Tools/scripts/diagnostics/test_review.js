@@ -1,11 +1,11 @@
 /**
  * 快速测试：对 Utah_All 下的 Word 报告运行报告审查
- * 用法: node scripts/test_review.js
+ * 用法: node scripts/diagnostics/test_review.js
  */
 const path = require('path');
-const { reviewWordReport } = require('../src/main/services/reportReview');
+const { reviewWordReport } = require('../../src/main/services/reportReview');
 
-const UTAH_DIR = path.resolve(__dirname, '../../../参考文件/Utah_All');
+const UTAH_DIR = path.resolve(__dirname, '../../../../参考文件/Utah_All');
 const TEST_FILES = [
   path.join(UTAH_DIR, 'HA/utah_HA_NB.doc'),
   path.join(UTAH_DIR, 'HA/utah_HA_WB.doc'),

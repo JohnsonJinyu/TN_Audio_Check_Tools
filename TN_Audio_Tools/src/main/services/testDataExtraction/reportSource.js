@@ -46,6 +46,17 @@ function deriveBandwidthFromPath(reportPath) {
   return '';
 }
 
+function deriveTerminalModeFromPath(reportPath) {
+  const normalizedPath = String(reportPath || '').toUpperCase();
+  if (/\bEID\b/.test(normalizedPath) || /\bDIGITAL\b/.test(normalizedPath)) {
+    return 'EID';
+  }
+  if (/\bVENICE\b/.test(normalizedPath) || /\bANALOG\b/.test(normalizedPath) || /\bELECTRICAL\b/.test(normalizedPath)) {
+    return 'EI';
+  }
+  return '';
+}
+
 function deriveBandwidthFromText(rawText) {
   const normalizedText = String(rawText || '').toUpperCase();
   const directMatches = [
@@ -110,7 +121,7 @@ function deriveReportMetadata(reportPath, rawText, reportData) {
     bandwidth: normalizeReportBandwidth(reportContext.bandwidth) || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '',
     codec: String(reportContext.codec || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['EVS', 'AMR']),
     network: String(reportContext.network || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['VOLTE', 'VOWIFI', 'VONR', 'VOIP', 'WCDMA', 'GSM']),
-    terminalMode: String(reportContext.terminalMode || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['HA', 'HF', 'HS', 'HE', 'HH'])
+    terminalMode: String(reportContext.terminalMode || '').trim().toUpperCase() || deriveTerminalModeFromPath(reportPath) || deriveTokenByCandidates(combinedSource, ['HA', 'HF', 'HS', 'HE', 'HH', 'EID', 'EIA', 'EI'])
   };
 }
 

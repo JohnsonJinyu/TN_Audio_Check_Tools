@@ -2,9 +2,9 @@
  * 全面回归测试：Word + xlsx 报告审查
  */
 const path = require('path');
-const { reviewWordReport, runCrossReportChecks } = require('../src/main/services/reportReview');
+const { reviewWordReport, runCrossReportChecks } = require('../../src/main/services/reportReview');
 
-const UTAH_DIR = path.resolve(__dirname, '../../../参考文件/Utah_All');
+const UTAH_DIR = path.resolve(__dirname, '../../../../参考文件/Utah_All');
 
 async function testSingle(filePath, label) {
   console.log(`\n${'─'.repeat(60)}`);

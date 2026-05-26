@@ -1,0 +1,794 @@
+{
+  // ========== 规则文件基础信息 ==========
+  "ruleBaseInfo": {
+    "ruleName": "3GPP音频测试报告ACQUA数据提取规则 - Electrical Interface (Digital)",
+    "version": "1.0",
+    "updateTime": "2026-05-26",
+    "fitReportType": "HEAD acoustics ACQUA 6.0 音频测试报告 (电气接口数字模式)",
+    "fitChecklist": "Voice Tuning Checklist - Electrical Interface Digital"
+  },
+
+  // ========== 全局匹配配置 ==========
+  "globalMatchConfig": {
+    "textNormalize": {
+      "removeNumberPrefix": true,
+      "multiSpaceToSingle": true,
+      "caseInsensitive": true,
+      "trimSpecialChar": true
+    },
+    "defaultMatchMode": "fuzzy",
+    "globalForbiddenSuffix": ["#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9", "#10", "1o2", "2o2"],
+    "globalRequiredSuffix": ["MAX", "MIN", "NOM", "AVERAGE", "AVG"]
+  },
+
+  // ========== 提取类型模板 ==========
+  "extractTemplate": {
+    "summary_table_match": {
+      "desc": "从Status Overview汇总表匹配SMD，取Single Value值",
+      "extractPosition": "status_overview_summary_table"
+    },
+    "formula_calc": {
+      "desc": "标准值减去报告余量值，公式计算结果",
+      "extractPosition": "status_overview_summary_table"
+    },
+    "detail_anchor_extract": {
+      "desc": "详情页通过固定锚点文本，提取目标数值",
+      "extractPosition": "test_detail_content"
+    },
+    "table_struct_extract": {
+      "desc": "锁定目标表格，通过表头+行名匹配提取单元格数值",
+      "extractPosition": "test_detail_table"
+    },
+    "status_judge": {
+      "desc": "仅提取测试项的最终结论（Ok/Not Ok）",
+      "extractPosition": "test_detail_result"
+    },
+    "regex_extract": {
+      "desc": "通过正则表达式提取结构化字段",
+      "extractPosition": "test_detail_content"
+    }
+  },
+
+  // ========== 核心提取项列表 (Electrical Interface Digital) ==========
+  // 字段说明：
+  // - itemId: 唯一编号，和checklist行号对应
+  // - checklistDesc: checklist里的描述，仅用于阅读
+  // - outputCell: checklist里要填写的单元格位置
+  // - extractType: 选用上面的提取模板类型
+  // - coreKeywords: 核心关键词组，必须全部包含才匹配
+  // - fallbackKeywords: 降级匹配关键词（可选）
+  // - forbiddenSuffix: 该项禁止的后缀
+  // - requiredSuffix: 该项必须的后缀
+  //
+  // VENICE EI模式特点：
+  // - band token: EINB/EIWB/EIBAND → 归一化为 EIBAND
+  // - 测试项名称: JLR（替代SLR/RLR）、SJLR、RJLR
+  // - 单位: dBm0, dBm0(p), dBV(A), dB[V], ms, %, MOS
+  // - 无Sidetone（电气接口无侧音概念）
+  // - 有ECC（Echo Control Characteristics）分类
+  // - POLQA使用Electric模式（Fullband, 3.8+ MOS目标）
+  "extractItemList": [
+    // ===== 1. 发送端Junction响度 SJLR =====
+    {
+      "itemId": 1,
+      "checklistDesc": "Overall loss/loudness ratings - Sending (SJLR)",
+      "outputCell": "I6",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "SND", "JLR", "EIBAND"],
+      "fallbackKeywords": ["SJLR", "SND", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // ===== 2-9. 接收端Junction响度 RJLR (MAX/MIN/NOM各音量) =====
+    {
+      "itemId": 2,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max vol.",
+      "outputCell": "I7",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX"]
+    },
+    {
+      "itemId": 3,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-1 vol.",
+      "outputCell": "I8",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX-1"]
+    },
+    {
+      "itemId": 4,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-2 vol.",
+      "outputCell": "I9",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX-2"]
+    },
+    {
+      "itemId": 5,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-3 vol.",
+      "outputCell": "I10",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX-3"]
+    },
+    {
+      "itemId": 6,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-4 (nom) vol.",
+      "outputCell": "I11",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "exactRowKeywords": ["MAX-4"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 7,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-5 vol.",
+      "outputCell": "I12",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX-5"]
+    },
+    {
+      "itemId": 8,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-6 vol.",
+      "outputCell": "I13",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Junction", "Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX-6"]
+    },
+    {
+      "itemId": 9,
+      "checklistDesc": "Overall loss/loudness ratings - Receiving (RJLR) - max-7 (min) vol.",
+      "outputCell": "I14",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Loudness", "Rating", "RCV", "JLR", "EIBAND"],
+      "exactRowKeywords": ["MAX-7"],
+      "fallbackKeywords": ["RJLR", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+
+    // ===== 10. 发送端空闲信道噪声 =====
+    {
+      "itemId": 10,
+      "checklistDesc": "Idle channel noise - Sending",
+      "outputCell": "I15",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Idle", "channel", "noise", "SND", "AVG", "EIBAND"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "SND", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // ===== 11. 发送端单频干扰 =====
+    {
+      "itemId": 11,
+      "checklistDesc": "Idle channel noise - Sending - Single Frequency",
+      "outputCell": "I16",
+      "extractType": "formula_calc",
+      "coreKeywords": ["AVG", "Single", "Freq", "Dist", "SND", "EIBAND"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "SND", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "formula": {
+        "standardValue": -74,
+        "baseItemId": 10,
+        "targetField": "marginValue"
+      }
+    },
+    // ===== 12. 接收端空闲信道噪声 MAX =====
+    {
+      "itemId": 12,
+      "checklistDesc": "Idle channel noise - Receiving - max vol.",
+      "outputCell": "I17",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "max", "EIBAND"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["MAX"]
+    },
+    // ===== 13. 接收端空闲信道噪声 NOM =====
+    {
+      "itemId": 13,
+      "checklistDesc": "Idle channel noise - Receiving - nom vol.",
+      "outputCell": "I18",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Idle", "channel", "noise", "RCV", "AVG", "nom", "EIBAND"],
+      "fallbackKeywords": ["Idle", "channel", "noise", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["NOM"]
+    },
+    // ===== 14. 接收端单频干扰 =====
+    {
+      "itemId": 14,
+      "checklistDesc": "Idle channel noise - Receiving - Single Frequency",
+      "outputCell": "I19",
+      "extractType": "formula_calc",
+      "coreKeywords": ["Average", "Single", "Frequency", "Disturbances", "RCV", "EIBAND"],
+      "fallbackKeywords": ["Single", "Frequency", "Disturbances", "RCV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "formula": {
+        "standardValue": -67,
+        "baseItemId": 13,
+        "targetField": "marginValue"
+      }
+    },
+
+    // ===== 15. 发送端灵敏度频响 =====
+    {
+      "itemId": 15,
+      "checklistDesc": "Sensitivity/frequency character - Sending",
+      "outputCell": "I20",
+      "extractType": "detail_anchor_extract",
+      "coreKeywords": ["Sensitivity", "frequency", "SND", "MAND", "EIBAND"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "Sending", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "anchorConfig": {
+        "anchorText": "Absolute minimal distance",
+        "valueMatchRule": "提取锚点后第一个包含「dB at」的数值，取dB前的数字",
+        "valueRange": [0, 20]
+      }
+    },
+    // ===== 16-19. 接收端灵敏度频响 (EI只有NOM一条，16/17/19复用同一数据) =====
+    {
+      "itemId": 16,
+      "checklistDesc": "Sensitivity/frequency character - Receiving - max vol.",
+      "outputCell": "I21",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "EIBAND"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 17,
+      "checklistDesc": "Sensitivity/frequency character - Receiving - nom vol. 1/12Oct",
+      "outputCell": "I21",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "EIBAND"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 18,
+      "checklistDesc": "Sensitivity/frequency character - Receiving - nom vol. 1/3Oct",
+      "outputCell": "I21",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "1/3oct", "EIBAND"],
+      "exactRowKeywords": ["1/3oct"],
+      "forbiddenSuffix": [],
+      "applicableBandwidths": ["SWB"],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 19,
+      "checklistDesc": "Sensitivity/frequency character - Receiving - min vol.",
+      "outputCell": "I21",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Sensitivity", "frequency", "RCV", "EIBAND"],
+      "fallbackKeywords": ["Sensitivity", "frequency", "RCV"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+
+    // ===== 20-22. 回声控制 Echo Loss (MAX/NOM/MIN) =====
+    {
+      "itemId": 20,
+      "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - max vol.",
+      "outputCell": "I22",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Echo", "control", "MAX", "Echo", "Loss", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Loss", "MAX", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 21,
+      "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - nom vol.",
+      "outputCell": "I23",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Echo", "control", "NOM", "Echo", "Loss", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Loss", "NOM", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 22,
+      "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - any vol.",
+      "outputCell": "I24",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Echo", "control", "ANY", "Echo", "Loss", "EIBAND"],
+      "fallbackKeywords": ["Echo", "control", "ANY", "VOL", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+
+    // ===== 23. 发送失真 1020Hz =====
+    {
+      "itemId": 23,
+      "checklistDesc": "Distortion - SND 1020Hz",
+      "outputCell": "I25",
+      "extractType": "status_judge",
+      "coreKeywords": ["Distortion", "SND", "1020", "Hz", "activation", "Average", "EIBAND"],
+      "fallbackKeywords": ["Distortion", "SND", "AVG", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // ===== 24. 发送失真 -60dBV (仅WB/SWB，NB无此测试) =====
+    {
+      "itemId": 24,
+      "checklistDesc": "Distortion - SND -60dBV",
+      "outputCell": "I26",
+      "extractType": "status_judge",
+      "coreKeywords": ["Distortion", "SND", "-60", "dBV", "EIBAND"],
+      "fallbackKeywords": ["Distortion", "SND", "60", "dBV", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "excludedBandwidths": ["NB"]
+    },
+    // ===== 25. 接收失真 1020Hz =====
+    {
+      "itemId": 25,
+      "checklistDesc": "Distortion - RCV 1020Hz",
+      "outputCell": "I27",
+      "extractType": "status_judge",
+      "coreKeywords": ["Distortion", "RCV", "1020", "Hz", "activation", "Average", "EIBAND"],
+      "fallbackKeywords": ["Distortion", "RCV", "AVG", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    // ===== 26. 接收失真 -16dBm0 =====
+    {
+      "itemId": 26,
+      "checklistDesc": "Distortion - RCV -16dBm0",
+      "outputCell": "I28",
+      "extractType": "status_judge",
+      "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "Average", "EIBAND"],
+      "fallbackKeywords": ["Distortion", "RCV", "AVG", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+
+    // ===== 27. 往返延迟 TS+TR =====
+    {
+      "itemId": 27,
+      "checklistDesc": "Round-trip delay - TS+TR",
+      "outputCell": "I29",
+      "extractType": "formula_calc",
+      "coreKeywords": ["DUT", "Delay", "SND", "EIBAND"],
+      "fallbackKeywords": ["DUT", "Delay", "SND", "EIBAND"],
+      "exactRowKeywords": ["DUT", "Delay", "SND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "formula": {
+        "targetField": "singleValue",
+        "operation": "add",
+        "referenceRow": {
+          "coreKeywords": ["DUT", "Delay", "RCV", "EIBAND"],
+          "fallbackKeywords": ["DUT", "Delay", "RCV", "EIBAND"],
+          "exactRowKeywords": ["DUT", "Delay", "RCV"],
+          "targetField": "singleValue"
+        }
+      }
+    },
+
+    // ===== 54-56. 回声控制特性 ECC - Short =====
+    {
+      "itemId": 54,
+      "checklistDesc": "Echo control characteristics - Short DT Class A1",
+      "outputCell": "I30",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "short", "DT", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
+      "exactRowKeywords": ["short", "1o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["1o2"],
+      "regexConfig": {
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+    {
+      "itemId": 55,
+      "checklistDesc": "Echo control characteristics - Short DT Class A1+A2",
+      "outputCell": "I31",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "short", "DT", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
+      "exactRowKeywords": ["short", "1o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["1o2"],
+      "regexConfig": {
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+    {
+      "itemId": 56,
+      "checklistDesc": "Echo control characteristics - Short ST Class A1+A2",
+      "outputCell": "I32",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "short", "ST", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
+      "exactRowKeywords": ["short", "1o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["1o2"],
+      "regexConfig": {
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+
+    // ===== 28-30. 回声控制特性 ECC =====
+    {
+      "itemId": 28,
+      "checklistDesc": "Echo control characteristics - Long DT Class A1",
+      "outputCell": "I33",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "long", "DT", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
+      "exactRowKeywords": ["long", "2o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["2o2"],
+      "regexConfig": {
+        "matchRegex": "DT Class A1(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+    {
+      "itemId": 29,
+      "checklistDesc": "Echo control characteristics - Long DT Class A1+A2",
+      "outputCell": "I34",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "long", "DT", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
+      "exactRowKeywords": ["long", "2o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["2o2"],
+      "regexConfig": {
+        "matchRegex": "DT Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+    {
+      "itemId": 30,
+      "checklistDesc": "Echo control characteristics - Long ST Class A1+A2",
+      "outputCell": "I35",
+      "extractType": "regex_extract",
+      "coreKeywords": ["Echo", "Control", "Chara", "long", "ST", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
+      "exactRowKeywords": ["long", "2o2"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": ["2o2"],
+      "regexConfig": {
+        "matchRegex": "ST Class A1\\+A2(?:\\s*\\[%\\]\\s*|\\s+)(\\d+(?:\\.\\d+)?)(?:\\s*%)?",
+        "valueGroupIndex": 1,
+        "valueRange": [0, 100]
+      }
+    },
+
+    // ===== 31-33. 环境噪声整体平均 =====
+    {
+      "itemId": 31,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - average",
+      "outputCell": "I36",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "fallbackKeywords": ["S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 32,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - average",
+      "outputCell": "I37",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "fallbackKeywords": ["N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 33,
+      "checklistDesc": "Quality in the presence of ambient noise - G-MOS - average",
+      "outputCell": "I38",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "BGN", "G-MOS", "Average", "EIBAND"],
+      "fallbackKeywords": ["G-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+
+    // ===== 34-41. 环境噪声 S-MOS 场景 =====
+    {
+      "itemId": 34,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Pub",
+      "outputCell": "I39",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Pub",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 35,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Road",
+      "outputCell": "I40",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Road",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 36,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Crossroads",
+      "outputCell": "I41",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Xroad",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 37,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Train",
+      "outputCell": "I42",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "TStation",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 38,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Car",
+      "outputCell": "I43",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "FullsizeCar",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 39,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Cafeteria",
+      "outputCell": "I44",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Cafe",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 40,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Mensa",
+      "outputCell": "I45",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Mensa",
+        "targetColumnName": "S-MOS"
+      }
+    },
+    {
+      "itemId": 41,
+      "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Callcenter",
+      "outputCell": "I46",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "CallC",
+        "targetColumnName": "S-MOS"
+      }
+    },
+
+    // ===== 42-49. 环境噪声 N-MOS 场景 =====
+    {
+      "itemId": 42,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Pub",
+      "outputCell": "I47",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Pub",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 43,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Road",
+      "outputCell": "I48",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Road",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 44,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Crossroads",
+      "outputCell": "I49",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Xroad",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 45,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Train",
+      "outputCell": "I50",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "TStation",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 46,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Car",
+      "outputCell": "I51",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "FullsizeCar",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 47,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Cafeteria",
+      "outputCell": "I52",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Cafe",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 48,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Mensa",
+      "outputCell": "I53",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "Mensa",
+        "targetColumnName": "N-MOS"
+      }
+    },
+    {
+      "itemId": 49,
+      "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Callcenter",
+      "outputCell": "I54",
+      "extractType": "table_struct_extract",
+      "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": [],
+      "tableConfig": {
+        "tableHeaderMatch": ["BGN", "S-MOS", "N-MOS", "G-MOS"],
+        "rowNameMatch": "CallC",
+        "targetColumnName": "N-MOS"
+      }
+    },
+
+    // ===== 50-53. POLQA MOS 电气模式 =====
+    {
+      "itemId": 50,
+      "checklistDesc": "POLQA MOS - Sending (Electric)",
+      "outputCell": "I56",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "Electric", "SND", "MOS-LQO", "Average", "EIBAND"],
+      "fallbackKeywords": ["Speech", "Quality", "Electric", "SND", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 51,
+      "checklistDesc": "POLQA MOS - Receiving (Electric) MAX",
+      "outputCell": "I57",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "MAX"],
+      "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "MAX", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 52,
+      "checklistDesc": "POLQA MOS - Receiving (Electric) NOM",
+      "outputCell": "I58",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "NOM"],
+      "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "NOM", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    },
+    {
+      "itemId": 53,
+      "checklistDesc": "POLQA MOS - Receiving (Electric) MIN",
+      "outputCell": "I59",
+      "extractType": "summary_table_match",
+      "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "MIN"],
+      "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "MIN", "EIBAND"],
+      "forbiddenSuffix": [],
+      "requiredSuffix": []
+    }
+  ]
+}

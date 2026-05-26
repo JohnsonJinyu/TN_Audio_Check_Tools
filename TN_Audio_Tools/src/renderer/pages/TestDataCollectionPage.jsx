@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { App as AntdApp, Button, Card, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordDataCollectionResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
@@ -293,6 +293,21 @@ function buildConclusionData(uploadSummary, processedConclusion) {
       customer: '',
       reportPanelSelections: null,
       ruleProfiles: []
+    },
+    sourcePolicy: {
+      status: 'not_applicable',
+      preferredSource: 'excel',
+      currentMode: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'word_only' : 'none',
+      confidence: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'low' : 'not_applicable',
+      confidenceLabel: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? '低' : '未触发',
+      manualConfirmationLevel: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'required' : 'none',
+      manualConfirmationRequired: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0,
+      summary: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0
+        ? '当前批次仅上传了 Word 报告，正式写入前必须人工确认。'
+        : '请优先上传 Excel 报告作为主数据源。',
+      detail: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0
+        ? 'Word 提取准确性和稳定性低于 Excel，仅建议作为兼容通道使用。'
+        : 'Excel 结构化数据更稳定，适合作为 checklist 自动填表主通道。'
     },
     overview: {
       totalReports: uploadSummary.totalReports,
@@ -1041,9 +1056,27 @@ function TestDataCollectionPage() {
       return;
     }
 
-    if (files.some((item) => item.reportKind === 'excel') && !checklistFile?.path) {
-      message.warning('存在 Excel 报告时，请先上传 checklist Excel 文件。');
+    if (!checklistFile?.path) {
+      message.warning('请先上传 checklist Excel 文件。');
       return;
+    }
+
+    if (uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0) {
+      const confirmed = await new Promise((resolve) => {
+        modal.confirm({
+          title: '当前仅导入 Word 报告',
+          content: 'Word 提取的准确性和稳定性低于 Excel。若继续处理，输出结果必须由人工逐项确认后才能使用。',
+          okText: '继续并人工确认',
+          cancelText: '返回检查',
+          okButtonProps: { danger: true },
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false)
+        });
+      });
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     const unconfirmedExcelReports = files.filter(
@@ -1285,7 +1318,7 @@ function TestDataCollectionPage() {
       ellipsis: true,
       render: (_, record) => {
         if (!record.outputName) {
-          return <Text type="secondary">{record.reportKind === 'word' ? 'Word 审查不生成输出' : '处理完成后显示'}</Text>;
+          return <Text type="secondary">处理完成后显示</Text>;
         }
 
         return (
@@ -1318,11 +1351,21 @@ function TestDataCollectionPage() {
       <Card className="report-checker-card report-checker-section-card report-checker-guide-card" title="使用说明">
         <div className="report-checker-note-list">
           <Paragraph style={{ marginBottom: 10 }}>先上传报告、checklist 和可选规则，再执行测试数据收集，最后在结论窗口查看覆盖性、文档审查和一致性结果。</Paragraph>
-          <Paragraph style={{ marginBottom: 10 }}>Excel 负责 checklist 填表与覆盖性评估，Word 不再生成 checklist 输出。</Paragraph>
+          <Paragraph style={{ marginBottom: 10 }}>Excel 是默认主数据源，优先用于 checklist 填表与覆盖性评估；Word 只建议作为兼容补充通道。</Paragraph>
           <Paragraph style={{ marginBottom: 10 }}>跨网络或跨 codec 的一致性审查只在存在可比样本时触发。</Paragraph>
-          <Paragraph style={{ marginBottom: 0 }}>响度、频响和 Word 文档审查会输出证据入口，但最终正确性仍需音频工程师确认。</Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>如果当前批次仅导入 Word 报告，UI 会重点提示并要求人工确认后再使用输出结果。</Paragraph>
         </div>
       </Card>
+
+      {uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="warning"
+          showIcon
+          message="当前仅导入 Word 报告"
+          description="Word 提取准确性和稳定性低于 Excel。若继续处理，本批次生成的 checklist 结果必须由人工逐项确认。"
+        />
+      ) : null}
 
       <div className="report-checker-upload-stack">
         <Card 
@@ -1374,10 +1417,10 @@ function TestDataCollectionPage() {
           </div>
 
           <p style={{ marginBottom: '24px', color: 'var(--text-light)' }}>
-            Excel 报告仅用于 checklist 填表、漏测/重测/多测候选评估与跨报告一致性检查；Word 报告仅用于响度/频响章节识别和文档完整性审查。
+            Excel 报告优先用于 checklist 填表、漏测/重测/多测候选评估与跨报告一致性检查；Word 报告可参与提取，但默认只作为兼容补充与证据审查来源。
           </p>
           <p style={{ marginTop: '-12px', marginBottom: '24px', color: 'var(--text-light)' }}>
-            .doc 报告会先在后台尝试转成 .docx；Word 路径不会生成 checklist 输出文件，结果统一进入下方结论窗口。
+            .doc 报告会先在后台尝试转成 .docx；若当前批次只有 Word，系统仍会继续写入 checklist，但结果必须人工逐项确认。
           </p>
 
           {files.length === 0 ? (
@@ -1689,6 +1732,16 @@ function TestDataCollectionPage() {
       ) : null}
 
       <Card className="report-checker-card report-checker-conclusion-card" title="结论输出">
+        {conclusionData.sourcePolicy ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type={conclusionData.sourcePolicy.manualConfirmationLevel === 'required' ? 'warning' : (conclusionData.sourcePolicy.manualConfirmationLevel === 'recommended' ? 'info' : 'success')}
+            showIcon
+            message={`数据源策略：${conclusionData.sourcePolicy.summary}`}
+            description={`默认优先级：Excel 主、Word 辅；当前置信度：${conclusionData.sourcePolicy.confidenceLabel}；${conclusionData.sourcePolicy.detail}`}
+          />
+        ) : null}
+
         <div className="report-checker-conclusion-actions" style={{ marginBottom: 16 }}>
           <Text strong>本次运行参数</Text>
           <div className="report-checker-conclusion-action-list">
@@ -1743,7 +1796,12 @@ function TestDataCollectionPage() {
           <button type="button" className="report-checker-insight-card" onClick={() => showWordAuditSummary(conclusionData)}>
             <div className="report-checker-insight-header">
               <span className="report-checker-insight-title">Word 曲线与文档审查</span>
-              <Tag color={getStatusMeta(conclusionData.wordAudit.status).color}>{getStatusMeta(conclusionData.wordAudit.status).label}</Tag>
+              <Space size={6} wrap>
+                <Tag color={getStatusMeta(conclusionData.wordAudit.status).color}>{getStatusMeta(conclusionData.wordAudit.status).label}</Tag>
+                <Tag color={conclusionData.sourcePolicy?.confidence === 'low' ? 'red' : conclusionData.sourcePolicy?.confidence === 'medium' ? 'gold' : 'green'}>
+                  置信度 {conclusionData.sourcePolicy?.confidenceLabel || '未触发'}
+                </Tag>
+              </Space>
             </div>
             <strong>{conclusionData.wordAudit.reportCount}</strong>
             <span className="report-checker-insight-text">
@@ -1794,6 +1852,9 @@ function TestDataCollectionPage() {
                   <div className="report-checker-bundle-tags">
                     <Tag color={bundle.sourceMode === 'excel+word' ? 'green' : bundle.sourceMode === 'excel' ? 'blue' : bundle.sourceMode === 'word' ? 'purple' : 'default'}>
                       {bundle.sourceMode === 'excel+word' ? 'Excel + Word 联合' : bundle.sourceMode === 'excel' ? '仅 Excel' : bundle.sourceMode === 'word' ? '仅 Word' : '来源未识别'}
+                    </Tag>
+                    <Tag color={bundle.sourceMode === 'word' ? 'red' : bundle.sourceMode === 'excel+word' ? 'gold' : 'green'}>
+                      {bundle.sourceMode === 'word' ? '必须人工确认' : bundle.sourceMode === 'excel+word' ? '建议人工复核' : 'Excel 主通道'}
                     </Tag>
                     <Tag color={getStatusMeta(bundle.excelCoverage.status).color}>覆盖性 {getStatusMeta(bundle.excelCoverage.status).label}</Tag>
                     <Tag color={getStatusMeta(bundle.wordAudit.status).color}>文档审查 {getStatusMeta(bundle.wordAudit.status).label}</Tag>

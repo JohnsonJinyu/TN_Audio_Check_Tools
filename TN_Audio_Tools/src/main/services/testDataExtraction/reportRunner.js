@@ -2,6 +2,27 @@ const fs = require('fs/promises');
 const path = require('path');
 const { clampMaxConcurrentTasks } = require('./concurrency');
 
+function buildTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('') +
+    '_' +
+    [pad(date.getHours()), pad(date.getMinutes())].join('');
+}
+
+function buildSharedChecklistOutputPath(checklistPath, outputDirectory, reportPaths) {
+  const checklistName = path.parse(checklistPath || '').name;
+  const parentFolderName = path.basename(path.dirname(checklistPath || ''));
+  const normalizedFolderName = String(parentFolderName || '').trim();
+  const fileNameBase = [checklistName, normalizedFolderName, 'merged']
+    .filter(Boolean)
+    .join('_');
+
+  return path.join(
+    outputDirectory,
+    `${fileNameBase || 'checklist'}_${buildTimestamp()}.xlsx`
+  );
+}
+
 function emitProgress(onProgress, payload) {
   if (typeof onProgress !== 'function') {
     return;
@@ -74,7 +95,14 @@ function createReportRunner({
     const rules = await loadRules(resolvedRulePath);
     const results = new Array(reportPaths.length);
     const total = reportPaths.length;
-    const resolvedMaxConcurrentTasks = Math.min(total, clampMaxConcurrentTasks(maxConcurrentTasks, 1));
+    const resolvedOutputDirectory = String(outputDirectory || '').trim() || path.dirname(reportPaths[0]);
+    const sharedChecklistOutputPath = checklistPath
+      ? buildSharedChecklistOutputPath(checklistPath, resolvedOutputDirectory, reportPaths)
+      : '';
+    const shouldMergeIntoSingleChecklist = Boolean(checklistPath && reportPaths.length > 0);
+    const resolvedMaxConcurrentTasks = shouldMergeIntoSingleChecklist
+      ? 1
+      : Math.min(total, clampMaxConcurrentTasks(maxConcurrentTasks, 1));
     let completed = 0;
     let successCount = 0;
 
@@ -100,7 +128,14 @@ function createReportRunner({
           customer,
           reportPanelSelections,
           reportPanelSelectionsOverride: reportPanelSelectionsByPath?.[reportPath] || null,
-          outputDirectory
+          outputDirectory: resolvedOutputDirectory,
+          checklistWriteOptions: shouldMergeIntoSingleChecklist
+            ? {
+              outputPath: sharedChecklistOutputPath,
+              reuseExistingOutput: completed > 0,
+              skipReportSheetUpdates: completed > 0
+            }
+            : null
         });
         resultEntry = { status: 'success', ...result };
         successCount += 1;

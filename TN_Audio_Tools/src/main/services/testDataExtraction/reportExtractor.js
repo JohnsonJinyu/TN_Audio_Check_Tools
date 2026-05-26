@@ -17,6 +17,10 @@ function createReportExtractor({
       return '';
     }
 
+    if (normalized.includes('digital') || normalized === 'eid') {
+      return 'EID';
+    }
+
     if (normalized.includes('handset') || normalized === 'ha') {
       return 'HA';
     }
@@ -29,15 +33,20 @@ function createReportExtractor({
       return 'HH';
     }
 
+    if (normalized.includes('electrical') || normalized.includes('analog') || normalized === 'ei' || normalized === 'eia') {
+      return 'EI';
+    }
+
     return '';
   }
 
-  function normalizeReportPanelSelections(reportPanelSelections = {}) {
+  function normalizeReportPanelSelections(reportPanelSelections) {
+    const selections = reportPanelSelections || {};
     const normalized = {
-      B13: String(reportPanelSelections.B13 || '').trim(),
-      B15: String(reportPanelSelections.B15 || '').trim(),
-      C15: String(reportPanelSelections.C15 || '').trim(),
-      D15: String(reportPanelSelections.D15 || '').trim()
+      B13: String(selections.B13 || '').trim(),
+      B15: String(selections.B15 || '').trim(),
+      C15: String(selections.C15 || '').trim(),
+      D15: String(selections.D15 || '').trim()
     };
 
     if (!normalized.B13 && !normalized.B15 && !normalized.C15 && !normalized.D15) {
@@ -152,6 +161,18 @@ function createReportExtractor({
       return 'headset';
     }
 
+    if (terminalMode === 'EI') {
+      return 'electrical_interface';
+    }
+
+    if (terminalMode === 'EIA') {
+      return 'electrical_interface';
+    }
+
+    if (terminalMode === 'EID') {
+      return 'electrical_interface_digital';
+    }
+
     return '';
   }
 
@@ -167,6 +188,14 @@ function createReportExtractor({
 
     if (checklistName.includes('handset')) {
       return 'handset';
+    }
+
+    if (checklistName.includes('electricalinterface-digital') || checklistName.includes('electricalinterfacedigital')) {
+      return 'electrical_interface_digital';
+    }
+
+    if (checklistName.includes('electricalinterface')) {
+      return 'electrical_interface';
     }
 
     return '';
@@ -189,6 +218,14 @@ function createReportExtractor({
 
     if (modeKey === 'headset') {
       return ['headset'];
+    }
+
+    if (modeKey === 'electrical_interface') {
+      return ['electricalinterface'];
+    }
+
+    if (modeKey === 'electrical_interface_digital') {
+      return ['electricalinterface', 'digital'];
     }
 
     return [];
@@ -275,12 +312,14 @@ function createReportExtractor({
     const modeNameMap = {
       handset: 'Handset',
       handsfree: 'Handsfree',
-      headset: 'Headset'
+      headset: 'Headset',
+      electrical_interface: 'ElectricalInterface-Analogue',
+      electrical_interface_digital: 'ElectricalInterface-Digital'
     };
     const nextModeName = modeNameMap[targetModeKey];
     const checklistDir = path.dirname(checklistPath);
     const checklistName = path.basename(checklistPath);
-    const candidateName = checklistName.replace(/handset|handsfree|headset/i, nextModeName);
+    const candidateName = checklistName.replace(/handset|handsfree|headset|electricalinterface-analogue|electricalinterface-digital|electricalinterface/ig, nextModeName);
     const candidatePath = path.join(checklistDir, candidateName);
 
     try {
@@ -303,6 +342,14 @@ function createReportExtractor({
 
     if (modeKey === 'headset') {
       return 'headset';
+    }
+
+    if (modeKey === 'electrical_interface') {
+      return 'electrical_interface';
+    }
+
+    if (modeKey === 'electrical_interface_digital') {
+      return 'electrical_interface_digital';
     }
 
     const checklistModeKey = resolveChecklistModeKeyFromName(checklistPath);
@@ -617,7 +664,7 @@ function createReportExtractor({
     return { applicable: true };
   }
 
-  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride, outputDirectory }) {
+  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride, outputDirectory, checklistWriteOptions }) {
     const reportData = await parseReport(reportPath);
     const mergedReportContext = mergeReportContext(reportData?.reportContext || {}, {
       customer,
@@ -630,24 +677,6 @@ function createReportExtractor({
     const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
     const checklistPathForReport = await resolveChecklistPathForReport(checklistPath, mergedReportContext, reportPath);
     const { activeRules, profileKey } = resolveRulesForReport(rules, normalizedReportData, checklistPathForReport);
-
-    if (reportKind === 'word') {
-      return {
-        reportPath,
-        reportKind,
-        reportFormat: reportData?.reportFormat || 'docx',
-        bundleKey: path.parse(reportPath).name,
-        reportContext: mergedReportContext,
-        ruleProfileKey: profileKey,
-        outputPath: '',
-        totalItems: 0,
-        matchedItems: 0,
-        skippedItems: [],
-        unmatchedItems: [],
-        extractedItems: [],
-        audit: analyzeWordReport({ reportPath, reportData: normalizedReportData })
-      };
-    }
 
     if (!checklistPathForReport) {
       throw new Error('Excel 报告处理需要 checklist 文件。');
@@ -706,7 +735,10 @@ function createReportExtractor({
       reportPath,
       extractedItems,
       mergedReportContext,
-      { outputDirectory }
+      {
+        outputDirectory,
+        ...(checklistWriteOptions || {})
+      }
     );
     const matchedItems = extractedItems.filter((item) => item.matched).length;
     const skippedItems = extractedItems.filter((item) => item.skipped).map((item) => ({
@@ -737,7 +769,9 @@ function createReportExtractor({
       skippedItems,
       unmatchedItems,
       extractedItems,
-      audit: analyzeExcelReport({ reportPath, reportData: normalizedReportData, extractedItems })
+      audit: reportKind === 'word'
+        ? analyzeWordReport({ reportPath, reportData: normalizedReportData })
+        : analyzeExcelReport({ reportPath, reportData: normalizedReportData, extractedItems })
     };
   }
 

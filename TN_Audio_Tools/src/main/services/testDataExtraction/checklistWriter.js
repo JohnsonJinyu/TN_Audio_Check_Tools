@@ -18,7 +18,9 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   );
 
   await fs.mkdir(path.dirname(writePlan.outputPath), { recursive: true });
-  await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
+  if (!writePlan.reuseExistingOutput) {
+    await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
+  }
   await applyChecklistWritePlan(writePlan);
   await applyChecklistStyles(writePlan, extractedItems, reportContext);
 
@@ -27,7 +29,16 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
 }
 
 function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}, options = {}) {
-  const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
+  const preferredOutputPath = String(options?.outputPath || '').trim();
+  const resolvedOutputDirectory = String(options?.outputDirectory || '').trim() || path.dirname(reportPath);
+  const resolvedOutputPath = preferredOutputPath
+    ? path.resolve(preferredOutputPath)
+    : path.join(
+      resolvedOutputDirectory,
+      buildOutputFileName(path.parse(reportPath).name)
+    );
+  const sourceWorkbookPath = options?.reuseExistingOutput ? resolvedOutputPath : checklistPath;
+  const workbook = XLSX.readFile(sourceWorkbookPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
   const valueUpdates = [];
@@ -51,18 +62,13 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
     });
   }
 
-  const resolvedOutputDirectory = String(options?.outputDirectory || '').trim() || path.dirname(reportPath);
-  const outputPath = path.join(
-    resolvedOutputDirectory,
-    buildOutputFileName(path.parse(reportPath).name)
-  );
-
   return {
-    outputPath,
+    outputPath: resolvedOutputPath,
+    reuseExistingOutput: Boolean(options?.reuseExistingOutput),
     templatePath: checklistPath,
     sheetName,
     valueUpdates,
-    reportUpdates: resolveReportSheetUpdates(workbook, reportContext)
+    reportUpdates: resolveReportSheetUpdates(workbook, reportContext, options)
   };
 }
 
@@ -278,7 +284,11 @@ function readZipText(zip, filePath) {
   return file.getData().toString('utf8');
 }
 
-function resolveReportSheetUpdates(workbook, reportContext = {}) {
+function resolveReportSheetUpdates(workbook, reportContext = {}, options = {}) {
+  if (options?.skipReportSheetUpdates) {
+    return [];
+  }
+
   const reportSheet = workbook?.Sheets?.Report;
   if (!reportSheet) {
     return [];
@@ -377,6 +387,14 @@ function resolveChecklistSheetName(sheetNames, reportPath, reportContext = {}) {
     {
       sheetName: 'Headset',
       reportTokens: new Set(['hs', 'he', 'headset'])
+    },
+    {
+      sheetName: 'ElectricalInterface-Digital',
+      reportTokens: new Set(['eid', 'digital'])
+    },
+    {
+      sheetName: 'ElectricalInterface-Analogue',
+      reportTokens: new Set(['ei', 'eia', 'analog', 'analogue', 'electrical', 'venice'])
     }
   ].find((candidate) => {
     const hasSheet = sheetNames.some((sheetName) => normalizeSheetToken(sheetName) === normalizeSheetToken(candidate.sheetName));
@@ -423,7 +441,10 @@ function resolveModeSheetByTerminalMode(sheetNames, terminalMode) {
     HE: 'Headset',
     HS: 'Headset',
     HH: 'Handsfree',
-    HF: 'Handsfree'
+    HF: 'Handsfree',
+    EI: 'ElectricalInterface-Analogue',
+    EIA: 'ElectricalInterface-Analogue',
+    EID: 'ElectricalInterface-Digital'
   };
 
   const targetSheet = modeToSheet[normalizedMode];
