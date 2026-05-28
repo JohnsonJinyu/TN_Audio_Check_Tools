@@ -101,13 +101,64 @@ async function inspectReport(reportPath, options = {}) {
   }
 
   const reportData = await parseReport(reportPath);
-  const mergedReportContext = inspectReportContext(reportData?.reportContext || {}, options);
+  const mergedReportContext = inspectReportContext(reportData?.reportContext || {}, {
+    ...options,
+    reportPath
+  });
+  const resolvedRulePath = await resolveRulePathForInspect(options?.appPath, options?.rulePath);
+  const availableRuleProfiles = await loadAvailableRuleProfiles(resolvedRulePath);
 
   return {
     reportPath,
     reportFormat: reportData?.reportFormat || '',
     reportContext: mergedReportContext,
-    suggestedReportPanelSelections: mergedReportContext.reportPanelSelections || null
+    suggestedReportPanelSelections: mergedReportContext.reportPanelSelections || null,
+    suggestedRuleProfile: mergedReportContext.suggestedRuleProfile || '',
+    suggestedRuleProfileReason: mergedReportContext.suggestedRuleProfileReason || '',
+    needsRuleConfirmation: Boolean(mergedReportContext.needsRuleConfirmation),
+    availableRuleProfiles
+  };
+}
+
+async function resolveRulePathForInspect(appPath, customRulePath) {
+  if (customRulePath) {
+    return customRulePath;
+  }
+
+  return resolveBundledRulesPath(appPath);
+}
+
+async function loadAvailableRuleProfiles(rulePath) {
+  const rules = await loadRules(rulePath);
+  if (!rules?.ruleProfiles || typeof rules.ruleProfiles !== 'object') {
+    return [];
+  }
+
+  return Object.keys(rules.ruleProfiles);
+}
+
+async function resolvePresetChecklistTemplate(profileKey, options = {}) {
+  const normalizedProfileKey = String(profileKey || '').trim();
+  if (!normalizedProfileKey) {
+    return null;
+  }
+
+  const resolvedRulePath = await resolveRulePathForInspect(options?.appPath, options?.rulePath);
+  const rules = await loadRules(resolvedRulePath);
+  const profileRules = rules?.ruleProfiles?.[normalizedProfileKey];
+  const defaultChecklistPath = profileRules?._defaultChecklistPath;
+  if (!defaultChecklistPath) {
+    return null;
+  }
+
+  const ruleDir = rules?._ruleDir || path.dirname(resolvedRulePath);
+  const templatePath = path.resolve(ruleDir, defaultChecklistPath);
+  await fs.access(templatePath);
+
+  return {
+    profileKey: normalizedProfileKey,
+    templatePath,
+    fileName: path.basename(templatePath)
   };
 }
 
@@ -118,5 +169,6 @@ module.exports = {
   buildExportableRulesContent,
   parseChecklistReportOptions,
   inspectReport,
-  parseReport
+  parseReport,
+  resolvePresetChecklistTemplate
 };

@@ -297,15 +297,16 @@
       "coreKeywords": ["Echo", "control", "MAX", "Echo", "Loss", "EIBAND"],
       "fallbackKeywords": ["Echo", "Loss", "MAX", "EIBAND"],
       "forbiddenSuffix": [],
+      "excludedBandwidths": ["NB", "WB", "SWB"],
       "requiredSuffix": []
     },
     {
       "itemId": 21,
       "checklistDesc": "Acoustic echo control - Echo Loss (TCLw) - nom vol.",
-      "outputCell": "I23",
+      "outputCell": "I22",
       "extractType": "summary_table_match",
-      "coreKeywords": ["Echo", "control", "NOM", "Echo", "Loss", "EIBAND"],
-      "fallbackKeywords": ["Echo", "Loss", "NOM", "EIBAND"],
+      "coreKeywords": ["Echo", "control", "Echo", "Loss", "EIBAND"],
+      "fallbackKeywords": ["Echo", "Loss", "EIBAND"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
@@ -317,6 +318,7 @@
       "coreKeywords": ["Echo", "control", "ANY", "Echo", "Loss", "EIBAND"],
       "fallbackKeywords": ["Echo", "control", "ANY", "VOL", "EIBAND"],
       "forbiddenSuffix": [],
+      "excludedBandwidths": ["NB", "WB", "SWB"],
       "requiredSuffix": []
     },
 
@@ -324,30 +326,29 @@
     {
       "itemId": 23,
       "checklistDesc": "Distortion - SND 1020Hz",
-      "outputCell": "I25",
+      "outputCell": "I23",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "SND", "1020", "Hz", "activation", "Average", "EIBAND"],
       "fallbackKeywords": ["Distortion", "SND", "AVG", "EIBAND"],
       "forbiddenSuffix": [],
       "requiredSuffix": []
     },
-    // ===== 24. 发送失真 -60dBV (仅WB/SWB，NB无此测试) =====
+    // ===== 24. 发送失真 -16dBm0 =====
     {
       "itemId": 24,
-      "checklistDesc": "Distortion - SND -60dBV",
-      "outputCell": "I26",
+      "checklistDesc": "Distortion - SND -16dBm0",
+      "outputCell": "I24",
       "extractType": "status_judge",
-      "coreKeywords": ["Distortion", "SND", "-60", "dBV", "EIBAND"],
-      "fallbackKeywords": ["Distortion", "SND", "60", "dBV", "EIBAND"],
+      "coreKeywords": ["Distortion", "SND", "-16", "dBm0", "activation", "EIBAND"],
+      "fallbackKeywords": ["Distortion", "SND", "16", "dBm0", "EIBAND"],
       "forbiddenSuffix": [],
-      "requiredSuffix": [],
-      "excludedBandwidths": ["NB"]
+      "requiredSuffix": []
     },
     // ===== 25. 接收失真 1020Hz =====
     {
       "itemId": 25,
       "checklistDesc": "Distortion - RCV 1020Hz",
-      "outputCell": "I27",
+      "outputCell": "I25",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "1020", "Hz", "activation", "Average", "EIBAND"],
       "fallbackKeywords": ["Distortion", "RCV", "AVG", "EIBAND"],
@@ -358,7 +359,7 @@
     {
       "itemId": 26,
       "checklistDesc": "Distortion - RCV -16dBm0",
-      "outputCell": "I28",
+      "outputCell": "I26",
       "extractType": "status_judge",
       "coreKeywords": ["Distortion", "RCV", "-16", "dBm0", "activation", "Average", "EIBAND"],
       "fallbackKeywords": ["Distortion", "RCV", "AVG", "EIBAND"],
@@ -370,7 +371,7 @@
     {
       "itemId": 27,
       "checklistDesc": "Round-trip delay - TS+TR",
-      "outputCell": "I29",
+      "outputCell": "I27",
       "extractType": "formula_calc",
       "coreKeywords": ["DUT", "Delay", "SND", "EIBAND"],
       "fallbackKeywords": ["DUT", "Delay", "SND", "EIBAND"],
@@ -393,7 +394,7 @@
     {
       "itemId": 54,
       "checklistDesc": "Echo control characteristics - Short DT Class A1",
-      "outputCell": "I30",
+      "outputCell": "I28",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "short", "DT", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
@@ -409,7 +410,7 @@
     {
       "itemId": 55,
       "checklistDesc": "Echo control characteristics - Short DT Class A1+A2",
-      "outputCell": "I31",
+      "outputCell": "I29",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "short", "DT", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
@@ -425,7 +426,7 @@
     {
       "itemId": 56,
       "checklistDesc": "Echo control characteristics - Short ST Class A1+A2",
-      "outputCell": "I32",
+      "outputCell": "I30",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "short", "ST", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "short", "1o2", "EIBAND"],
@@ -443,7 +444,7 @@
     {
       "itemId": 28,
       "checklistDesc": "Echo control characteristics - Long DT Class A1",
-      "outputCell": "I33",
+      "outputCell": "I31",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "long", "DT", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
@@ -459,7 +460,7 @@
     {
       "itemId": 29,
       "checklistDesc": "Echo control characteristics - Long DT Class A1+A2",
-      "outputCell": "I34",
+      "outputCell": "I32",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "long", "DT", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
@@ -475,7 +476,7 @@
     {
       "itemId": 30,
       "checklistDesc": "Echo control characteristics - Long ST Class A1+A2",
-      "outputCell": "I35",
+      "outputCell": "I33",
       "extractType": "regex_extract",
       "coreKeywords": ["Echo", "Control", "Chara", "long", "ST", "EIBAND"],
       "fallbackKeywords": ["Echo", "Control", "long", "2o2", "EIBAND"],
@@ -493,7 +494,7 @@
     {
       "itemId": 31,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - average",
-      "outputCell": "I36",
+      "outputCell": "I34",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "fallbackKeywords": ["S-MOS", "Average", "EIBAND"],
@@ -503,7 +504,7 @@
     {
       "itemId": 32,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - average",
-      "outputCell": "I37",
+      "outputCell": "I35",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "fallbackKeywords": ["N-MOS", "Average", "EIBAND"],
@@ -513,7 +514,7 @@
     {
       "itemId": 33,
       "checklistDesc": "Quality in the presence of ambient noise - G-MOS - average",
-      "outputCell": "I38",
+      "outputCell": "I36",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "BGN", "G-MOS", "Average", "EIBAND"],
       "fallbackKeywords": ["G-MOS", "Average", "EIBAND"],
@@ -525,7 +526,7 @@
     {
       "itemId": 34,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Pub",
-      "outputCell": "I39",
+      "outputCell": "I37",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -539,7 +540,7 @@
     {
       "itemId": 35,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Road",
-      "outputCell": "I40",
+      "outputCell": "I38",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -553,7 +554,7 @@
     {
       "itemId": 36,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Crossroads",
-      "outputCell": "I41",
+      "outputCell": "I39",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -567,7 +568,7 @@
     {
       "itemId": 37,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Train",
-      "outputCell": "I42",
+      "outputCell": "I40",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -581,7 +582,7 @@
     {
       "itemId": 38,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Car",
-      "outputCell": "I43",
+      "outputCell": "I41",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -595,7 +596,7 @@
     {
       "itemId": 39,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Cafeteria",
-      "outputCell": "I44",
+      "outputCell": "I42",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -609,7 +610,7 @@
     {
       "itemId": 40,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Mensa",
-      "outputCell": "I45",
+      "outputCell": "I43",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -623,7 +624,7 @@
     {
       "itemId": 41,
       "checklistDesc": "Quality in the presence of ambient noise - S-MOS - Callcenter",
-      "outputCell": "I46",
+      "outputCell": "I44",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "S-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -639,7 +640,7 @@
     {
       "itemId": 42,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Pub",
-      "outputCell": "I47",
+      "outputCell": "I45",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -653,7 +654,7 @@
     {
       "itemId": 43,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Road",
-      "outputCell": "I48",
+      "outputCell": "I46",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -667,7 +668,7 @@
     {
       "itemId": 44,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Crossroads",
-      "outputCell": "I49",
+      "outputCell": "I47",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -681,7 +682,7 @@
     {
       "itemId": 45,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Train",
-      "outputCell": "I50",
+      "outputCell": "I48",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -695,7 +696,7 @@
     {
       "itemId": 46,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Car",
-      "outputCell": "I51",
+      "outputCell": "I49",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -709,7 +710,7 @@
     {
       "itemId": 47,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Cafeteria",
-      "outputCell": "I52",
+      "outputCell": "I50",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -723,7 +724,7 @@
     {
       "itemId": 48,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Mensa",
-      "outputCell": "I53",
+      "outputCell": "I51",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -737,7 +738,7 @@
     {
       "itemId": 49,
       "checklistDesc": "Quality in the presence of ambient noise - N-MOS - Callcenter",
-      "outputCell": "I54",
+      "outputCell": "I52",
       "extractType": "table_struct_extract",
       "coreKeywords": ["Speech", "Quality", "BGN", "N-MOS", "Average", "EIBAND"],
       "forbiddenSuffix": [],
@@ -753,7 +754,7 @@
     {
       "itemId": 50,
       "checklistDesc": "POLQA MOS - Sending (Electric)",
-      "outputCell": "I56",
+      "outputCell": "I54",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "Electric", "SND", "MOS-LQO", "Average", "EIBAND"],
       "fallbackKeywords": ["Speech", "Quality", "Electric", "SND", "EIBAND"],
@@ -763,7 +764,7 @@
     {
       "itemId": 51,
       "checklistDesc": "POLQA MOS - Receiving (Electric) MAX",
-      "outputCell": "I57",
+      "outputCell": "I55",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "MAX"],
       "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "MAX", "EIBAND"],
@@ -773,7 +774,7 @@
     {
       "itemId": 52,
       "checklistDesc": "POLQA MOS - Receiving (Electric) NOM",
-      "outputCell": "I58",
+      "outputCell": "I56",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "NOM"],
       "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "NOM", "EIBAND"],
@@ -783,7 +784,7 @@
     {
       "itemId": 53,
       "checklistDesc": "POLQA MOS - Receiving (Electric) MIN",
-      "outputCell": "I59",
+      "outputCell": "I57",
       "extractType": "summary_table_match",
       "coreKeywords": ["Speech", "Quality", "Electric", "RCV", "MOS-LQO", "Average", "EIBAND", "MIN"],
       "fallbackKeywords": ["Speech", "Quality", "Electric", "RCV", "MIN", "EIBAND"],

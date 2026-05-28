@@ -14,27 +14,32 @@
     "handset": {
       "label": "Handset",
       "terminalModes": ["HA"],
-      "rulePath": "./moto_rules_handset.json5"
+      "rulePath": "./moto_rules_handset.json5",
+      "defaultChecklistPath": "./templates/Voice_Tuning_Checklist_v5.0.2_Handset.xlsx"
     },
     "handsfree": {
       "label": "Handsfree",
       "terminalModes": ["HH", "HF"],
-      "rulePath": "./moto_rules_handsfree.json5"
+      "rulePath": "./moto_rules_handsfree.json5",
+      "defaultChecklistPath": "./templates/Voice_Tuning_Checklist_v5.0.2_Handsfree.xlsx"
     },
     "headset": {
       "label": "Headset",
       "terminalModes": ["HE", "HS"],
-      "rulePath": "./moto_rules_headset.json5"
+      "rulePath": "./moto_rules_headset.json5",
+      "defaultChecklistPath": "./templates/Voice_Tuning_Checklist_v5.0.2_Headset.xlsx"
     },
     "electrical_interface": {
       "label": "Electrical Interface (Analogue)",
       "terminalModes": ["EI", "EIA"],
-      "rulePath": "./moto_rules_electrical_interface.json5"
+      "rulePath": "./moto_rules_electrical_interface.json5",
+      "defaultChecklistPath": "./templates/Voice_Tuning_Checklist_v5.0.2_ElectricalInterface.xlsx"
     },
     "electrical_interface_digital": {
       "label": "Electrical Interface (Digital)",
       "terminalModes": ["EID"],
-      "rulePath": "./moto_rules_electrical_interface_digital.json5"
+      "rulePath": "./moto_rules_electrical_interface_digital.json5",
+      "defaultChecklistPath": "./templates/Voice_Tuning_Checklist_v5.0.2_ElectricalInterface.xlsx"
     }
   }
 }

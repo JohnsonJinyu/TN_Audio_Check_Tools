@@ -35,7 +35,7 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
     ? path.resolve(preferredOutputPath)
     : path.join(
       resolvedOutputDirectory,
-      buildOutputFileName(path.parse(reportPath).name)
+      buildOutputFileName(path.parse(reportPath).name, reportContext)
     );
   const sourceWorkbookPath = options?.reuseExistingOutput ? resolvedOutputPath : checklistPath;
   const workbook = XLSX.readFile(sourceWorkbookPath, { cellStyles: true, cellDates: true });
@@ -503,14 +503,31 @@ function normalizeChecklistValue(worksheet, cellAddress, value) {
   return worksheetValue;
 }
 
-function buildOutputFileName(reportName) {
-  const normalizedReportName = String(reportName || '').trim();
+function buildOutputFileName(reportName, reportContext = {}) {
   const timestamp = buildTimestamp();
 
+  // 新格式: 项目名_阶段_网络制式_vocoder_checklist_日期
+  const projectName = String(reportContext?.projectName || '').trim();
+  const projectPhase = String(reportContext?.projectPhase || '').trim();
+  const network = String(reportContext?.network || '').trim();
+  const explicitVocoder = String(reportContext?.vocoder || '').trim();
+  const codec = String(reportContext?.codec || '').trim();
+  const bandwidth = String(reportContext?.bandwidth || '').trim();
+  const vocoder = explicitVocoder || [codec, bandwidth].filter(Boolean).join('_');
+
+  if (projectName && projectPhase) {
+    const parts = [projectName, projectPhase];
+    if (network) parts.push(network);
+    if (vocoder) parts.push(vocoder);
+    parts.push('checklist', timestamp);
+    return `${parts.join('_')}.xlsx`;
+  }
+
+  // 回退: 旧格式
+  const normalizedReportName = String(reportName || '').trim();
   if (!normalizedReportName) {
     return `checklist_${timestamp}.xlsx`;
   }
-
   return `${normalizedReportName}_checklist_${timestamp}.xlsx`;
 }
 
@@ -518,7 +535,7 @@ function buildTimestamp(date = new Date()) {
   const pad = (value) => String(value).padStart(2, '0');
   return [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('') +
     '_' +
-    [pad(date.getHours()), pad(date.getMinutes())].join('');
+    [pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())].join('');
 }
 
 module.exports = {

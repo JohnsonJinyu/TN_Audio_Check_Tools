@@ -337,7 +337,7 @@ function Settings() {
     await persistSettings(nextSettings, '输出目录已清空');
   };
 
-  const handleValuesChange = (_, allValues) => {
+  const handleValuesChange = (changedValues, allValues) => {
     const normalized = normalizeSettings(allValues);
     if (!normalized.system.enableTray) {
       normalized.system.launchMinimizedToTray = false;
@@ -359,6 +359,15 @@ function Settings() {
 
     if (settingsEqual(effectiveSettings, normalized)) {
       setAutoSaveMessage('设置已自动保存');
+      return;
+    }
+
+    if (changedValues?.appearance) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      persistSettings(normalized, '外观设置已保存');
       return;
     }
 

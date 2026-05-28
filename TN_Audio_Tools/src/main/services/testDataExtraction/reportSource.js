@@ -109,11 +109,36 @@ function deriveMeasurementObject(rawText) {
   return '';
 }
 
+function deriveProjectNameAndPhase(reportPath) {
+  const reportName = path.parse(reportPath || '').name;
+  const normalizedName = String(reportName || '').trim();
+
+  // 阶段: EVB / EVT / DVT1 / DVT2 / PVT
+  const phaseMatch = normalizedName.match(/(EVB|EVT|DVT[12]|PVT)/i);
+  const projectPhase = phaseMatch ? phaseMatch[1].toUpperCase() : '';
+
+  // 项目名: 文件名中第一个下划线前的部分，或第一个非阶段/非带宽/非codec的单词
+  let projectName = '';
+  if (normalizedName) {
+    const firstUnderscore = normalizedName.indexOf('_');
+    if (firstUnderscore > 0) {
+      projectName = normalizedName.substring(0, firstUnderscore).toUpperCase();
+    } else {
+      // 没有下划线，取第一个单词
+      const firstWord = normalizedName.split(/[\s_-]+/)[0];
+      if (firstWord) projectName = firstWord.toUpperCase();
+    }
+  }
+
+  return { projectName, projectPhase };
+}
+
 function deriveReportMetadata(reportPath, rawText, reportData) {
   const reportName = path.parse(reportPath || '').name;
   const reportContext = reportData?.reportContext || {};
   const measurementObject = String(reportContext.measurementObject || '').trim() || deriveMeasurementObject(rawText) || reportName;
   const combinedSource = `${reportName} ${measurementObject} ${rawText || ''}`;
+  const { projectName, projectPhase } = deriveProjectNameAndPhase(reportPath);
 
   return {
     reportName,
@@ -121,7 +146,9 @@ function deriveReportMetadata(reportPath, rawText, reportData) {
     bandwidth: normalizeReportBandwidth(reportContext.bandwidth) || deriveBandwidthFromPath(reportPath) || deriveBandwidthFromText(rawText) || '',
     codec: String(reportContext.codec || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['EVS', 'AMR']),
     network: String(reportContext.network || '').trim().toUpperCase() || deriveTokenByCandidates(combinedSource, ['VOLTE', 'VOWIFI', 'VONR', 'VOIP', 'WCDMA', 'GSM']),
-    terminalMode: String(reportContext.terminalMode || '').trim().toUpperCase() || deriveTerminalModeFromPath(reportPath) || deriveTokenByCandidates(combinedSource, ['HA', 'HF', 'HS', 'HE', 'HH', 'EID', 'EIA', 'EI'])
+    terminalMode: String(reportContext.terminalMode || '').trim().toUpperCase() || deriveTerminalModeFromPath(reportPath) || deriveTokenByCandidates(combinedSource, ['HA', 'HF', 'HS', 'HE', 'HH', 'EID', 'EIA', 'EI']),
+    projectName,
+    projectPhase
   };
 }
 
@@ -193,7 +220,12 @@ function createReportSource({
       }
 
       if (profileConfig && typeof profileConfig.rulePath === 'string') {
-        normalizedProfiles[profileKey] = await loadRules(path.resolve(path.dirname(rulePath), profileConfig.rulePath));
+        const subRules = await loadRules(path.resolve(path.dirname(rulePath), profileConfig.rulePath));
+        // 保留 bundle 层级的元数据（如 defaultChecklistPath）
+        if (profileConfig.defaultChecklistPath) {
+          subRules._defaultChecklistPath = profileConfig.defaultChecklistPath;
+        }
+        normalizedProfiles[profileKey] = subRules;
         continue;
       }
 
@@ -203,7 +235,8 @@ function createReportSource({
     return {
       ruleBaseInfo: rules.ruleBaseInfo || {},
       defaultProfileKey: String(rules.defaultProfileKey || profileEntries[0][0]).trim() || profileEntries[0][0],
-      ruleProfiles: normalizedProfiles
+      ruleProfiles: normalizedProfiles,
+      _ruleDir: path.dirname(rulePath)
     };
   }
 

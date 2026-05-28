@@ -7,10 +7,13 @@ const BITRATE_OPTIONS = new Set(['128', '192', '256', '320']);
 const SAMPLE_RATE_OPTIONS = new Set(['original', '44100', '48000', '96000']);
 const CONCURRENCY_OPTIONS = new Set([1, 2, 4, 8]);
 
+const DESIGN_STYLE_OPTIONS = new Set(['elevenlabs', 'linear', 'claude', 'vercel', 'apple-light']);
+
 const DEFAULT_APP_SETTINGS = Object.freeze({
   appearance: {
     theme: 'light',
-    language: 'zh-cn'
+    language: 'zh-cn',
+    designStyle: 'apple-light'
   },
   system: {
     enableTray: false,
@@ -78,6 +81,11 @@ function normalizeSettings(input = {}) {
         input?.appearance?.language,
         LANGUAGE_OPTIONS,
         DEFAULT_APP_SETTINGS.appearance.language
+      ),
+      designStyle: selectAllowedValue(
+        input?.appearance?.designStyle,
+        DESIGN_STYLE_OPTIONS,
+        DEFAULT_APP_SETTINGS.appearance.designStyle
       )
     },
     system: {

@@ -25,7 +25,8 @@ const {
   resolveBundledRulesPath,
   buildExportableRulesContent,
   parseChecklistReportOptions,
-  inspectReport
+  inspectReport,
+  resolvePresetChecklistTemplate
 } = require('./services/testDataExtraction');
 const { reviewWordReport, reviewPairedReport, runCrossReportChecks } = require('./services/reportReview');
 const {
@@ -459,8 +460,17 @@ ipcMain.handle('report-checker:get-checklist-report-options', async (_, checklis
   return parseChecklistReportOptions(checklistPath);
 });
 
+ipcMain.handle('report-checker:resolve-preset-checklist-template', async (_, payload) => {
+  return resolvePresetChecklistTemplate(payload?.profileKey, {
+    appPath: app.getAppPath(),
+    rulePath: payload?.rulePath
+  });
+});
+
 ipcMain.handle('report-checker:inspect-report-context', async (_, payload) => {
   return inspectReport(payload?.reportPath, {
+    appPath: app.getAppPath(),
+    rulePath: payload?.rulePath,
     customer: payload?.customer,
     reportPanelSelections: payload?.reportPanelSelections
   });
