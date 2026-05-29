@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electron', {
     get: () => ipcRenderer.invoke('app-settings:get'),
     getDefaults: () => ipcRenderer.invoke('app-settings:defaults'),
     save: (payload) => ipcRenderer.invoke('app-settings:save', payload),
+    saveImmediate: (payload) => ipcRenderer.send('app-settings:save-immediate', payload),
     reset: () => ipcRenderer.invoke('app-settings:reset'),
     chooseOutputDirectory: () => ipcRenderer.invoke('app-settings:choose-output-directory'),
     clearCache: () => ipcRenderer.invoke('app-settings:clear-cache'),

@@ -374,6 +374,12 @@ ipcMain.handle('app-settings:save', async (_, payload) => {
   return savedSettings;
 });
 
+ipcMain.on('app-settings:save-immediate', (_, payload) => {
+  const savedSettings = saveSettings(normalizeSettings(payload || {}));
+  applyDesktopBehavior();
+  emitSettingsChanged(savedSettings);
+});
+
 ipcMain.handle('app-settings:reset', async () => {
   const resetValue = resetSettings();
   applyDesktopBehavior();

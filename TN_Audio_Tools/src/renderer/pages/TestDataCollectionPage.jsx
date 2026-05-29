@@ -13,6 +13,12 @@ const REPORT_PANEL_FIELDS = [
   { cell: 'C15', label: 'Vocoder' },
   { cell: 'D15', label: 'Bitrate' }
 ];
+const REPORT_PANEL_FIELD_SHORT_LABELS = {
+  B13: '接口',
+  B15: '网络',
+  C15: '编码',
+  D15: '码率'
+};
 
 const PROJECT_PHASE_OPTIONS = ['EVB', 'EVT', 'DVT1', 'DVT2', 'PVT'];
 const EMPTY_REPORT_PANEL_SELECTIONS = {
@@ -1851,9 +1857,33 @@ function TestDataCollectionPage() {
             }
           >
             <div style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
-                <Text strong style={{ fontSize: 13 }}>预设模板</Text>
-                <Space size={[8, 8]} wrap>
+              <div className="report-checker-template-row">
+                <Text strong className="report-checker-template-label">预设模板</Text>
+                <div className="report-checker-template-select-wrap">
+                  <Select
+                    showSearch
+                    allowClear
+                    value={presetChecklistTemplate || undefined}
+                    className="report-checker-template-select"
+                    placeholder="根据报告模式自动选择"
+                    onChange={(value) => {
+                      setPresetChecklistTemplate(value || '');
+                      if (value) {
+                        setChecklistFile(null);
+                        setChecklistSelectionSource('manual');
+                        setChecklistConfirmationStatus('pending');
+                        resolveAndLoadPresetChecklistTemplate(value);
+                      } else {
+                        setChecklistSelectionSource('');
+                        setChecklistConfirmationStatus('pending');
+                        setPresetChecklistPath('');
+                        resetChecklistReportPanelOptions();
+                      }
+                    }}
+                    options={CHECKLIST_TEMPLATE_OPTIONS}
+                  />
+                </div>
+                <Space size={[8, 8]} wrap className="report-checker-template-meta">
                   {suggestedChecklistTemplate ? (
                     <Tag color="blue">系统预选: {formatChecklistTemplateLabel(suggestedChecklistTemplate)}</Tag>
                   ) : null}
@@ -1870,28 +1900,6 @@ function TestDataCollectionPage() {
                   </Button>
                 </Space>
               </div>
-              <Select
-                showSearch
-                allowClear
-                value={presetChecklistTemplate || undefined}
-                style={{ width: '100%' }}
-                placeholder="根据报告模式自动选择"
-                onChange={(value) => {
-                  setPresetChecklistTemplate(value || '');
-                  if (value) {
-                    setChecklistFile(null);
-                    setChecklistSelectionSource('manual');
-                    setChecklistConfirmationStatus('pending');
-                    resolveAndLoadPresetChecklistTemplate(value);
-                  } else {
-                    setChecklistSelectionSource('');
-                    setChecklistConfirmationStatus('pending');
-                    setPresetChecklistPath('');
-                    resetChecklistReportPanelOptions();
-                  }
-                }}
-                options={CHECKLIST_TEMPLATE_OPTIONS}
-              />
               <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
                 上传测试报告后会先自动预选模板；你可以确认当前模板，也可以手动切换后再确认。上传自定义 checklist 可覆盖预设选择。
               </Text>
@@ -2053,6 +2061,54 @@ function TestDataCollectionPage() {
                 const confirmationMeta = getParameterConfirmationMeta(record);
                 const ruleSelectionMeta = getRuleSelectionMeta(record);
                 const ruleProfileOptions = getRuleProfileOptions(record);
+                const isConfirmed = record.parameterConfirmationStatus === 'confirmed';
+                const configFields = [
+                  {
+                    key: 'project-name',
+                    label: '项目名',
+                    type: 'input',
+                    span: 2,
+                    extracted: false,
+                    value: record.projectName || '',
+                    placeholder: '自动识别'
+                  },
+                  {
+                    key: 'project-phase',
+                    label: '阶段',
+                    type: 'select',
+                    extracted: false,
+                    value: record.projectPhase || undefined,
+                    placeholder: '自动识别',
+                    options: PROJECT_PHASE_OPTIONS.map((opt) => ({ label: opt, value: opt }))
+                  },
+                  {
+                    key: 'rule-profile',
+                    label: '规则模式',
+                    type: 'select',
+                    extracted: false,
+                    value: normalizeRuleProfileValue(record.selectedRuleProfile || record.ruleProfileKey) || undefined,
+                    placeholder: '请选择规则模式',
+                    options: ruleProfileOptions,
+                    notFoundContent: ruleProfileOptions.length === 0 ? '暂无可用规则模式' : null
+                  },
+                  ...(record.reportKind === 'excel'
+                    ? REPORT_PANEL_FIELDS.map((field) => {
+                      const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
+
+                      return {
+                        key: field.cell,
+                        label: `${REPORT_PANEL_FIELD_SHORT_LABELS[field.cell] || field.label} (${field.cell})`,
+                        type: 'select',
+                        extracted: true,
+                        value: rowSelections[field.cell] || undefined,
+                        placeholder: '请选择参数值',
+                        options: fieldOptions.map((item) => ({ label: item, value: item })),
+                        notFoundContent: fieldOptions.length === 0 ? '暂无候选值' : null,
+                        cell: field.cell
+                      };
+                    })
+                    : [])
+                ];
 
                 return (
                   <div
@@ -2086,93 +2142,66 @@ function TestDataCollectionPage() {
                       </Space>
                     </div>
 
-                    <div style={{ display: 'grid', gap: 14 }}>
-                      <div className="report-parameter-card__fields" style={{ gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))' }}>
-                        <div key={`${record.id}-project-name`} className="report-parameter-field">
-                          <Text strong className="report-parameter-field__label">
-                            项目名
-                          </Text>
-                          <input
-                            type="text"
-                            className="ant-input"
-                            value={record.projectName || ''}
-                            placeholder="自动识别"
-                            onChange={(e) => {
-                              setFiles((prev) => prev.map((item) => {
-                                if (item.path !== record.path) return item;
-                                return { ...item, projectName: e.target.value.toUpperCase(), parameterConfirmationStatus: 'pending' };
-                              }));
-                            }}
-                            style={{ width: '100%', height: 32 }}
-                          />
-                        </div>
+                    <div className="report-parameter-card__config-grid">
+                      {configFields.map((field) => {
+                        const pillClassName = [
+                          'report-config-pill',
+                          field.span === 2 ? 'report-config-pill--span-2' : '',
+                          field.extracted ? 'report-config-pill--extracted' : '',
+                          isConfirmed ? 'report-config-pill--disabled' : ''
+                        ].filter(Boolean).join(' ');
 
-                        <div key={`${record.id}-project-phase`} className="report-parameter-field">
-                          <Text strong className="report-parameter-field__label">
-                            项目阶段
-                          </Text>
-                          <Select
-                            showSearch
-                            allowClear
-                            value={record.projectPhase || undefined}
-                            style={{ width: '100%' }}
-                            placeholder="自动识别"
-                            onChange={(value) => {
-                              setFiles((prev) => prev.map((item) => {
-                                if (item.path !== record.path) return item;
-                                return { ...item, projectPhase: value || '', parameterConfirmationStatus: 'pending' };
-                              }));
-                            }}
-                            options={PROJECT_PHASE_OPTIONS.map((opt) => ({ label: opt, value: opt }))}
-                            notFoundContent={null}
-                          />
-                        </div>
-
-                        <div key={`${record.id}-rule-profile`} className="report-parameter-field">
-                          <Text strong className="report-parameter-field__label">
-                            规则模式
-                          </Text>
-                          <Select
-                            showSearch
-                            allowClear
-                            value={normalizeRuleProfileValue(record.selectedRuleProfile || record.ruleProfileKey) || undefined}
-                            style={{ width: '100%' }}
-                            placeholder="请选择规则模式"
-                            onChange={(value) => updateFileRuleProfileSelection(record.path, value)}
-                            options={ruleProfileOptions}
-                            notFoundContent={ruleProfileOptions.length === 0 ? '暂无可用规则模式' : null}
-                          />
-                          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                            预选：{record.suggestedRuleProfile ? formatRuleProfileLabel(record.suggestedRuleProfile) : '未识别'}
-                          </Text>
-                        </div>
-                      </div>
-
-                      {record.reportKind === 'excel' ? (
-                        <div className="report-parameter-card__fields" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
-                          {REPORT_PANEL_FIELDS.map((field) => {
-                            const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
-
-                            return (
-                              <div key={`${record.id}-${field.cell}`} className="report-parameter-field">
-                                <Text strong className="report-parameter-field__label">
-                                  {field.label} ({field.cell})
-                                </Text>
+                        return (
+                          <div key={`${record.id}-${field.key}`} className={pillClassName}>
+                            <div className="report-config-pill__label">{field.label}</div>
+                            <div className="report-config-pill__control">
+                              {field.type === 'input' ? (
+                                <input
+                                  type="text"
+                                  className="report-config-pill__input ant-input"
+                                  value={field.value}
+                                  placeholder={field.placeholder}
+                                  disabled={isConfirmed}
+                                  onChange={(e) => {
+                                    setFiles((prev) => prev.map((item) => {
+                                      if (item.path !== record.path) return item;
+                                      return { ...item, projectName: e.target.value.toUpperCase(), parameterConfirmationStatus: 'pending' };
+                                    }));
+                                  }}
+                                />
+                              ) : (
                                 <Select
                                   showSearch
-                                  allowClear
-                                  value={rowSelections[field.cell] || undefined}
-                                  style={{ width: '100%' }}
-                                  placeholder="请选择参数值"
-                                  onChange={(value) => updateFileReportPanelSelection(record.path, field.cell, value)}
-                                  options={fieldOptions.map((item) => ({ label: item, value: item }))}
-                                  notFoundContent={fieldOptions.length === 0 ? '暂无候选值' : null}
+                                  allowClear={!isConfirmed}
+                                  disabled={isConfirmed}
+                                  value={field.value}
+                                  className="report-config-pill__select"
+                                  popupClassName="report-config-pill__dropdown"
+                                  placeholder={field.placeholder}
+                                  onChange={(value) => {
+                                    if (field.key === 'project-phase') {
+                                      setFiles((prev) => prev.map((item) => {
+                                        if (item.path !== record.path) return item;
+                                        return { ...item, projectPhase: value || '', parameterConfirmationStatus: 'pending' };
+                                      }));
+                                      return;
+                                    }
+
+                                    if (field.key === 'rule-profile') {
+                                      updateFileRuleProfileSelection(record.path, value);
+                                      return;
+                                    }
+
+                                    updateFileReportPanelSelection(record.path, field.cell, value);
+                                  }}
+                                  options={field.options}
+                                  notFoundContent={field.notFoundContent ?? null}
                                 />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

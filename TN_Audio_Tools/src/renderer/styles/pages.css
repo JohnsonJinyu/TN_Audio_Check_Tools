@@ -961,6 +961,33 @@
   flex-wrap: wrap;
 }
 
+.report-checker-template-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.report-checker-template-label {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.report-checker-template-select-wrap {
+  flex: 0 1 280px;
+  min-width: 220px;
+}
+
+.report-checker-template-select.ant-select {
+  width: 100%;
+}
+
+.report-checker-template-meta {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
 .report-checker-report-table .ant-table-wrapper,
 .report-checker-report-table .ant-spin-nested-loading,
 .report-checker-report-table .ant-spin-container {
@@ -1048,6 +1075,176 @@
 .report-parameter-card__fields {
   display: grid;
   gap: 12px;
+}
+
+.report-parameter-card__config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-config-pill {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #d8ddd8;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.report-config-pill:focus-within {
+  border-color: #292524;
+  box-shadow: 0 0 0 1px rgba(41, 37, 36, 0.18), 0 2px 6px rgba(12, 10, 9, 0.08);
+}
+
+.report-config-pill--span-2 {
+  grid-column: span 2;
+}
+
+.report-config-pill--disabled {
+  border-color: #e7e5e4;
+  background: #f6f5f4;
+  cursor: not-allowed;
+}
+
+.report-config-pill--extracted {
+  border-color: #cad9e4;
+  background: #fbfdff;
+}
+
+.report-config-pill--extracted:focus-within {
+  border-color: #51697a;
+  box-shadow: 0 0 0 1px rgba(81, 105, 122, 0.18), 0 2px 6px rgba(81, 105, 122, 0.1);
+}
+
+.report-config-pill__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 12px;
+  background: #f7f5f3;
+  border-right: 1px solid #ddd8d3;
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.report-config-pill__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+}
+
+.report-config-pill__input.ant-input {
+  width: 100%;
+  height: 100%;
+  padding: 0 12px;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-config-pill__input.ant-input::placeholder {
+  color: var(--text-light);
+}
+
+.report-config-pill__input.ant-input:disabled {
+  color: #9f9a93;
+  cursor: not-allowed;
+}
+
+.report-config-pill__select.ant-select {
+  width: 100%;
+  height: 100%;
+}
+
+.report-config-pill__select.ant-select .ant-select-selector {
+  height: 100% !important;
+  padding: 0 30px 0 12px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.report-config-pill__select.ant-select .ant-select-selection-item,
+.report-config-pill__select.ant-select .ant-select-selection-placeholder,
+.report-config-pill__select.ant-select .ant-select-selection-search-input {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-config-pill__select.ant-select .ant-select-selection-item,
+.report-config-pill__select.ant-select .ant-select-selection-placeholder {
+  line-height: 32px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-config-pill__select.ant-select .ant-select-selection-item {
+  color: var(--text-color);
+}
+
+.report-config-pill__select.ant-select .ant-select-selection-placeholder {
+  color: var(--text-light);
+}
+
+.report-config-pill__select.ant-select .ant-select-arrow {
+  right: 10px;
+  color: var(--text-light);
+}
+
+.report-config-pill__select.ant-select .ant-select-clear {
+  right: 28px;
+}
+
+.report-config-pill__select.ant-select.ant-select-focused .ant-select-selector {
+  box-shadow: none !important;
+}
+
+.report-config-pill--disabled .report-config-pill__label {
+  background: #f3f2f1;
+  border-right-color: #e7e5e4;
+  color: #b0aaa4;
+}
+
+.report-config-pill--disabled .report-config-pill__control {
+  background: #f6f5f4;
+}
+
+.report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-selector,
+.report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-selection-item,
+.report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-arrow {
+  color: #9f9a93 !important;
+}
+
+.report-config-pill--disabled:focus-within {
+  box-shadow: none;
+}
+
+.report-config-pill--extracted .report-config-pill__label {
+  background: #f1f6fa;
+  border-right-color: #cad9e4;
+  color: #5b7080;
+}
+
+.report-config-pill--extracted .report-config-pill__control {
+  background: #fbfdff;
 }
 
 .report-parameter-field__label {
@@ -1512,6 +1709,89 @@
   background: linear-gradient(180deg, #223a32 0%, #1d312d 100%);
 }
 
+[data-theme='dark'] .report-config-pill {
+  border-color: #556680;
+  background: #162033;
+}
+
+[data-theme='dark'] .report-config-pill:focus-within {
+  border-color: #d6e1f5;
+  box-shadow: 0 0 0 1px rgba(214, 225, 245, 0.18), 0 4px 10px rgba(5, 10, 18, 0.24);
+}
+
+[data-theme='dark'] .report-config-pill--disabled {
+  border-color: #46546c;
+  background: #202a3b;
+}
+
+[data-theme='dark'] .report-config-pill--extracted {
+  border-color: #5d728f;
+  background: #1a2738;
+}
+
+[data-theme='dark'] .report-config-pill--extracted:focus-within {
+  border-color: #b7cadf;
+  box-shadow: 0 0 0 1px rgba(183, 202, 223, 0.2), 0 4px 10px rgba(5, 10, 18, 0.24);
+}
+
+[data-theme='dark'] .report-config-pill__label {
+  background: #223047;
+  border-right-color: #4a5b75;
+  color: #d6e1f5;
+}
+
+[data-theme='dark'] .report-config-pill__control {
+  background: #162033;
+}
+
+[data-theme='dark'] .report-config-pill__input.ant-input {
+  color: #f4f7ff;
+}
+
+[data-theme='dark'] .report-config-pill__input.ant-input::placeholder {
+  color: #9fb0d0;
+}
+
+[data-theme='dark'] .report-config-pill__select.ant-select .ant-select-selector {
+  background: transparent !important;
+}
+
+[data-theme='dark'] .report-config-pill__select.ant-select .ant-select-arrow,
+[data-theme='dark'] .report-config-pill__select.ant-select .ant-select-selection-item {
+  color: #f4f7ff !important;
+}
+
+[data-theme='dark'] .report-config-pill__select.ant-select .ant-select-selection-placeholder {
+  color: #9fb0d0 !important;
+}
+
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__label {
+  background: #283446;
+  border-right-color: #435269;
+  color: #8fa1bf;
+}
+
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__control {
+  background: #202a3b;
+}
+
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__input.ant-input,
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-selector,
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-selection-item,
+[data-theme='dark'] .report-config-pill--disabled .report-config-pill__select.ant-select .ant-select-arrow {
+  color: #8fa1bf !important;
+}
+
+[data-theme='dark'] .report-config-pill--extracted .report-config-pill__label {
+  background: #24354a;
+  border-right-color: #5d728f;
+  color: #c7d8e7;
+}
+
+[data-theme='dark'] .report-config-pill--extracted .report-config-pill__control {
+  background: #1a2738;
+}
+
 [data-theme='dark'] .report-parameter-field__label {
   color: #d6e1f5;
 }
@@ -1582,6 +1862,7 @@
 [data-theme='dark'] .report-checker-progress-title,
 [data-theme='dark'] .report-checker-bundle-title,
 [data-theme='dark'] .report-checker-insight-title,
+[data-theme='dark'] .report-checker-template-label,
 [data-theme='dark'] .report-checker-top-card strong,
 [data-theme='dark'] .report-checker-conclusion-metric strong,
 [data-theme='dark'] .report-checker-insight-card strong,
@@ -1786,6 +2067,22 @@
     align-items: flex-start;
   }
 
+  .report-checker-template-row {
+    align-items: stretch;
+  }
+
+  .report-checker-template-select-wrap {
+    flex-basis: 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .report-checker-template-meta {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .report-checker-bundle-tags {
     justify-content: flex-start;
   }
@@ -1813,6 +2110,14 @@
 
   .report-parameter-card__fields {
     grid-template-columns: 1fr !important;
+  }
+
+  .report-parameter-card__config-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .report-config-pill--span-2 {
+    grid-column: span 1;
   }
 
   .review-area-card__top {

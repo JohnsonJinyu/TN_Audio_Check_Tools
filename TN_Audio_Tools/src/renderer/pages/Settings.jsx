@@ -101,6 +101,7 @@ function Settings() {
   const { message } = AntdApp.useApp();
   const electronApi = typeof window !== 'undefined' ? window.electron : null;
   const hasSettingsBridge = Boolean(electronApi?.settings?.get && electronApi?.settings?.save);
+  const hasImmediateSettingsBridge = Boolean(electronApi?.settings?.saveImmediate);
   const hasUpdatesBridge = Boolean(electronApi?.updates?.getState);
   const hasAppInfoBridge = Boolean(electronApi?.appInfo?.getVersion);
   const [form] = Form.useForm();
@@ -116,14 +117,52 @@ function Settings() {
   const autoSaveTimerRef = useRef(null);
   const isHydratingRef = useRef(true);
   const skipNextAutoSaveRef = useRef(false);
+  const latestDraftSettingsRef = useRef(normalizeSettings(fallbackSettings));
+  const latestAppSettingsRef = useRef(normalizeSettings(fallbackSettings));
+
+  const flushPendingSettings = () => {
+    if (!hasImmediateSettingsBridge || !autoSaveTimerRef.current) {
+      return;
+    }
+
+    clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = null;
+
+    const nextSettings = normalizeSettings(latestDraftSettingsRef.current || fallbackSettings);
+    const currentSettings = normalizeSettings(latestAppSettingsRef.current || fallbackSettings);
+    if (settingsEqual(currentSettings, nextSettings)) {
+      return;
+    }
+
+    electronApi.settings.saveImmediate(nextSettings);
+  };
 
   useEffect(() => {
+    latestAppSettingsRef.current = normalizeSettings(appSettings || fallbackSettings);
+  }, [appSettings]);
+
+  useEffect(() => {
+    latestDraftSettingsRef.current = normalizeSettings(draftSettings || fallbackSettings);
+  }, [draftSettings]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return () => {};
+    }
+
+    const handleBeforeUnload = () => {
+      flushPendingSettings();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      flushPendingSettings();
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, []);
+  }, [hasImmediateSettingsBridge]);
 
   useEffect(() => {
     let mounted = true;
@@ -182,10 +221,16 @@ function Settings() {
 
   useEffect(() => {
     const nextSettings = normalizeSettings(appSettings || fallbackSettings);
+    isHydratingRef.current = true;
     form.setFieldsValue(nextSettings);
     setDraftSettings(nextSettings);
-    isHydratingRef.current = true;
     setAutoSaveMessage('设置将自动保存');
+
+    // Ant Design 的 setFieldsValue 不会把这次初始化和后续用户修改区分开，
+    // 如果把 hydration 标记留到第一次 onValuesChange 再清掉，会吞掉用户的第一次真实修改。
+    Promise.resolve().then(() => {
+      isHydratingRef.current = false;
+    });
   }, [appSettings, form]);
 
   const currentStatus = updateState?.status || 'idle';
@@ -353,7 +398,6 @@ function Settings() {
     }
 
     if (isHydratingRef.current) {
-      isHydratingRef.current = false;
       return;
     }
 
