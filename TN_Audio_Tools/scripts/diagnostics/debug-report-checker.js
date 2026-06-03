@@ -1,4 +1,4 @@
-const { processReports } = require('../src/main/services/reportCheckerService');
+const { processReports } = require('../../src/main/services/reportCheckerService');
 const XLSX = require('xlsx');
 
 function cellValue(ws, cell) {

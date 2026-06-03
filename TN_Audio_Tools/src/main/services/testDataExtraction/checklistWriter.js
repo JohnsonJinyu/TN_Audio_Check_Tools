@@ -18,7 +18,9 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
   );
 
   await fs.mkdir(path.dirname(writePlan.outputPath), { recursive: true });
-  await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
+  if (!writePlan.reuseExistingOutput) {
+    await fs.copyFile(resolvedChecklistPath, writePlan.outputPath);
+  }
   await applyChecklistWritePlan(writePlan);
   await applyChecklistStyles(writePlan, extractedItems, reportContext);
 
@@ -27,7 +29,16 @@ async function applyResultsToChecklist(checklistPath, reportPath, extractedItems
 }
 
 function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, reportContext = {}, options = {}) {
-  const workbook = XLSX.readFile(checklistPath, { cellStyles: true, cellDates: true });
+  const preferredOutputPath = String(options?.outputPath || '').trim();
+  const resolvedOutputDirectory = String(options?.outputDirectory || '').trim() || path.dirname(reportPath);
+  const resolvedOutputPath = preferredOutputPath
+    ? path.resolve(preferredOutputPath)
+    : path.join(
+      resolvedOutputDirectory,
+      buildOutputFileName(path.parse(reportPath).name, reportContext)
+    );
+  const sourceWorkbookPath = options?.reuseExistingOutput ? resolvedOutputPath : checklistPath;
+  const workbook = XLSX.readFile(sourceWorkbookPath, { cellStyles: true, cellDates: true });
   const sheetName = resolveChecklistSheetName(getWorkbookSheetNames(workbook), reportPath, reportContext);
   const worksheet = workbook.Sheets[sheetName];
   const valueUpdates = [];
@@ -51,18 +62,13 @@ function buildChecklistWritePlan(checklistPath, reportPath, extractedItems, repo
     });
   }
 
-  const resolvedOutputDirectory = String(options?.outputDirectory || '').trim() || path.dirname(reportPath);
-  const outputPath = path.join(
-    resolvedOutputDirectory,
-    buildOutputFileName(path.parse(reportPath).name)
-  );
-
   return {
-    outputPath,
+    outputPath: resolvedOutputPath,
+    reuseExistingOutput: Boolean(options?.reuseExistingOutput),
     templatePath: checklistPath,
     sheetName,
     valueUpdates,
-    reportUpdates: resolveReportSheetUpdates(workbook, reportContext)
+    reportUpdates: resolveReportSheetUpdates(workbook, reportContext, options)
   };
 }
 
@@ -278,7 +284,11 @@ function readZipText(zip, filePath) {
   return file.getData().toString('utf8');
 }
 
-function resolveReportSheetUpdates(workbook, reportContext = {}) {
+function resolveReportSheetUpdates(workbook, reportContext = {}, options = {}) {
+  if (options?.skipReportSheetUpdates) {
+    return [];
+  }
+
   const reportSheet = workbook?.Sheets?.Report;
   if (!reportSheet) {
     return [];
@@ -377,6 +387,14 @@ function resolveChecklistSheetName(sheetNames, reportPath, reportContext = {}) {
     {
       sheetName: 'Headset',
       reportTokens: new Set(['hs', 'he', 'headset'])
+    },
+    {
+      sheetName: 'ElectricalInterface-Digital',
+      reportTokens: new Set(['eid', 'digital'])
+    },
+    {
+      sheetName: 'ElectricalInterface-Analogue',
+      reportTokens: new Set(['ei', 'eia', 'analog', 'analogue', 'electrical', 'venice'])
     }
   ].find((candidate) => {
     const hasSheet = sheetNames.some((sheetName) => normalizeSheetToken(sheetName) === normalizeSheetToken(candidate.sheetName));
@@ -423,7 +441,10 @@ function resolveModeSheetByTerminalMode(sheetNames, terminalMode) {
     HE: 'Headset',
     HS: 'Headset',
     HH: 'Handsfree',
-    HF: 'Handsfree'
+    HF: 'Handsfree',
+    EI: 'ElectricalInterface-Analogue',
+    EIA: 'ElectricalInterface-Analogue',
+    EID: 'ElectricalInterface-Digital'
   };
 
   const targetSheet = modeToSheet[normalizedMode];
@@ -482,14 +503,31 @@ function normalizeChecklistValue(worksheet, cellAddress, value) {
   return worksheetValue;
 }
 
-function buildOutputFileName(reportName) {
-  const normalizedReportName = String(reportName || '').trim();
+function buildOutputFileName(reportName, reportContext = {}) {
   const timestamp = buildTimestamp();
 
+  // 新格式: 项目名_阶段_网络制式_vocoder_checklist_日期
+  const projectName = String(reportContext?.projectName || '').trim();
+  const projectPhase = String(reportContext?.projectPhase || '').trim();
+  const network = String(reportContext?.network || '').trim();
+  const explicitVocoder = String(reportContext?.vocoder || '').trim();
+  const codec = String(reportContext?.codec || '').trim();
+  const bandwidth = String(reportContext?.bandwidth || '').trim();
+  const vocoder = explicitVocoder || [codec, bandwidth].filter(Boolean).join('_');
+
+  if (projectName && projectPhase) {
+    const parts = [projectName, projectPhase];
+    if (network) parts.push(network);
+    if (vocoder) parts.push(vocoder);
+    parts.push('checklist', timestamp);
+    return `${parts.join('_')}.xlsx`;
+  }
+
+  // 回退: 旧格式
+  const normalizedReportName = String(reportName || '').trim();
   if (!normalizedReportName) {
     return `checklist_${timestamp}.xlsx`;
   }
-
   return `${normalizedReportName}_checklist_${timestamp}.xlsx`;
 }
 
@@ -497,7 +535,7 @@ function buildTimestamp(date = new Date()) {
   const pad = (value) => String(value).padStart(2, '0');
   return [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('') +
     '_' +
-    [pad(date.getHours()), pad(date.getMinutes())].join('');
+    [pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())].join('');
 }
 
 module.exports = {

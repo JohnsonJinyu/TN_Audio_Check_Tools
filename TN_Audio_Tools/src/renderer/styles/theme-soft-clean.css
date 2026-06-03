@@ -1,0 +1,79 @@
+/* Soft Clean — Modern SaaS, soft gradients, single-point accent, generous whitespace, pill shapes */
+[data-design-style="soft-clean"] {
+  --primary-color: #6366f1;
+  --secondary-color: #4f46e5;
+  --brand-start: #ffffff;
+  --brand-end: #f8fafc;
+  --brand-glow: rgba(99, 102, 241, 0.06);
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  --text-color: #0f172a;
+  --text-light: #64748b;
+  --bg-light: #f8fafc;
+  --surface-color: #ffffff;
+  --surface-elevated: #fafbfd;
+  --surface-muted: #f1f5f9;
+  --control-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --shadow-color: rgba(0, 0, 0, 0.04);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  /* Elevation — soft, floating */
+  --elevation-flat: none;
+  --elevation-card: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  --elevation-hover: 0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --elevation-modal: 0 20px 48px rgba(0,0,0,0.1);
+  /* Texture */
+  --card-backdrop-filter: none;
+  --card-bg-opacity: 1;
+  --card-texture: linear-gradient(135deg, var(--surface-color) 0%, var(--surface-muted) 100%);
+  --glass-blur: none;
+  --glass-opacity: 1;
+  /* Sidebar */
+  --sidebar-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --sidebar-text-color: #475569;
+  --sidebar-active-bg: rgba(99, 102, 241, 0.08);
+  --sidebar-hover-bg: rgba(0, 0, 0, 0.02);
+  /* Motion — smooth */
+  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-duration-fast: 0.15s;
+  --transition-duration-normal: 0.25s;
+  /* Semantic */
+  --status-pass: #10b981;
+  --status-warn: #f59e0b;
+  --status-error: #ef4444;
+  --status-info: #3b82f6;
+  --accent-glow: none;
+  --content-padding: 24px;
+  --card-gap: 20px;
+  --border-radius: var(--radius-md);
+}
+
+[data-design-style="soft-clean"][data-theme="dark"] {
+  --primary-color: #818cf8;
+  --secondary-color: #6366f1;
+  --brand-start: #0a0a10;
+  --brand-end: #101018;
+  --text-color: #f0f0f0;
+  --text-light: #999999;
+  --bg-light: #0a0a10;
+  --surface-color: #14141a;
+  --surface-elevated: #1a1a22;
+  --surface-muted: #0e0e15;
+  --control-bg: #1a1a22;
+  --border-color: #282830;
+  --border-strong: #3a3a42;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --elevation-card: 0 2px 6px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --elevation-hover: 0 6px 16px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
+  --elevation-modal: 0 20px 48px rgba(0,0,0,0.5);
+  --sidebar-bg: linear-gradient(180deg, #0a0a10 0%, #101018 100%);
+  --sidebar-text-color: #cccccc;
+  --sidebar-active-bg: rgba(129, 140, 248, 0.18);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.04);
+}

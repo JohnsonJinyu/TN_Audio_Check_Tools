@@ -157,20 +157,28 @@ async function parseDocxStructuredData(reportPath) {
   };
 
   if (!documentEntry) {
-    return { lines: [], tables: [], headers: [], footers: [] };
+    return { lines: [], tables: [], headers: [], footers: [], pageCount: null };
   }
 
   const documentXml = await documentEntry.async('string');
   const documentData = parseDocumentXml(documentXml);
-  const [headers, footers] = await Promise.all([
+  const [headers, footers, pageCount] = await Promise.all([
     readXmlLines(/^word\/header\d+\.xml$/),
-    readXmlLines(/^word\/footer\d+\.xml$/)
+    readXmlLines(/^word\/footer\d+\.xml$/),
+    (async () => {
+      const appEntry = zip.file('docProps/app.xml');
+      if (!appEntry) return null;
+      const appXml = await appEntry.async('string');
+      const match = appXml.match(/<Pages>(\d+)<\/Pages>/);
+      return match ? parseInt(match[1], 10) : null;
+    })()
   ]);
 
   return {
     ...documentData,
     headers,
-    footers
+    footers,
+    pageCount
   };
 }
 

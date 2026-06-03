@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electron', {
     get: () => ipcRenderer.invoke('app-settings:get'),
     getDefaults: () => ipcRenderer.invoke('app-settings:defaults'),
     save: (payload) => ipcRenderer.invoke('app-settings:save', payload),
+    saveImmediate: (payload) => ipcRenderer.send('app-settings:save-immediate', payload),
     reset: () => ipcRenderer.invoke('app-settings:reset'),
     chooseOutputDirectory: () => ipcRenderer.invoke('app-settings:choose-output-directory'),
     clearCache: () => ipcRenderer.invoke('app-settings:clear-cache'),
@@ -44,11 +45,26 @@ contextBridge.exposeInMainWorld('electron', {
     onProgress: (listener) => subscribeToChannel('report-checker:progress', listener),
     showOutputInFolder: (filePath) => ipcRenderer.invoke('report-checker:show-output-in-folder', filePath),
     getChecklistReportOptions: (checklistPath) => ipcRenderer.invoke('report-checker:get-checklist-report-options', checklistPath),
+    resolvePresetChecklistTemplate: (payload) => ipcRenderer.invoke('report-checker:resolve-preset-checklist-template', payload),
     inspectReportContext: (payload) => ipcRenderer.invoke('report-checker:inspect-report-context', payload),
     exportRules: (rulePath) => ipcRenderer.invoke('report-checker:export-rules', rulePath)
   },
   reportReview: {
     reviewWordReport: (payload) => ipcRenderer.invoke('report-review:review-word-report', payload),
-    uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload)
+    reviewPairedReport: (payload) => ipcRenderer.invoke('report-review:review-paired-report', payload),
+    runCrossReportChecks: (payload) => ipcRenderer.invoke('report-review:run-cross-report-checks', payload),
+    uploadWordReport: (payload) => ipcRenderer.invoke('report-review:upload-word-report', payload),
+    analyzeChartImages: (payload) => ipcRenderer.invoke('report-review:analyze-chart-images', payload),
+    onReviewProgress: (callback) => {
+      const handler = (_, data) => callback(data);
+      ipcRenderer.on('report-review-progress', handler);
+      return () => ipcRenderer.removeListener('report-review-progress', handler);
+    },
+    onChartAnalysisProgress: (callback) => {
+      const handler = (_, data) => callback(data);
+      ipcRenderer.on('chart-analysis-progress', handler);
+      return () => ipcRenderer.removeListener('chart-analysis-progress', handler);
+    },
+    testLlmConnection: (payload) => ipcRenderer.invoke('llm:test-connection', payload)
   }
 });

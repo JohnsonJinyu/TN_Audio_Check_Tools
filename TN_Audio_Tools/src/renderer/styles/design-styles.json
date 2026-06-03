@@ -1,0 +1,32 @@
+[
+  {
+    "value": "neumorphism",
+    "label": "新拟态",
+    "description": "浮雕卡片，双阴影层次，极简单色",
+    "sidebarTheme": "light"
+  },
+  {
+    "value": "glassmorphism",
+    "label": "玻璃拟态",
+    "description": "毛玻璃效果，半透明卡片，柔和光晕",
+    "sidebarTheme": "light"
+  },
+  {
+    "value": "paper-craft",
+    "label": "纸张质感",
+    "description": "纸张纹理，暖白底色，墨色文字",
+    "sidebarTheme": "light"
+  },
+  {
+    "value": "soft-clean",
+    "label": "柔和简约",
+    "description": "现代SaaS风格，柔和渐变，大量留白",
+    "sidebarTheme": "light"
+  },
+  {
+    "value": "classic-pro",
+    "label": "经典专业",
+    "description": "传统企业级设计，保守配色，稳重可靠",
+    "sidebarTheme": "dark"
+  }
+]

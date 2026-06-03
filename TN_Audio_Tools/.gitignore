@@ -38,6 +38,8 @@ lerna-debug.log*
 # Report checker outputs
 /documents/*_20*.xlsx
 /tmp/
+/test_extractor.js
+/tmp-utah-review-audit.json
 
 # Ignore Office files under docs; keep markdown docs tracked.
 /docs/**/*.doc

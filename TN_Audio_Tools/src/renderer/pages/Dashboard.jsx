@@ -19,15 +19,58 @@ import {
 import '../styles/pages.css';
 
 function buildDashboardSnapshot() {
+  var disabledReviewKeys = new Set(['engineers']);
   const collectionData = readDashboardData();
   const reviewHistory = readWordReviewHistory();
   const safeReviewHistory = Array.isArray(reviewHistory) ? reviewHistory : [];
-  const passedReviewCount = safeReviewHistory.filter((item) => item?.result?.reviewResult?.overallStatus === 'pass').length;
+  const passedReviewCount = safeReviewHistory.filter(function(item) {
+    return item?.result?.reviewResult?.overallStatus === 'pass';
+  }).length;
+
+  var now = Date.now();
+  var sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  var recent7DaysReviews = safeReviewHistory.filter(function(item) {
+    return item?.checkedAt && new Date(item.checkedAt).getTime() > sevenDaysAgo;
+  });
+
+  var passRate = safeReviewHistory.length > 0
+    ? Math.round((passedReviewCount / safeReviewHistory.length) * 100)
+    : 0;
+
+  var categoryStats = { structure: { pass: 0, total: 0 }, metadata: { pass: 0, total: 0 }, timing: { pass: 0, total: 0 }, content: { pass: 0, total: 0 } };
+  var structureKeys = ['tableOfContents', 'tableOfContentsPages', 'chaptersAlignment'];
+  var metadataKeys = ['basicInfo', 'testItemConsistency', 'namePollution', 'polqa'].filter(function(key) {
+    return !disabledReviewKeys.has(key);
+  });
+  var timingKeys = ['timingAdjacentInterval', 'timingTotalSpan', 'timingDelayOrder', 'timingSidetoneDelayOrder', 'timingBgnConnectionOrder'];
+  var contentKeys = ['contentLoudnessFRTrend', 'contentCurveValueCorroboration', 'contentSameCodecDiffNetwork', 'contentSameNetworkDiffCodec'];
+
+  safeReviewHistory.forEach(function(item) {
+    var checks = item?.result?.reviewResult?.checks || {};
+    structureKeys.forEach(function(k) { if (checks[k]) { categoryStats.structure.total++; if (checks[k].status === 'pass') categoryStats.structure.pass++; } });
+    metadataKeys.forEach(function(k) { if (checks[k]) { categoryStats.metadata.total++; if (checks[k].status === 'pass') categoryStats.metadata.pass++; } });
+    timingKeys.forEach(function(k) { if (checks[k]) { categoryStats.timing.total++; if (checks[k].status === 'pass') categoryStats.timing.pass++; } });
+    contentKeys.forEach(function(k) { if (checks[k]) { categoryStats.content.total++; if (checks[k].status === 'pass') categoryStats.content.pass++; } });
+  });
+
+  var recentReviews = safeReviewHistory.slice(0, 5).map(function(item) {
+    return {
+      id: item.id,
+      reportName: item.reportName,
+      checkedAt: item.checkedAt,
+      status: item?.result?.reviewResult?.overallStatus || 'unknown',
+      summary: item?.result?.reviewResult?.summary || {}
+    };
+  });
 
   return {
     ...collectionData,
     reviewHistoryCount: safeReviewHistory.length,
-    passedReviewCount
+    passedReviewCount: passedReviewCount,
+    passRate: passRate,
+    recent7DaysCount: recent7DaysReviews.length,
+    recentReviews: recentReviews,
+    categoryStats: categoryStats
   };
 }
 
@@ -55,7 +98,7 @@ function Dashboard({ onNavigate }) {
       title: '测试数据收集',
       description: '上传报告、checklist 和规则文件，统一收集测试数据并生成结论',
       icon: <FileTextOutlined />,
-      color: '#ff7a45',
+      color: 'var(--primary-color)',
       stats: `${dashboardData.checkedReports} 份报告`,
       pageKey: 'report-checker'
     },
@@ -63,15 +106,17 @@ function Dashboard({ onNavigate }) {
       title: '报告审查',
       description: '查看审查范围、最近处理结果和输出文件历史',
       icon: <SearchOutlined />,
-      color: '#1677ff',
-      stats: `${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 已通过`,
+      color: 'var(--status-info)',
+      stats: dashboardData.reviewHistoryCount > 0
+        ? (`${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 通过 (${dashboardData.passRate}%)`)
+        : '暂无审查记录',
       pageKey: 'report-review'
     },
     {
       title: '频谱分析',
       description: '实时分析音频的频谱特性，提供可视化展示',
       icon: <LineChartOutlined />,
-      color: '#722ed1',
+      color: 'var(--secondary-color)',
       stats: '实时分析',
       pageKey: 'spectrum'
     }
@@ -134,24 +179,27 @@ function Dashboard({ onNavigate }) {
       key: 'checkedReports',
       title: '已收集报告',
       value: dashboardData.checkedReports,
+      suffix: '份',
       prefix: <FileTextOutlined />,
-      color: '#ff7a45',
+      color: 'var(--primary-color)',
       pageKey: 'report-checker'
     },
     {
       key: 'reviewHistory',
-      title: '审查记录',
+      title: '报告审查记录',
       value: dashboardData.reviewHistoryCount,
+      suffix: dashboardData.passRate > 0 ? ('通过率 ' + dashboardData.passRate + '%') : '',
       prefix: <SearchOutlined />,
-      color: '#1677ff',
+      color: 'var(--status-info)',
       pageKey: 'report-review'
     },
     {
-      key: 'analysisSuccess',
-      title: '成功处理',
-      value: dashboardData.analysisSuccess,
+      key: 'recentActivity',
+      title: '近7天审查',
+      value: dashboardData.recent7DaysCount,
+      suffix: '次',
       prefix: <LineChartOutlined />,
-      color: '#722ed1',
+      color: 'var(--secondary-color)',
       pageKey: 'report-review'
     }
   ];
@@ -220,18 +268,80 @@ function Dashboard({ onNavigate }) {
         {/* 欢迎信息 */}
         <Col xs={24}>
           <Card className="welcome-card" style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%)',
             color: '#fff',
             border: 'none'
           }}>
-            <h1 style={{ fontSize: '28px', marginBottom: '12px' }}>
-              欢迎使用 TN Audio Toolkit
-            </h1>
-            <p style={{ fontSize: '16px', opacity: 0.9, marginBottom: 0 }}>
-              面向音频测试场景的数据收集、报告审查与频谱分析工作台。
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <h1 style={{ fontSize: '24px', marginBottom: '8px', color: '#fff' }}>
+                  欢迎使用 TN Audio Toolkit
+                </h1>
+                <p style={{ fontSize: '14px', opacity: 0.85, marginBottom: 0, color: '#fff' }}>
+                  面向音频测试场景的数据收集、报告审查与频谱分析工作台。
+                </p>
+              </div>
+              {dashboardData.checkedReports === 0 && dashboardData.reviewHistoryCount === 0 && (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <Button ghost onClick={() => handleNavigate('report-checker')}>
+                    开始收集数据 →
+                  </Button>
+                  <Button ghost onClick={() => handleNavigate('report-review')}>
+                    查看报告审查 →
+                  </Button>
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
+
+        {/* 首次使用引导 */}
+        {dashboardData.checkedReports === 0 && dashboardData.reviewHistoryCount === 0 && (
+          <Col xs={24}>
+            <Card
+              style={{ border: '1px dashed var(--border-strong)', background: 'var(--surface-elevated)' }}
+              styles={{ body: { padding: '20px 24px' } }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <span style={{ fontSize: 20 }}>🚀</span>
+                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-color)' }}>第一次使用？按以下步骤开始</span>
+              </div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {[
+                  { step: '1', label: '上传测试报告', desc: '进入「测试数据收集」，拖入 Excel/Word 报告', page: 'report-checker', color: 'var(--primary-color)' },
+                  { step: '2', label: '审查报告内容', desc: '进入「报告审查」，对 docx+xlsx 配对进行完整性检查', page: 'report-review', color: 'var(--status-info)' },
+                  { step: '3', label: '查看收集结论', desc: '处理完成后回到此仪表盘查看汇总统计', page: null, color: 'var(--status-pass)' }
+                ].map((item) => (
+                  <div
+                    key={item.step}
+                    onClick={() => item.page && handleNavigate(item.page)}
+                    style={{
+                      flex: '1 1 180px',
+                      padding: '14px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1.5px solid color-mix(in srgb, ${item.color} 20%, transparent)`,
+                      background: `color-mix(in srgb, ${item.color} 6%, var(--surface-color))`,
+                      cursor: item.page ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: item.color, color: '#fff',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700, flexShrink: 0
+                      }}>{item.step}</span>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-color)' }}>{item.label}</span>
+                      {item.page && <span style={{ fontSize: 12, color: item.color, marginLeft: 'auto' }}>→</span>}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-light)', lineHeight: 1.5 }}>{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+        )}
 
         {/* 快速统计 */}
         {quickStats.map((stat) => (
@@ -246,6 +356,7 @@ function Dashboard({ onNavigate }) {
                 title={stat.title}
                 value={stat.value}
                 prefix={stat.prefix}
+                suffix={stat.suffix ? <span style={{ fontSize: 14, color: stat.color }}>{stat.suffix}</span> : undefined}
                 valueStyle={{ color: stat.color }}
               />
             </Card>
@@ -308,16 +419,51 @@ function Dashboard({ onNavigate }) {
           </Col>
         ))}
 
-        {/* 最近使用 */}
+        {/* 最近审查活动 */}
         <Col xs={24}>
           <Divider />
           <h2 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 'bold' }}>
-            最近使用
+            最近审查活动
           </h2>
           <Card>
-            <p style={{ color: 'var(--text-light)', textAlign: 'center', margin: '40px 0' }}>
-              暂无最近使用的记录
-            </p>
+            {dashboardData.recentReviews && dashboardData.recentReviews.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {dashboardData.recentReviews.map(function(record) {
+                  var statusColorMap = { pass: 'success', warning: 'warning', review: 'processing', error: 'error' };
+                  var statusTextMap = { pass: '通过', warning: '警告', review: '复核', error: '错误' };
+                  return (
+                    <div
+                      key={record.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 16px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--surface-color)',
+                        boxShadow: 'var(--elevation-flat)'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{record.reportName}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-light)' }}>
+                          {record.checkedAt ? new Date(record.checkedAt).toLocaleString() : '-'}
+                          {' · '}通过 {record.summary.passedChecks || 0} / 警告 {record.summary.warningChecks || 0} / 复核 {record.summary.reviewChecks || 0} / 错误 {record.summary.errorChecks || 0}
+                        </div>
+                      </div>
+                      <Tag color={statusColorMap[record.status] || 'default'}>
+                        {statusTextMap[record.status] || record.status}
+                      </Tag>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-light)', textAlign: 'center', margin: '40px 0' }}>
+                暂无审查记录 — 前往"报告审查"开始使用
+              </p>
+            )}
           </Card>
         </Col>
 

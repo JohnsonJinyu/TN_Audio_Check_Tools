@@ -1,44 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, App as AntdApp, Button, Card, Col, Collapse, Empty, Modal, Progress, Row, Space, Table, Tag } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { clearWordReviewHistory, readWordReviewHistory, recordWordReviewResult } from '../../modules/reportReview/storage';
 import { reviewAreas } from './constants';
 import { createReviewHistoryColumns } from './reviewHistoryColumns';
-import { buildReviewDigest, getReviewSectionsByStatus, reviewStatusColor, reviewStatusText } from './reviewSummary';
-import ReviewResultContent from './ReviewResultContent';
+import { buildReviewDigest, getReviewSectionsByStatusMap, reviewStatusColor, reviewStatusText } from './reviewSummary';
+import { normalizeReportPaths, getReportName, getFileBaseName, isDocFile, getProgressLabel, detectFilePairs } from './utils';
+import DetailModal from './components/DetailModal';
+import StatusDetailModal from './components/StatusDetailModal';
+import ReviewAreaModal from './components/ReviewAreaModal';
+import CrossReportPanel from './components/CrossReportPanel';
 import '../../styles/pages.css';
-
-function normalizeReportPaths(filePaths) {
-  if (!Array.isArray(filePaths)) {
-    return [];
-  }
-
-  const supportedExtensions = new Set(['.doc', '.docx']);
-  const normalized = filePaths
-    .map((filePath) => String(filePath || '').trim())
-    .filter(Boolean)
-    .filter((filePath) => {
-      const lowerCasePath = filePath.toLowerCase();
-      return Array.from(supportedExtensions).some((extension) => lowerCasePath.endsWith(extension));
-    });
-
-  return Array.from(new Set(normalized));
-}
-
-function getReportName(filePath) {
-  return String(filePath || '').split('\\').pop() || filePath;
-}
 
 export default function ReportReviewPage() {
   const { message, modal } = AntdApp.useApp();
-  const isDarkTheme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark';
-  const reviewDropzoneBaseColor = isDarkTheme ? '#24314a' : '#f5f7fa';
-  const reviewDropzoneHoverColor = isDarkTheme ? '#2a3955' : '#e6f7ff';
-  const reviewDropzoneTitleColor = isDarkTheme ? '#f4f7ff' : '#262626';
-  const reviewDropzoneTextColor = isDarkTheme ? '#c8d3e8' : '#8c8c8c';
-  const reviewSelectionPanelColor = isDarkTheme
-    ? { backgroundColor: '#24314a', border: '1px solid #425272', textColor: '#dbe5f7', accentColor: '#9ab1ff', metaColor: '#b8c7e6' }
-    : { backgroundColor: '#e6f7ff', border: '1px solid #91d5ff', textColor: '#0050b3', accentColor: '#0050b3', metaColor: '#4b6381' };
+  const reviewDropzoneBaseColor = 'var(--surface-muted)';
+  const reviewDropzoneHoverColor = 'var(--surface-elevated)';
+  const reviewDropzoneTitleColor = 'var(--text-color)';
+  const reviewDropzoneTextColor = 'var(--text-light)';
+  const reviewSelectionPanelColor = {
+    backgroundColor: 'var(--surface-muted)',
+    border: '1px solid var(--primary-color)',
+    textColor: 'var(--text-color)',
+    accentColor: 'var(--primary-color)',
+    metaColor: 'var(--text-light)'
+  };
   const [wordReviewHistory, setWordReviewHistory] = useState(() => readWordReviewHistory() || []);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [selectedReportPaths, setSelectedReportPaths] = useState([]);
@@ -49,6 +35,52 @@ export default function ReportReviewPage() {
   const [selectedStatusDetail, setSelectedStatusDetail] = useState(null);
   const [reviewAreaModalVisible, setReviewAreaModalVisible] = useState(false);
   const [selectedReviewArea, setSelectedReviewArea] = useState(null);
+  const [crossReportResults, setCrossReportResults] = useState(null);
+  const [crossReportModalVisible, setCrossReportModalVisible] = useState(false);
+  const [reviewProgress, setReviewProgress] = useState(null);
+  const [chartProgress, setChartProgress] = useState(null);
+  const reviewProgressUnsubRef = useRef(null);
+  const chartProgressUnsubRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      try { if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current(); } catch (_) {}
+      try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
+    };
+  }, []);
+
+  const listenForReviewProgress = () => {
+    try {
+      if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current();
+      if (window.electron && window.electron.reportReview && window.electron.reportReview.onReviewProgress) {
+        const unsub = window.electron.reportReview.onReviewProgress(function(data) {
+          setReviewProgress(data);
+        });
+        reviewProgressUnsubRef.current = unsub;
+      }
+    } catch (_) {}
+  };
+
+  const listenForChartProgress = () => {
+    try {
+      if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current();
+      if (window.electron && window.electron.reportReview && window.electron.reportReview.onChartAnalysisProgress) {
+        var unsub = window.electron.reportReview.onChartAnalysisProgress(function(data) {
+          setChartProgress(data);
+        });
+        chartProgressUnsubRef.current = unsub;
+      }
+    } catch (_) {}
+  };
+
+  const stopChartProgress = () => {
+    try { if (typeof reviewProgressUnsubRef.current === 'function') reviewProgressUnsubRef.current(); } catch (_) {}
+    reviewProgressUnsubRef.current = null;
+    try { if (typeof chartProgressUnsubRef.current === 'function') chartProgressUnsubRef.current(); } catch (_) {}
+    chartProgressUnsubRef.current = null;
+    setReviewProgress(null);
+    setChartProgress(null);
+  };
 
   const safeWordReviewHistory = Array.isArray(wordReviewHistory) ? wordReviewHistory : [];
 
@@ -81,24 +113,34 @@ export default function ReportReviewPage() {
   };
 
   const filteredStatusSections = useMemo(() => {
-    if (!selectedStatusDetail?.record?.result || !selectedStatusDetail?.status) {
+    const resultData = selectedStatusDetail?.record?.result;
+    const status = selectedStatusDetail?.status;
+
+    if (!resultData || !status) {
       return [];
     }
 
-    return getReviewSectionsByStatus(selectedStatusDetail.record.result, selectedStatusDetail.status);
-  }, [selectedStatusDetail]);
+    return (getReviewSectionsByStatusMap(resultData)[status] || []);
+  }, [selectedStatusDetail?.record?.result, selectedStatusDetail?.status]);
 
   const handleReportSelection = (filePaths) => {
     const nextFilePaths = normalizeReportPaths(filePaths);
 
     if (nextFilePaths.length === 0) {
-      message.warning('未检测到可用的 .doc 或 .docx 报告');
+      message.warning('未检测到可用的 .doc、.docx 或 .xlsx 报告');
       return;
     }
 
     setSelectedReportPaths(nextFilePaths);
     setBatchProgress(null);
-    message.success(`已选择 ${nextFilePaths.length} 份报告`);
+    setReviewProgress(null);
+    setChartProgress(null);
+
+    const { pairs, solo } = detectFilePairs(nextFilePaths);
+    const parts = [];
+    if (pairs.length > 0) parts.push(`${pairs.length} 组配对`);
+    if (solo.length > 0) parts.push(`${solo.length} 份单独报告`);
+    message.success(`已选择 ${parts.join(' + ')}`);
   };
 
   const removeSelectedReport = (reportPath) => {
@@ -109,7 +151,7 @@ export default function ReportReviewPage() {
     try {
       const result = await window.electron.ipcRenderer.invoke('dialog:open-file', {
         filters: [
-          { name: 'Word 文档', extensions: ['doc', 'docx'] },
+          { name: '报告文件', extensions: ['doc', 'docx', 'xlsx'] },
           { name: '所有文件', extensions: ['*'] }
         ],
         properties: ['openFile', 'multiSelections']
@@ -129,29 +171,78 @@ export default function ReportReviewPage() {
       return;
     }
 
+    const { pairs, solo } = detectFilePairs(selectedReportPaths);
+    const totalTasks = pairs.length + solo.length;
+
+    listenForReviewProgress();
+    listenForChartProgress();
     setReviewLoading(true);
     setBatchProgress({
-      total: selectedReportPaths.length,
+      total: totalTasks,
       completed: 0,
       successCount: 0,
       failedCount: 0,
-      currentFileName: getReportName(selectedReportPaths[0])
+      currentGroupIndex: totalTasks > 0 ? 1 : 0,
+      currentFileName: pairs.length > 0
+        ? getProgressLabel(pairs[0].docx, '配对审查', pairs[0].baseName)
+        : getProgressLabel(solo[0], '正在审查', getReportName(solo[0]))
     });
 
     try {
       let successCount = 0;
       let failedCount = 0;
       const failedReports = [];
+      const allResults = [];
+      let taskIndex = 0;
 
-      for (let index = 0; index < selectedReportPaths.length; index += 1) {
-        const reportPath = selectedReportPaths[index];
-
+      // 处理配对文件
+      for (const pair of pairs) {
         setBatchProgress({
-          total: selectedReportPaths.length,
-          completed: index,
+          total: totalTasks,
+          completed: taskIndex,
           successCount,
           failedCount,
-          currentFileName: getReportName(reportPath)
+          currentGroupIndex: taskIndex + 1,
+          currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
+        });
+
+        try {
+          const result = await window.electron.reportReview.reviewPairedReport({
+            docxPath: pair.docx,
+            xlsxPath: pair.xlsx
+          });
+
+          recordWordReviewResult(pair.docx, result, pair.xlsx);
+          allResults.push(result);
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          failedReports.push({
+            reportPath: `${pair.baseName} (配对)`,
+            message: error?.message || '配对审查失败'
+          });
+        }
+
+        taskIndex += 1;
+        setBatchProgress({
+          total: totalTasks,
+          completed: taskIndex,
+          successCount,
+          failedCount,
+          currentGroupIndex: Math.min(taskIndex + 1, totalTasks),
+          currentFileName: getProgressLabel(pair.docx, '配对审查', pair.baseName)
+        });
+      }
+
+      // 处理单独文件
+      for (const reportPath of solo) {
+        setBatchProgress({
+          total: totalTasks,
+          completed: taskIndex,
+          successCount,
+          failedCount,
+          currentGroupIndex: taskIndex + 1,
+          currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
 
         try {
@@ -160,6 +251,7 @@ export default function ReportReviewPage() {
           });
 
           recordWordReviewResult(reportPath, result);
+          allResults.push(result);
           successCount += 1;
         } catch (error) {
           failedCount += 1;
@@ -169,31 +261,52 @@ export default function ReportReviewPage() {
           });
         }
 
+        taskIndex += 1;
         setBatchProgress({
-          total: selectedReportPaths.length,
-          completed: index + 1,
+          total: totalTasks,
+          completed: taskIndex,
           successCount,
           failedCount,
-          currentFileName: getReportName(reportPath)
+          currentGroupIndex: Math.min(taskIndex + 1, totalTasks),
+          currentFileName: getProgressLabel(reportPath, '正在审查', getReportName(reportPath))
         });
       }
 
       setWordReviewHistory(readWordReviewHistory());
 
+      // 跨报告对比：≥2份结果时自动触发
+      if (allResults.length >= 2) {
+        try {
+          const crossResults = await window.electron.reportReview.runCrossReportChecks({
+            results: allResults
+          });
+          setCrossReportResults({
+            results: crossResults,
+            checkedAt: new Date().toISOString(),
+            reportCount: crossResults.length
+          });
+        } catch (_) {
+          setCrossReportResults(null);
+        }
+      } else {
+        setCrossReportResults(null);
+      }
+
       if (failedReports.length === 0) {
-        message.success(`批量审查完成，共处理 ${successCount} 份报告`);
+        const pairMsg = pairs.length > 0 ? `${pairs.length} 组配对、` : '';
+        message.success(`批量审查完成，${pairMsg}${solo.length} 份单独报告，共 ${successCount} 项审查`);
       } else {
         modal.warning({
           title: '批量审查完成，部分报告失败',
           width: 680,
           content: (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>{`成功 ${successCount} 份，失败 ${failedCount} 份。失败项如下：`}</div>
+              <div>{`成功 ${successCount} 项，失败 ${failedCount} 项。失败项如下：`}</div>
               <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
                 {failedReports.map((item) => (
-                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #cf1322 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, #cf1322 28%, var(--border-color))' }}>
-                    <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
-                    <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{item.reportPath}</div>
+                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--status-error) 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, var(--status-error) 28%, var(--border-color))' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--status-error)', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
+                    <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{typeof item.reportPath === 'string' ? item.reportPath : ''}</div>
                     <div style={{ color: 'var(--text-color)' }}>{item.message}</div>
                   </div>
                 ))}
@@ -203,8 +316,9 @@ export default function ReportReviewPage() {
         });
       }
     } catch (error) {
-      message.error(error?.message || 'Word 审查失败');
+      message.error(error?.message || '审查失败');
     } finally {
+      stopChartProgress();
       setBatchProgress((currentProgress) => currentProgress ? {
         ...currentProgress,
         currentFileName: null
@@ -218,8 +332,8 @@ export default function ReportReviewPage() {
       <Row gutter={[24, 24]}>
         <Col xs={24}>
           <Card
-            className="report-checker-card"
-            style={{ borderColor: '#d6e4ff' }}
+            className="report-checker-card report-review-main-card"
+            style={{ borderColor: 'var(--primary-color)' }}
             styles={{ body: { padding: '10px 24px' } }}
           >
             <Row gutter={[24, 8]} align="middle" justify="center">
@@ -246,7 +360,7 @@ export default function ReportReviewPage() {
                       }
                     }}
                     style={{
-                      border: '2px dashed #1677ff',
+                      border: '2px dashed var(--primary-color)',
                       borderRadius: 16,
                       padding: '28px 28px',
                       textAlign: 'center',
@@ -261,70 +375,166 @@ export default function ReportReviewPage() {
                       userSelect: 'none'
                     }}
                     onMouseEnter={(event) => {
-                      event.currentTarget.style.borderColor = '#40a9ff';
+                      event.currentTarget.style.borderColor = 'var(--secondary-color)';
                     }}
                     onMouseLeave={(event) => {
-                      event.currentTarget.style.borderColor = '#1677ff';
+                      event.currentTarget.style.borderColor = 'var(--primary-color)';
                     }}
                   >
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📁</div>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
                     <div style={{ fontSize: 20, fontWeight: 600, color: reviewDropzoneTitleColor, marginBottom: 6 }}>点击或拖拽选择多个文件</div>
-                    <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx 报告</div>
+                    <div style={{ fontSize: 13, color: reviewDropzoneTextColor }}>支持一次选择或拖入多个 .doc / .docx / .xlsx 报告</div>
+                    <div style={{ fontSize: 12, color: reviewDropzoneTextColor, marginTop: 4, opacity: 0.8 }}>建议同时选择同名的 .docx 和 .xlsx，配对后可获得最完整的审查结果</div>
                   </div>
 
-                  {selectedReportPaths.length > 0 && (
-                    <div
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        backgroundColor: reviewSelectionPanelColor.backgroundColor,
-                        border: reviewSelectionPanelColor.border,
-                        borderRadius: 12,
-                        fontSize: 13
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
-                        <div style={{ color: reviewSelectionPanelColor.accentColor, fontWeight: 600 }}>✓ 已选择 {selectedReportPaths.length} 份报告</div>
+                  {selectedReportPaths.length > 0 && (() => {
+                    const { pairs: selPairs, solo: selSolo } = detectFilePairs(selectedReportPaths);
+                    const hasDocLegacy = selectedReportPaths.some((p) => isDocFile(p));
+                    const hasDocxOrDoc = selectedReportPaths.some((p) => {
+                      const lp = p.toLowerCase();
+                      return lp.endsWith('.docx') || (lp.endsWith('.doc') && !lp.endsWith('.docx'));
+                    });
+                    const hasXlsx = selectedReportPaths.some((p) => p.toLowerCase().endsWith('.xlsx'));
+                    const xlsxOnlyNoPair = !hasDocxOrDoc && hasXlsx && selPairs.length === 0;
+
+                    return (
+                      <>
+                        {hasDocLegacy && (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 10 }}
+                            message="检测到 .doc 格式报告"
+                            description=".doc 为旧版二进制格式，需本机安装 Microsoft Word 或 WPS 才能获得完整检查能力。建议将报告另存为 .docx 格式后重新导入，或在装有 Word 的电脑上使用本工具。"
+                          />
+                        )}
+                        {xlsxOnlyNoPair && (
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 10 }}
+                            message="仅检测到 xlsx 报告，缺少 Word 文档"
+                            description="文档结构检查（目录/章节/元数据/POLQA等8项）仅对Word报告有效。建议同时导入同名的 .docx 文件，与 .xlsx 配对后可获得完整的17项检查。"
+                          />
+                        )}
+                        <div
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            backgroundColor: reviewSelectionPanelColor.backgroundColor,
+                            border: reviewSelectionPanelColor.border,
+                            borderRadius: 12,
+                            fontSize: 13
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
+                            <div style={{ color: reviewSelectionPanelColor.accentColor, fontWeight: 600 }}>
+                              {'✓ 已选择 '}
+                              {(() => {
+                                const parts = [];
+                                if (selPairs.length > 0) parts.push(`${selPairs.length} 组配对`);
+                                if (selSolo.length > 0) parts.push(`${selSolo.length} 份单独报告`);
+                                return parts.join(' + ');
+                              })()}
+                            </div>
                         <Button size="small" onClick={() => setSelectedReportPaths([])} disabled={reviewLoading}>清空已选</Button>
                       </div>
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {selectedReportPaths.map((reportPath) => (
-                          <Tag
-                            key={reportPath}
-                            closable={!reviewLoading}
-                            onClose={(event) => {
-                              event.preventDefault();
-                              removeSelectedReport(reportPath);
-                            }}
-                            style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                          >
-                            {getReportName(reportPath)}
-                          </Tag>
-                        ))}
+                        {(() => {
+                          const { pairs, solo } = detectFilePairs(selectedReportPaths);
+                          return (
+                            <>
+                              {pairs.map((pair) => (
+                                <Tag
+                                  key={pair.docx}
+                                  closable={!reviewLoading}
+                                  onClose={(event) => {
+                                    event.preventDefault();
+                                    removeSelectedReport(pair.docx);
+                                    removeSelectedReport(pair.xlsx);
+                                  }}
+                                  color="purple"
+                                  style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                  {pair.baseName} ({pair.docx.toLowerCase().endsWith('.doc') && !pair.docx.toLowerCase().endsWith('.docx') ? '.doc' : '.docx'} + .xlsx)
+                                </Tag>
+                              ))}
+                              {solo.map((reportPath) => (
+                                <Tag
+                                  key={reportPath}
+                                  closable={!reviewLoading}
+                                  onClose={(event) => {
+                                    event.preventDefault();
+                                    removeSelectedReport(reportPath);
+                                  }}
+                                  style={{ marginInlineEnd: 0, padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                  {getReportName(reportPath)}
+                                </Tag>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       {batchProgress && (
                         <div style={{ marginTop: 14 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6, color: reviewSelectionPanelColor.accentColor, fontWeight: 500 }}>
                             <span>
-                              {reviewLoading ? `正在处理：${batchProgress.currentFileName || '-'}` : '本轮批量审查已结束'}
+                              {reviewLoading
+                                ? `正在处理第 ${batchProgress.currentGroupIndex || Math.min(batchProgress.completed + 1, batchProgress.total)}/${batchProgress.total} 组：${batchProgress.currentFileName || '-'}`
+                                : '本轮批量审查已结束'}
                             </span>
                             <span>{batchProgress.completed}/{batchProgress.total}</span>
                           </div>
                           <Progress
                             percent={batchProgress.total > 0 ? Math.round((batchProgress.completed / batchProgress.total) * 100) : 0}
                             status={reviewLoading ? 'active' : 'normal'}
-                            strokeColor="#1677ff"
+                            strokeColor="var(--primary-color)"
                           />
                           <div style={{ display: 'flex', gap: 16, color: reviewSelectionPanelColor.metaColor, fontSize: 12 }}>
                             <span>成功 {batchProgress.successCount}</span>
                             <span>失败 {batchProgress.failedCount}</span>
                           </div>
+                          {reviewProgress && reviewProgress.totalSteps > 0 && (
+                            <div style={{ marginTop: 10, padding: 8, background: 'var(--surface-muted)', borderRadius: 6 }}>
+                              <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
+                                当前组进度：第 {reviewProgress.stepIndex}/{reviewProgress.totalSteps} 步 · {reviewProgress.stepLabel}
+                              </div>
+                              <Progress
+                                percent={reviewProgress.percent || Math.round((reviewProgress.stepIndex / reviewProgress.totalSteps) * 100)}
+                                size="small"
+                                format={() => reviewProgress.stepIndex + '/' + reviewProgress.totalSteps}
+                              />
+                              <div style={{ marginTop: 6, fontSize: 11, color: reviewSelectionPanelColor.metaColor }}>
+                                {reviewProgress.detail || '-'}
+                              </div>
+                              {chartProgress && reviewProgress.stepId === 'chart-analyze' && chartProgress.imageTotal > 0 && (
+                                <div style={{ marginTop: 8 }}>
+                                  <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
+                                    图表分析批次 {chartProgress.imageCurrent}/{chartProgress.imageTotal}: {chartProgress.fileName}
+                                  </div>
+                                  <Progress
+                                    percent={Math.round((chartProgress.imageCurrent / chartProgress.imageTotal) * 100)}
+                                    size="small"
+                                    format={() => chartProgress.imageCurrent + '/' + chartProgress.imageTotal}
+                                  />
+                                  {chartProgress.detail ? (
+                                    <div style={{ marginTop: 6, fontSize: 11, color: reviewSelectionPanelColor.metaColor }}>
+                                      {chartProgress.detail}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+                  </>
+                );
+              })()}
                 </div>
               </Col>
               <Col xs={24} lg={4}>
@@ -346,109 +556,18 @@ export default function ReportReviewPage() {
           </Card>
         </Col>
 
-        {latestReviewDigests.length > 0 && (
-          <Col xs={24}>
-            <Card
-              className="report-checker-card"
-              title="最近审查结论"
-              extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>无需点详情即可先看初步判断</span>}
-            >
-              <Row gutter={[16, 16]}>
-                {latestReviewDigests.map((record) => (
-                  <Col key={record.id} xs={24} lg={8}>
-                    <Card
-                      className="review-digest-card"
-                      size="small"
-                      hoverable
-                      onClick={() => {
-                        setDetailModalData(record);
-                        setDetailModalVisible(true);
-                      }}
-                      data-status={record.digest.overallStatus}
-                      style={{
-                        height: '100%',
-                        borderRadius: 14,
-                        '--review-digest-accent': record.digest.theme.accent,
-                        '--review-digest-soft': record.digest.theme.soft,
-                        '--review-digest-border': record.digest.theme.border,
-                        '--review-digest-title': record.digest.theme.title,
-                        '--review-digest-muted': record.digest.theme.muted
-                      }}
-                      styles={{ body: { display: 'flex', flexDirection: 'column', gap: 10, height: '100%' } }}
-                    >
-                      <div className="review-digest-card__bar" style={{ backgroundColor: record.digest.theme.accent }} />
-
-                      <div className="review-digest-card__header">
-                        <div className="review-digest-card__meta">
-                          <div className="review-digest-card__name">
-                            {record.reportName}
-                          </div>
-                          <div className="review-digest-card__time">
-                            {record.checkedAt ? new Date(record.checkedAt).toLocaleString() : '-'}
-                          </div>
-                        </div>
-                        <Tag color={record.digest.statusColor} style={{ marginInlineEnd: 0 }}>
-                          {record.digest.statusText}
-                        </Tag>
-                      </div>
-
-                      <div className="review-digest-card__headline" style={{ color: record.digest.theme.title }}>
-                        {record.digest.headline}
-                      </div>
-
-                      <div className="review-digest-card__detail">
-                        {record.digest.detail}
-                      </div>
-
-                      <div className="review-digest-card__stats">
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--pass review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'pass');
-                          }}
-                        >
-                          通过 {record.digest.summary.passedChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--warning review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'warning');
-                          }}
-                        >
-                          警告 {record.digest.summary.warningChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--review review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'review');
-                          }}
-                        >
-                          复核 {record.digest.summary.reviewChecks}
-                        </span>
-                        <span
-                          className="review-digest-card__pill review-digest-card__pill--error review-digest-card__pill--interactive"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openStatusDetail(record, 'error');
-                          }}
-                        >
-                          错误 {record.digest.summary.errorChecks}
-                        </span>
-                      </div>
-
-                      <div className="review-digest-card__hint">
-                        点击卡片查看完整详情，点击统计标签可按状态筛选明细
-                      </div>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </Card>
-          </Col>
-        )}
+        <CrossReportPanel
+          crossReportResults={crossReportResults}
+          latestReviewDigests={latestReviewDigests}
+          onOpenDetail={(record) => { setDetailModalData(record); setDetailModalVisible(true); }}
+          onOpenStatusDetail={(crossRecord, status) => {
+            setSelectedStatusDetail({
+              record: { result: crossRecord.reviewResult, reportName: getReportName(crossRecord.docxPath || crossRecord.reportPath || '') },
+              status
+            });
+            setStatusDetailModalVisible(true);
+          }}
+        />
 
         <Col xs={24}>
           <Card
@@ -478,12 +597,20 @@ export default function ReportReviewPage() {
             ) : null}
           >
             {safeWordReviewHistory.length > 0 ? (
-              <Table columns={historyColumns} dataSource={safeWordReviewHistory} rowKey="id" pagination={{ pageSize: 6 }} scroll={{ x: 960 }} />
+              <Table
+                className="report-review-history-table"
+                columns={historyColumns}
+                dataSource={safeWordReviewHistory}
+                rowKey="id"
+                pagination={{ pageSize: 6 }}
+                scroll={{ x: 960 }}
+              />
             ) : (
               <Empty description="暂无审查记录" style={{ margin: '24px 0' }} />
             )}
           </Card>
         </Col>
+
 
         <Col xs={24}>
           <Card
@@ -533,132 +660,26 @@ export default function ReportReviewPage() {
         </Col>
       </Row>
 
-      <Modal
-        title={`报告审查详情：${detailModalData?.reportName || ''}`}
+      <DetailModal
         open={detailModalVisible}
-        onCancel={() => {
-          setDetailModalVisible(false);
-          setDetailModalData(null);
-        }}
-        width={900}
-        footer={null}
-      >
-        {detailModalData?.result ? (
-          <ReviewResultContent resultData={detailModalData.result} />
-        ) : (
-          <Alert type="warning" showIcon message="当前记录没有可展示的详情数据" />
-        )}
-      </Modal>
+        reportName={detailModalData?.reportName}
+        resultData={detailModalData?.result}
+        hideCrossReportSections={!crossReportResults || crossReportResults.results?.length < 2}
+        onClose={() => { setDetailModalVisible(false); setDetailModalData(null); }}
+      />
 
-      <Modal
-        title={selectedStatusDetail ? `${selectedStatusDetail.record?.reportName || ''} - ${reviewStatusText[selectedStatusDetail.status] || selectedStatusDetail.status} 明细` : '状态明细'}
+      <StatusDetailModal
         open={statusDetailModalVisible}
-        onCancel={() => {
-          setStatusDetailModalVisible(false);
-          setSelectedStatusDetail(null);
-        }}
-        footer={null}
-        width={860}
-      >
-        {selectedStatusDetail ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Alert
-              type={selectedStatusDetail.status === 'pass' ? 'success' : (selectedStatusDetail.status === 'warning' ? 'warning' : (selectedStatusDetail.status === 'error' ? 'error' : 'info'))}
-              showIcon
-              message={`当前共 ${filteredStatusSections.length} 项“${reviewStatusText[selectedStatusDetail.status] || selectedStatusDetail.status}”检查`}
-              description="点击表格中的统计标签即可按类别筛选，不必再从完整详情里逐项查找。"
-            />
+        selectedDetail={selectedStatusDetail}
+        filteredSections={filteredStatusSections}
+        onClose={() => { setStatusDetailModalVisible(false); setSelectedStatusDetail(null); }}
+      />
 
-            {filteredStatusSections.length > 0 ? filteredStatusSections.map((section) => (
-              <Card
-                key={`${section.key}-${section.status}`}
-                size="small"
-                title={(
-                  <Space>
-                    <Tag color={reviewStatusColor[section.status] || 'default'} style={{ marginInlineEnd: 0 }}>
-                      {reviewStatusText[section.status] || section.status}
-                    </Tag>
-                    <span>{section.title || '未命名检查项'}</span>
-                  </Space>
-                )}
-                className="review-status-detail-card"
-              >
-                <div style={{ color: 'var(--text-light)', marginBottom: 12, lineHeight: 1.7 }}>
-                  {section.description || '无详细说明'}
-                </div>
-
-                {Array.isArray(section.issues) && section.issues.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: section.evidence?.length ? 14 : 0 }}>
-                    {section.issues.map((issue, index) => (
-                      <Alert
-                        key={`${section.key}-issue-${index}`}
-                        type={issue?.severity === 'error' ? 'error' : (issue?.severity === 'warning' ? 'warning' : 'info')}
-                        showIcon
-                        message={issue?.message || '未提供问题说明'}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Alert
-                    type={section.status === 'pass' ? 'success' : 'info'}
-                    showIcon
-                    style={{ marginBottom: section.evidence?.length ? 14 : 0 }}
-                    message={section.status === 'pass' ? '当前检查项已通过，未记录问题项。' : '当前检查项没有单独记录问题描述。'}
-                  />
-                )}
-
-                {Array.isArray(section.evidence) && section.evidence.length > 0 && (
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-color)', marginBottom: 8 }}>证据记录</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {section.evidence.map((evidence, index) => (
-                        <div
-                          key={`${section.key}-evidence-${index}`}
-                          style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--surface-elevated)', color: 'var(--text-light)', lineHeight: 1.65 }}
-                        >
-                          {evidence}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )) : (
-              <Empty description={`当前记录没有“${reviewStatusText[selectedStatusDetail.status] || selectedStatusDetail.status}”项`} />
-            )}
-          </div>
-        ) : null}
-      </Modal>
-
-      <Modal
-        title={selectedReviewArea ? `${selectedReviewArea.tag} - ${selectedReviewArea.title}` : '检查范围说明'}
+      <ReviewAreaModal
         open={reviewAreaModalVisible}
-        onCancel={() => {
-          setReviewAreaModalVisible(false);
-          setSelectedReviewArea(null);
-        }}
-        footer={null}
-        width={640}
-      >
-        {selectedReviewArea ? (
-          <div>
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message={selectedReviewArea.description}
-            />
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              {(selectedReviewArea.details || []).map((detail, index) => (
-                <div key={`${selectedReviewArea.title}-${index}`} className="review-area-modal__item">
-                  <span className="review-area-modal__index">{index + 1}</span>
-                  <span>{detail}</span>
-                </div>
-              ))}
-            </Space>
-          </div>
-        ) : null}
-      </Modal>
+        area={selectedReviewArea}
+        onClose={() => { setReviewAreaModalVisible(false); setSelectedReviewArea(null); }}
+      />
     </div>
   );
 }

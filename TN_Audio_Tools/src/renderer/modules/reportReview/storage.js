@@ -65,19 +65,23 @@ export function writeWordReviewHistory(historyList) {
   }
 }
 
-export function recordWordReviewResult(reportPath, reviewResult) {
+export function recordWordReviewResult(reportPath, reviewResult, pairedXlsxPath) {
   if (!reportPath || !reviewResult) {
     return;
   }
 
+  const isPaired = !!pairedXlsxPath;
   const currentHistory = readWordReviewHistory();
   const entry = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    reportName: getFileNameFromPath(reportPath),
+    reportName: isPaired
+      ? getFileNameFromPath(reportPath).replace(/\.(docx?)$/i, '')
+      : getFileNameFromPath(reportPath),
     reportPath,
     status: reviewResult.reviewResult?.overallStatus || 'unknown',
     checkedAt: new Date().toISOString(),
-    result: reviewResult
+    result: reviewResult,
+    ...(isPaired ? { pairedXlsxPath, isPaired: true } : {})
   };
 
   writeWordReviewHistory([entry, ...currentHistory]);

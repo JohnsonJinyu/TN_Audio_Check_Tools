@@ -32,6 +32,10 @@ function createXlsxReportSource() {
       return '';
     }
 
+    if (normalized === 'EID' || normalized.includes('DIGITAL')) {
+      return 'EID';
+    }
+
     if (normalized.includes('HANDSET') || normalized === 'HA') {
       return 'HA';
     }
@@ -42,6 +46,10 @@ function createXlsxReportSource() {
 
     if (normalized.includes('HANDSFREE') || normalized.includes('HANDSFREE') || normalized === 'HH' || normalized === 'HF') {
       return 'HH';
+    }
+
+    if (normalized === 'EI' || normalized === 'EIA' || normalized.includes('ELECTRICAL') || normalized.includes('ANALOG')) {
+      return 'EI';
     }
 
     return '';
@@ -357,6 +365,7 @@ function createXlsxReportSource() {
         }
       ],
       tableRows: detailedRowContexts,
+      detailedRows,
       fallbackRows: valuesDerivedRows,
       structuredStats: {
         detailedRowCount: detailedRows.length,

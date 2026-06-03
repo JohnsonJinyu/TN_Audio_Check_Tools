@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { App as AntdApp, Button, Card, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd';
 import { UploadOutlined, DeleteOutlined, CheckCircleOutlined, ExportOutlined } from '@ant-design/icons';
 import { recordDataCollectionResults } from '../modules/dashboard/storage';
 import '../styles/pages.css';
@@ -13,11 +13,40 @@ const REPORT_PANEL_FIELDS = [
   { cell: 'C15', label: 'Vocoder' },
   { cell: 'D15', label: 'Bitrate' }
 ];
+const REPORT_PANEL_FIELD_SHORT_LABELS = {
+  B13: '接口',
+  B15: '网络',
+  C15: '编码',
+  D15: '码率'
+};
+
+const PROJECT_PHASE_OPTIONS = ['EVB', 'EVT', 'DVT1', 'DVT2', 'PVT'];
 const EMPTY_REPORT_PANEL_SELECTIONS = {
   B13: '',
   B15: '',
   C15: '',
   D15: ''
+};
+
+const KNOWN_RULE_PROFILE_LABELS = {
+  handset: 'Handset',
+  handsfree: 'Handsfree',
+  headset: 'Headset',
+  electrical_interface: 'Electrical Interface - Analogue',
+  electrical_interface_digital: 'Electrical Interface - Digital'
+};
+const CHECKLIST_TEMPLATE_OPTIONS = [
+  { label: 'Handset', value: 'handset' },
+  { label: 'Handsfree', value: 'handsfree' },
+  { label: 'Headset', value: 'headset' },
+  { label: 'Electrical Interface', value: 'electrical_interface' }
+];
+const RULE_PROFILE_TO_CHECKLIST_TEMPLATE = {
+  handset: 'handset',
+  handsfree: 'handsfree',
+  headset: 'headset',
+  electrical_interface: 'electrical_interface',
+  electrical_interface_digital: 'electrical_interface'
 };
 
 function createEmptyReportPanelSelections() {
@@ -140,22 +169,46 @@ function buildDetectedTags(reportContext = {}) {
   ].filter(Boolean);
 }
 
-function getAutoDetectionMeta(record, isMultiExcelMode = false) {
-  if (record.reportKind !== 'excel') {
-    return {
-      color: 'default',
-      label: '跟随 Excel 参数',
-      detail: 'Word 不单独做 xlsx 参数识别',
-      missingFields: [],
-      tags: []
-    };
-  }
+function normalizeRuleProfileValue(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
 
+function formatRuleProfileLabel(value = '') {
+  const normalized = normalizeRuleProfileValue(value);
+  return KNOWN_RULE_PROFILE_LABELS[normalized] || normalized || '未指定';
+}
+
+function mapRuleProfileToChecklistTemplate(value = '') {
+  const normalized = normalizeRuleProfileValue(value);
+  return RULE_PROFILE_TO_CHECKLIST_TEMPLATE[normalized] || '';
+}
+
+function formatChecklistTemplateLabel(value = '') {
+  const normalized = normalizeRuleProfileValue(value);
+  const matchedOption = CHECKLIST_TEMPLATE_OPTIONS.find((item) => item.value === normalized);
+  return matchedOption?.label || normalized || '未指定';
+}
+
+function getRuleProfileOptions(record) {
+  const profileKeys = Array.from(new Set([
+    ...(Array.isArray(record.availableRuleProfiles) ? record.availableRuleProfiles : []),
+    normalizeRuleProfileValue(record.suggestedRuleProfile),
+    normalizeRuleProfileValue(record.selectedRuleProfile),
+    normalizeRuleProfileValue(record.ruleProfileKey)
+  ].filter(Boolean)));
+
+  return profileKeys.map((value) => ({
+    label: formatRuleProfileLabel(value),
+    value
+  }));
+}
+
+function getAutoDetectionMeta(record, isMultiExcelMode = false) {
   if (record.contextInspectionStatus === 'pending') {
     return {
       color: 'gold',
       label: '识别中',
-      detail: '正在读取 xlsx 内容并生成推荐参数',
+      detail: `正在读取${record.reportKind === 'excel' ? '报告内容和参数' : '报告内容'}并生成推荐规则`,
       missingFields: [],
       tags: []
     };
@@ -165,8 +218,8 @@ function getAutoDetectionMeta(record, isMultiExcelMode = false) {
     return {
       color: 'red',
       label: '识别失败',
-      detail: record.contextInspectionError || '未能从 xlsx 读取稳定参数，请人工确认',
-      missingFields: REPORT_PANEL_FIELDS.map((field) => field.label),
+      detail: record.contextInspectionError || '未能读取稳定上下文，请人工确认',
+      missingFields: record.reportKind === 'excel' ? REPORT_PANEL_FIELDS.map((field) => field.label) : [],
       tags: []
     };
   }
@@ -181,7 +234,7 @@ function getAutoDetectionMeta(record, isMultiExcelMode = false) {
     return {
       color: 'green',
       label: '已自动识别',
-      detail: '已填入下方参数确认面板，可直接复核',
+      detail: record.reportKind === 'excel' ? '已填入下方确认面板，可直接复核' : '已生成规则预选，可直接复核',
       missingFields,
       tags: detectedTags
     };
@@ -191,7 +244,9 @@ function getAutoDetectionMeta(record, isMultiExcelMode = false) {
     return {
       color: 'gold',
       label: '待人工确认',
-      detail: `已识别稳定项，缺少 ${missingFields.join(' / ')} 的稳定来源`,
+      detail: record.reportKind === 'excel'
+        ? `已识别稳定项，缺少 ${missingFields.join(' / ')} 的稳定来源`
+        : '已识别部分上下文，但仍需人工确认规则模式',
       missingFields,
       tags: detectedTags
     };
@@ -210,6 +265,33 @@ function getParameterConfirmationMeta(record) {
   return String(record?.parameterConfirmationStatus || '').trim().toLowerCase() === 'confirmed'
     ? { color: 'green', label: '已确认' }
     : { color: 'gold', label: '待确认' };
+}
+
+function getRuleSelectionMeta(record) {
+  const selectedRuleProfile = normalizeRuleProfileValue(record.selectedRuleProfile || record.ruleProfileKey);
+  const suggestedRuleProfile = normalizeRuleProfileValue(record.suggestedRuleProfile);
+
+  if (!selectedRuleProfile) {
+    return {
+      color: 'red',
+      label: '未选择规则',
+      detail: '文件名未能稳定预选规则，请手动指定。'
+    };
+  }
+
+  if (selectedRuleProfile === suggestedRuleProfile) {
+    return {
+      color: 'green',
+      label: '使用预选规则',
+      detail: record.suggestedRuleProfileReason ? `依据 ${record.suggestedRuleProfileReason}` : '已采用系统预选结果。'
+    };
+  }
+
+  return {
+    color: 'gold',
+    label: '已手动切换',
+    detail: '当前规则以人工选择为准，并会联动 checklist 模式。'
+  };
 }
 
 function getReportKind(fileName = '') {
@@ -238,24 +320,80 @@ function detectReportContext(fileName = '') {
   const bandwidth = ['SWB', 'WB', 'NB', 'SB'].find((item) => parts.includes(item)) || '';
   const terminalMode = ['HA', 'HF', 'HS', 'HE', 'HH'].find((item) => parts.includes(item)) || '';
 
+  // 从文件名提取项目名和阶段
+  const phaseMatch = normalizedName.match(/(EVB|EVT|DVT[12]|PVT)/);
+  const projectPhase = phaseMatch ? phaseMatch[1] : '';
+  let projectName = '';
+  if (normalizedName) {
+    const firstUnderscore = normalizedName.indexOf('_');
+    if (firstUnderscore > 0) {
+      projectName = normalizedName.substring(0, firstUnderscore);
+    } else {
+      const firstWord = normalizedName.split(/[\s_-]+/)[0];
+      if (firstWord) projectName = firstWord;
+    }
+  }
+
   return {
     measurementObject: normalizedName,
     network,
     codec,
     bandwidth,
-    terminalMode
+    terminalMode,
+    projectName,
+    projectPhase
   };
 }
 
-function buildUploadSummary(files, checklistFile) {
+function buildUploadSummary(files, checklistFile, presetChecklistPath) {
   const excelFiles = files.filter((item) => item.reportKind === 'excel');
   const wordFiles = files.filter((item) => item.reportKind === 'word');
   return {
     totalReports: files.length,
     excelCount: excelFiles.length,
     wordCount: wordFiles.length,
-    checklistCount: checklistFile?.path ? 1 : 0
+    checklistCount: checklistFile?.path || presetChecklistPath ? 1 : 0
   };
+}
+
+function sanitizeOutputToken(value = '') {
+  return String(value || '').trim().replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+}
+
+function buildPredictedOutputBaseName(record) {
+  const projectName = sanitizeOutputToken(record.projectName || '');
+  const projectPhase = sanitizeOutputToken(record.projectPhase || '');
+  const selections = normalizePanelSelections(record.reportPanelSelections || record.reportContext?.reportPanelSelections || {});
+  const network = sanitizeOutputToken(selections.B15 || record.reportContext?.network || '');
+  const vocoder = sanitizeOutputToken(selections.C15 || record.reportContext?.vocoder || [record.reportContext?.codec, record.reportContext?.bandwidth].filter(Boolean).join('_'));
+
+  if (!projectName || !projectPhase) {
+    return '';
+  }
+
+  const parts = [projectName, projectPhase];
+  if (network) parts.push(network);
+  if (vocoder) parts.push(vocoder);
+  parts.push('checklist');
+  return parts.join('_');
+}
+
+function findDuplicateOutputConfigs(files) {
+  const groups = new Map();
+  files.forEach((record) => {
+    const baseName = buildPredictedOutputBaseName(record);
+    if (!baseName) {
+      return;
+    }
+
+    const group = groups.get(baseName) || [];
+    group.push(record);
+    groups.set(baseName, group);
+  });
+
+  return Array.from(groups.entries())
+    .filter(([, group]) => group.length > 1)
+    .map(([baseName, group]) => ({ baseName, group }));
 }
 
 function getStatusMeta(status = 'not_applicable') {
@@ -293,6 +431,21 @@ function buildConclusionData(uploadSummary, processedConclusion) {
       customer: '',
       reportPanelSelections: null,
       ruleProfiles: []
+    },
+    sourcePolicy: {
+      status: 'not_applicable',
+      preferredSource: 'excel',
+      currentMode: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'word_only' : 'none',
+      confidence: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'low' : 'not_applicable',
+      confidenceLabel: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? '低' : '未触发',
+      manualConfirmationLevel: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? 'required' : 'none',
+      manualConfirmationRequired: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0,
+      summary: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0
+        ? '当前批次仅上传了 Word 报告，正式写入前必须人工确认。'
+        : '请优先上传 Excel 报告作为主数据源。',
+      detail: uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0
+        ? 'Word 提取准确性和稳定性低于 Excel，仅建议作为兼容通道使用。'
+        : 'Excel 结构化数据更稳定，适合作为 checklist 自动填表主通道。'
     },
     overview: {
       totalReports: uploadSummary.totalReports,
@@ -350,6 +503,11 @@ function TestDataCollectionPage() {
   const [files, setFiles] = useState([]);
   const [ruleFile, setRuleFile] = useState(null);
   const [checklistFile, setChecklistFile] = useState(null);
+  const [presetChecklistTemplate, setPresetChecklistTemplate] = useState('');
+  const [presetChecklistPath, setPresetChecklistPath] = useState('');
+  const [suggestedChecklistTemplate, setSuggestedChecklistTemplate] = useState('');
+  const [checklistSelectionSource, setChecklistSelectionSource] = useState('');
+  const [checklistConfirmationStatus, setChecklistConfirmationStatus] = useState('pending');
   const [selectedCustomer, setSelectedCustomer] = useState('MOTOROLA');
   const [reportPanelMeta, setReportPanelMeta] = useState({
     reportSheetName: 'Report',
@@ -478,6 +636,45 @@ function TestDataCollectionPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (checklistFile?.path) {
+      return;
+    }
+
+    const candidateTemplates = Array.from(new Set(
+      files
+        .map((item) => mapRuleProfileToChecklistTemplate(item.selectedRuleProfile || item.suggestedRuleProfile || item.ruleProfileKey))
+        .filter(Boolean)
+    ));
+    const nextSuggestedTemplate = candidateTemplates.length === 1 ? candidateTemplates[0] : '';
+
+    setSuggestedChecklistTemplate((prev) => (prev === nextSuggestedTemplate ? prev : nextSuggestedTemplate));
+
+    if (checklistSelectionSource === 'manual' || checklistSelectionSource === 'upload') {
+      return;
+    }
+
+    if (!nextSuggestedTemplate) {
+      if (checklistSelectionSource === 'auto') {
+        setPresetChecklistTemplate('');
+        setPresetChecklistPath('');
+        setChecklistSelectionSource('');
+        setChecklistConfirmationStatus('pending');
+        resetChecklistReportPanelOptions();
+      }
+      return;
+    }
+
+    if (presetChecklistTemplate === nextSuggestedTemplate && checklistSelectionSource === 'auto') {
+      return;
+    }
+
+    setPresetChecklistTemplate(nextSuggestedTemplate);
+    setChecklistSelectionSource('auto');
+    setChecklistConfirmationStatus('pending');
+    resolveAndLoadPresetChecklistTemplate(nextSuggestedTemplate);
+  }, [files, checklistFile?.path, checklistSelectionSource, presetChecklistTemplate]);
+
   const loadChecklistReportPanelOptions = async (checklistPath) => {
     if (!checklistPath || !window.electron?.testDataCollection?.getChecklistReportOptions) {
       return;
@@ -510,14 +707,118 @@ function TestDataCollectionPage() {
     }
   };
 
-  const inspectUploadedReport = async (filePath) => {
+  const resetChecklistReportPanelOptions = () => {
+    setReportPanelMeta({ reportSheetName: 'Report', fields: [] });
+    setReportPanelSelections(createEmptyReportPanelSelections());
+    setReportPanelDynamicOptions({});
+  };
+
+  const resolveAndLoadPresetChecklistTemplate = async (profileKey, customRulePath = ruleFile?.path || null) => {
+    const normalizedProfileKey = normalizeRuleProfileValue(profileKey);
+    if (!normalizedProfileKey || !window.electron?.testDataCollection?.resolvePresetChecklistTemplate) {
+      setPresetChecklistPath('');
+      resetChecklistReportPanelOptions();
+      return;
+    }
+
+    try {
+      const resolved = await window.electron.testDataCollection.resolvePresetChecklistTemplate({
+        profileKey: normalizedProfileKey,
+        rulePath: customRulePath
+      });
+
+      if (!resolved?.templatePath) {
+        setPresetChecklistPath('');
+        resetChecklistReportPanelOptions();
+        return;
+      }
+
+      setPresetChecklistPath(resolved.templatePath);
+      await loadChecklistReportPanelOptions(resolved.templatePath);
+    } catch (error) {
+      setPresetChecklistPath('');
+      resetChecklistReportPanelOptions();
+      message.warning(error?.message || '读取预设模板参数失败。');
+    }
+  };
+
+  const confirmChecklistSelection = () => {
+    if (checklistFile?.path) {
+      setChecklistConfirmationStatus('confirmed');
+      message.success('已确认当前 checklist 文件。');
+      return;
+    }
+
+    if (!presetChecklistTemplate || !presetChecklistPath) {
+      message.warning('请先选择或等待自动预选 checklist 模板，再确认。');
+      return;
+    }
+
+    setChecklistConfirmationStatus('confirmed');
+    message.success(`已确认预设模板：${formatChecklistTemplateLabel(presetChecklistTemplate)}。`);
+  };
+
+  const inspectUploadedReport = async (filePath, customRulePath = ruleFile?.path || null) => {
     if (!window.electron?.testDataCollection?.inspectReportContext) {
       return null;
     }
 
     return window.electron.testDataCollection.inspectReportContext({
       reportPath: filePath,
+      rulePath: customRulePath,
       customer: selectedCustomer
+    });
+  };
+
+  const refreshRuleSuggestionsForReports = (nextRulePath = null) => {
+    files.forEach((item) => {
+      inspectUploadedReport(item.path, nextRulePath)
+        .then((inspection) => {
+          if (!inspection) {
+            return;
+          }
+
+          setFiles((prev) => prev.map((currentItem) => {
+            if (currentItem.path !== item.path) {
+              return currentItem;
+            }
+
+            const currentSelectedRuleProfile = normalizeRuleProfileValue(currentItem.selectedRuleProfile || currentItem.ruleProfileKey);
+            const previousSuggestedRuleProfile = normalizeRuleProfileValue(currentItem.suggestedRuleProfile);
+            const nextSuggestedRuleProfile = normalizeRuleProfileValue(inspection.suggestedRuleProfile);
+            const shouldAdoptSuggestedRule = !currentSelectedRuleProfile || currentSelectedRuleProfile === previousSuggestedRuleProfile;
+
+            return {
+              ...currentItem,
+              reportContext: inspection.reportContext || currentItem.reportContext,
+              contextInspectionStatus: 'success',
+              contextInspectionError: '',
+              suggestedRuleProfile: nextSuggestedRuleProfile,
+              suggestedRuleProfileReason: inspection.suggestedRuleProfileReason || '',
+              availableRuleProfiles: Array.isArray(inspection.availableRuleProfiles) ? inspection.availableRuleProfiles : currentItem.availableRuleProfiles,
+              needsRuleConfirmation: Boolean(inspection.needsRuleConfirmation),
+              selectedRuleProfile: shouldAdoptSuggestedRule ? nextSuggestedRuleProfile : currentSelectedRuleProfile,
+              reportPanelSelections: normalizePanelSelections(
+                inspection.suggestedReportPanelSelections
+                || inspection.reportContext?.reportPanelSelections
+                || currentItem.reportPanelSelections
+              )
+            };
+          }));
+        })
+        .catch((error) => {
+          setFiles((prev) => prev.map((currentItem) => {
+            if (currentItem.path !== item.path) {
+              return currentItem;
+            }
+
+            return {
+              ...currentItem,
+              contextInspectionStatus: 'error',
+              contextInspectionError: error?.message || '读取规则预选失败'
+            };
+          }));
+        });
     });
   };
 
@@ -558,9 +859,38 @@ function TestDataCollectionPage() {
         return item;
       }
 
+      if (!normalizeRuleProfileValue(item.selectedRuleProfile || item.ruleProfileKey)) {
+        message.warning('请先选择规则模式，再确认当前报告。');
+        return item;
+      }
+
+      if (!String(item.projectName || '').trim()) {
+        message.warning('请输入项目名，再确认当前报告。');
+        return item;
+      }
+
+      if (!String(item.projectPhase || '').trim()) {
+        message.warning('请选择项目阶段，再确认当前报告。');
+        return item;
+      }
+
       return {
         ...item,
         parameterConfirmationStatus: 'confirmed'
+      };
+    }));
+  };
+
+  const updateFileRuleProfileSelection = (reportPath, value) => {
+    setFiles((prev) => prev.map((item) => {
+      if (item.path !== reportPath) {
+        return item;
+      }
+
+      return {
+        ...item,
+        selectedRuleProfile: normalizeRuleProfileValue(value),
+        parameterConfirmationStatus: 'pending'
       };
     }));
   };
@@ -578,17 +908,25 @@ function TestDataCollectionPage() {
         return;
       }
 
+      const detectedContext = detectReportContext(file.name);
       const newItem = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         name: file.name,
         path: file.path,
         bundleKey: getBundleKey(file.name),
         reportKind: getReportKind(file.name),
-        reportContext: detectReportContext(file.name),
+        reportContext: detectedContext,
         reportPanelSelections: createEmptyReportPanelSelections(),
-        parameterConfirmationStatus: getReportKind(file.name) === 'excel' ? 'pending' : 'not_required',
-        contextInspectionStatus: getReportKind(file.name) === 'excel' ? 'pending' : 'not_applicable',
+        parameterConfirmationStatus: 'pending',
+        contextInspectionStatus: 'pending',
         contextInspectionError: '',
+        suggestedRuleProfile: '',
+        suggestedRuleProfileReason: '',
+        selectedRuleProfile: '',
+        availableRuleProfiles: [],
+        needsRuleConfirmation: true,
+        ruleSelectionSource: '',
+        ruleSelectionReason: '',
         status: 'pending',
         items: 0,
         ruleProfileKey: '',
@@ -597,7 +935,9 @@ function TestDataCollectionPage() {
         error: '',
         skippedItems: [],
         unmatchedItems: [],
-        audit: null
+        audit: null,
+        projectName: detectedContext.projectName || '',
+        projectPhase: detectedContext.projectPhase || ''
       };
 
       setProcessedConclusion(null);
@@ -606,47 +946,53 @@ function TestDataCollectionPage() {
         return exists ? prev : [newItem, ...prev];
       });
 
-      if (newItem.reportKind === 'excel') {
-        inspectUploadedReport(file.path)
-          .then((inspection) => {
-            if (!inspection) {
-              return;
+      inspectUploadedReport(file.path)
+        .then((inspection) => {
+          if (!inspection) {
+            return;
+          }
+
+          setFiles((prev) => prev.map((item) => {
+            if (item.path !== file.path) {
+              return item;
             }
 
-            setFiles((prev) => prev.map((item) => {
-              if (item.path !== file.path) {
-                return item;
-              }
+            const backendContext = inspection.reportContext || {};
+            return {
+              ...item,
+              reportContext: backendContext,
+              contextInspectionStatus: 'success',
+              contextInspectionError: '',
+              parameterConfirmationStatus: 'pending',
+              suggestedRuleProfile: normalizeRuleProfileValue(inspection.suggestedRuleProfile),
+              suggestedRuleProfileReason: inspection.suggestedRuleProfileReason || '',
+              selectedRuleProfile: normalizeRuleProfileValue(inspection.suggestedRuleProfile),
+              availableRuleProfiles: Array.isArray(inspection.availableRuleProfiles) ? inspection.availableRuleProfiles : [],
+              needsRuleConfirmation: Boolean(inspection.needsRuleConfirmation),
+              reportPanelSelections: normalizePanelSelections(
+                inspection.suggestedReportPanelSelections
+                || inspection.reportContext?.reportPanelSelections
+                || item.reportPanelSelections
+              ),
+              projectName: backendContext.projectName || item.projectName || '',
+              projectPhase: backendContext.projectPhase || item.projectPhase || ''
+            };
+          }));
+        })
+        .catch((error) => {
+          setFiles((prev) => prev.map((item) => {
+            if (item.path !== file.path) {
+              return item;
+            }
 
-              return {
-                ...item,
-                reportContext: inspection.reportContext || item.reportContext,
-                contextInspectionStatus: 'success',
-                contextInspectionError: '',
-                parameterConfirmationStatus: 'pending',
-                reportPanelSelections: normalizePanelSelections(
-                  inspection.suggestedReportPanelSelections
-                  || inspection.reportContext?.reportPanelSelections
-                  || item.reportPanelSelections
-                )
-              };
-            }));
-          })
-          .catch((error) => {
-            setFiles((prev) => prev.map((item) => {
-              if (item.path !== file.path) {
-                return item;
-              }
-
-              return {
-                ...item,
-                contextInspectionStatus: 'error',
-                contextInspectionError: error?.message || '读取参数上下文失败'
-              };
-            }));
-            message.warning(error?.message || `读取 ${file.name} 的参数上下文失败，将保留手动选择。`);
-          });
-      }
+            return {
+              ...item,
+              contextInspectionStatus: 'error',
+              contextInspectionError: error?.message || '读取参数上下文失败'
+            };
+          }));
+          message.warning(error?.message || `读取 ${file.name} 的参数上下文失败，将保留手动选择。`);
+        });
 
       message.success(`已添加报告: ${file.name}`);
     }
@@ -654,11 +1000,20 @@ function TestDataCollectionPage() {
     if (target === 'rules') {
       setProcessedConclusion(null);
       setRuleFile({ name: file.name, path: file.path });
+      refreshRuleSuggestionsForReports(file.path);
+      if (presetChecklistTemplate) {
+        setChecklistConfirmationStatus('pending');
+        resolveAndLoadPresetChecklistTemplate(presetChecklistTemplate, file.path);
+      }
       message.success(`已上传规则: ${file.name}`);
     }
 
     if (target === 'checklist') {
       setProcessedConclusion(null);
+      setPresetChecklistTemplate('');
+      setPresetChecklistPath('');
+      setChecklistSelectionSource('upload');
+      setChecklistConfirmationStatus('pending');
       setChecklistFile({ name: file.name, path: file.path });
       message.success(`已上传 checklist: ${file.name}`);
       loadChecklistReportPanelOptions(file.path);
@@ -750,6 +1105,10 @@ function TestDataCollectionPage() {
           </Paragraph>
           <Paragraph>
             <Text strong>生效规则 Profile：</Text> {record.ruleProfileKey || '未标记'}
+          </Paragraph>
+          <Paragraph>
+            <Text strong>规则选择来源：</Text> {record.ruleSelectionSource || '未标记'}
+            {record.ruleSelectionReason ? ` / ${record.ruleSelectionReason}` : ''}
           </Paragraph>
           <Paragraph>
             <Text strong>输出文件：</Text> {record.outputPath || (record.reportKind === 'word' ? 'Word 审查不生成 checklist 输出' : '尚未生成')}
@@ -864,7 +1223,7 @@ function TestDataCollectionPage() {
           ) : null}
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.excelCoverage.reportSummaries.map((summary) => (
-              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{summary.reportName}</Text>
                   {' '}
@@ -911,7 +1270,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.wordAudit.reportSummaries.map((summary) => (
-              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{summary.reportName}</Text>
                   {' '}
@@ -951,7 +1310,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.consistency.groups.map((group) => (
-              <div key={`${group.comparisonType}-${group.groupKey}`} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={`${group.comparisonType}-${group.groupKey}`} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{group.comparisonType === 'same-codec-cross-network' ? '同 codec 跨 network' : '同 network 跨 codec'}</Text>
                   {' '}
@@ -1009,7 +1368,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 360, overflow: 'auto', paddingRight: 8 }}>
             {bundle.items.map((item) => (
-              <div key={item.reportPath} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={item.reportPath} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{getOutputFileName(item.reportPath)}</Text>
                   {' '}
@@ -1041,17 +1400,65 @@ function TestDataCollectionPage() {
       return;
     }
 
-    if (files.some((item) => item.reportKind === 'excel') && !checklistFile?.path) {
-      message.warning('存在 Excel 报告时，请先上传 checklist Excel 文件。');
+    // 如果没有上传 checklist，但选择了预设模板，则允许继续（后端会使用内置模板）
+    if (!checklistFile?.path && !presetChecklistPath) {
+      message.warning('请先上传 checklist Excel 文件，或选择预设模板。');
       return;
     }
 
-    const unconfirmedExcelReports = files.filter(
-      (item) => item.reportKind === 'excel' && item.parameterConfirmationStatus !== 'confirmed'
-    );
-    if (unconfirmedExcelReports.length > 0) {
-      message.warning(`还有 ${unconfirmedExcelReports.length} 份 Excel 报告未确认参数，请先确认后再开始处理。`);
+    if (checklistConfirmationStatus !== 'confirmed') {
+      message.warning('请先确认当前 checklist 模板或 checklist 文件，再开始处理。');
       return;
+    }
+
+    if (uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0) {
+      const confirmed = await new Promise((resolve) => {
+        modal.confirm({
+          title: '当前仅导入 Word 报告',
+          content: 'Word 提取的准确性和稳定性低于 Excel。若继续处理，输出结果必须由人工逐项确认后才能使用。',
+          okText: '继续并人工确认',
+          cancelText: '返回检查',
+          okButtonProps: { danger: true },
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false)
+        });
+      });
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    const unconfirmedReports = files.filter(
+      (item) => item.parameterConfirmationStatus !== 'confirmed'
+    );
+    if (unconfirmedReports.length > 0) {
+      message.warning(`还有 ${unconfirmedReports.length} 份报告未确认配置，请先确认后再开始处理。`);
+      return;
+    }
+
+    const reportsWithoutRuleProfile = files.filter((item) => !normalizeRuleProfileValue(item.selectedRuleProfile || item.ruleProfileKey));
+    if (reportsWithoutRuleProfile.length > 0) {
+      message.warning(`还有 ${reportsWithoutRuleProfile.length} 份报告没有选择规则模式，请先补齐。`);
+      return;
+    }
+
+    const duplicateOutputConfigs = findDuplicateOutputConfigs(files);
+    if (duplicateOutputConfigs.length > 0) {
+      const confirmed = await new Promise((resolve) => {
+        modal.confirm({
+          title: '检测到重复的输出命名配置',
+          content: `有 ${duplicateOutputConfigs.length} 组报告会生成相同的逻辑文件名。系统会自动补报告名后缀避免覆盖，但建议你先确认这些报告的 Network / Vocoder / 项目名 / 项目阶段 是否确实一致。`,
+          okText: '确认继续',
+          cancelText: '返回检查',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false)
+        });
+      });
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     const runId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1072,7 +1479,7 @@ function TestDataCollectionPage() {
       const response = await window.electron.testDataCollection.processReports({
         runId,
         reportPaths: files.map((item) => item.path),
-        checklistPath: checklistFile?.path || null,
+        checklistPath: checklistFile?.path || presetChecklistPath || null,
         rulePath: ruleFile?.path || null,
         customer: selectedCustomer,
         reportPanelSelections: null,
@@ -1082,7 +1489,16 @@ function TestDataCollectionPage() {
               .filter((item) => item.reportKind === 'excel')
               .map((item) => [item.path, normalizePanelSelections(item.reportPanelSelections || {})])
           )
-          : null
+          : null,
+        ruleProfileOverridesByPath: Object.fromEntries(
+          files.map((item) => [item.path, normalizeRuleProfileValue(item.selectedRuleProfile || item.ruleProfileKey)])
+        ),
+        reportProjectMetaByPath: Object.fromEntries(
+          files.map((item) => [item.path, {
+            projectName: String(item.projectName || '').trim(),
+            projectPhase: String(item.projectPhase || '').trim()
+          }])
+        )
       });
 
       const resultMap = new Map(response.results.map((item) => [item.reportPath, item]));
@@ -1114,6 +1530,11 @@ function TestDataCollectionPage() {
           status: 'success',
           items: result.matchedItems,
           ruleProfileKey: result.ruleProfileKey || item.ruleProfileKey || '',
+          selectedRuleProfile: normalizeRuleProfileValue(result.ruleProfileKey || item.selectedRuleProfile || item.ruleProfileKey),
+          suggestedRuleProfile: normalizeRuleProfileValue(result.reportContext?.suggestedRuleProfile || item.suggestedRuleProfile),
+          suggestedRuleProfileReason: result.reportContext?.suggestedRuleProfileReason || item.suggestedRuleProfileReason,
+          ruleSelectionSource: result.ruleSelectionSource || item.ruleSelectionSource || '',
+          ruleSelectionReason: result.ruleSelectionReason || item.ruleSelectionReason || '',
           outputPath: result.outputPath,
           outputName: getOutputFileName(result.outputPath),
           skippedItems: result.skippedItems || [],
@@ -1153,7 +1574,7 @@ function TestDataCollectionPage() {
   const progressPercent = progressState.total > 0
     ? Math.min(100, Math.round((progressState.completed / progressState.total) * 100))
     : 0;
-  const uploadSummary = useMemo(() => buildUploadSummary(files, checklistFile), [files, checklistFile]);
+  const uploadSummary = useMemo(() => buildUploadSummary(files, checklistFile, presetChecklistPath), [files, checklistFile, presetChecklistPath]);
   const excelReportRecords = useMemo(() => files.filter((item) => item.reportKind === 'excel'), [files]);
   const isMultiExcelMode = excelReportRecords.length > 1;
   const hasExcelSource = excelReportRecords.length > 0;
@@ -1285,7 +1706,7 @@ function TestDataCollectionPage() {
       ellipsis: true,
       render: (_, record) => {
         if (!record.outputName) {
-          return <Text type="secondary">{record.reportKind === 'word' ? 'Word 审查不生成输出' : '处理完成后显示'}</Text>;
+          return <Text type="secondary">处理完成后显示</Text>;
         }
 
         return (
@@ -1318,11 +1739,21 @@ function TestDataCollectionPage() {
       <Card className="report-checker-card report-checker-section-card report-checker-guide-card" title="使用说明">
         <div className="report-checker-note-list">
           <Paragraph style={{ marginBottom: 10 }}>先上传报告、checklist 和可选规则，再执行测试数据收集，最后在结论窗口查看覆盖性、文档审查和一致性结果。</Paragraph>
-          <Paragraph style={{ marginBottom: 10 }}>Excel 负责 checklist 填表与覆盖性评估，Word 不再生成 checklist 输出。</Paragraph>
+          <Paragraph style={{ marginBottom: 10 }}>Excel 是默认主数据源，优先用于 checklist 填表与覆盖性评估；Word 只建议作为兼容补充通道。</Paragraph>
           <Paragraph style={{ marginBottom: 10 }}>跨网络或跨 codec 的一致性审查只在存在可比样本时触发。</Paragraph>
-          <Paragraph style={{ marginBottom: 0 }}>响度、频响和 Word 文档审查会输出证据入口，但最终正确性仍需音频工程师确认。</Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>如果当前批次仅导入 Word 报告，UI 会重点提示并要求人工确认后再使用输出结果。</Paragraph>
         </div>
       </Card>
+
+      {uploadSummary.wordCount > 0 && uploadSummary.excelCount === 0 ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="warning"
+          showIcon
+          message="当前仅导入 Word 报告"
+          description="Word 提取准确性和稳定性低于 Excel。若继续处理，本批次生成的 checklist 结果必须由人工逐项确认。"
+        />
+      ) : null}
 
       <div className="report-checker-upload-stack">
         <Card 
@@ -1367,17 +1798,17 @@ function TestDataCollectionPage() {
               <span className="report-checker-upload-summary-label">当前状态</span>
               <span className="report-checker-upload-summary-text">
                 {uploadSummary.totalReports > 0
-                  ? `已选择 ${uploadSummary.totalReports} 份报告，可直接执行 Excel 填表、Word 审查和结论汇总。`
+                  ? `已选择 ${uploadSummary.totalReports} 份报告；确认报告参数和 checklist 模板后即可执行。`
                   : '还没有选择测试报告'}
               </span>
             </div>
           </div>
 
           <p style={{ marginBottom: '24px', color: 'var(--text-light)' }}>
-            Excel 报告仅用于 checklist 填表、漏测/重测/多测候选评估与跨报告一致性检查；Word 报告仅用于响度/频响章节识别和文档完整性审查。
+            Excel 报告优先用于 checklist 填表、漏测/重测/多测候选评估与跨报告一致性检查；Word 报告可参与提取，但默认只作为兼容补充与证据审查来源。
           </p>
           <p style={{ marginTop: '-12px', marginBottom: '24px', color: 'var(--text-light)' }}>
-            .doc 报告会先在后台尝试转成 .docx；Word 路径不会生成 checklist 输出文件，结果统一进入下方结论窗口。
+            .doc 报告会先在后台尝试转成 .docx；若当前批次只有 Word，系统仍会继续写入 checklist，但结果必须人工逐项确认。
           </p>
 
           {files.length === 0 ? (
@@ -1425,6 +1856,55 @@ function TestDataCollectionPage() {
               </Upload>
             }
           >
+            <div style={{ marginBottom: 12 }}>
+              <div className="report-checker-template-row">
+                <Text strong className="report-checker-template-label">预设模板</Text>
+                <div className="report-checker-template-select-wrap">
+                  <Select
+                    showSearch
+                    allowClear
+                    value={presetChecklistTemplate || undefined}
+                    className="report-checker-template-select"
+                    placeholder="根据报告模式自动选择"
+                    onChange={(value) => {
+                      setPresetChecklistTemplate(value || '');
+                      if (value) {
+                        setChecklistFile(null);
+                        setChecklistSelectionSource('manual');
+                        setChecklistConfirmationStatus('pending');
+                        resolveAndLoadPresetChecklistTemplate(value);
+                      } else {
+                        setChecklistSelectionSource('');
+                        setChecklistConfirmationStatus('pending');
+                        setPresetChecklistPath('');
+                        resetChecklistReportPanelOptions();
+                      }
+                    }}
+                    options={CHECKLIST_TEMPLATE_OPTIONS}
+                  />
+                </div>
+                <Space size={[8, 8]} wrap className="report-checker-template-meta">
+                  {suggestedChecklistTemplate ? (
+                    <Tag color="blue">系统预选: {formatChecklistTemplateLabel(suggestedChecklistTemplate)}</Tag>
+                  ) : null}
+                  <Tag color={checklistConfirmationStatus === 'confirmed' ? 'green' : 'gold'}>
+                    {checklistConfirmationStatus === 'confirmed' ? '模板已确认' : '模板待确认'}
+                  </Tag>
+                  <Button
+                    size="small"
+                    type={checklistConfirmationStatus === 'confirmed' ? 'default' : 'primary'}
+                    disabled={checklistConfirmationStatus === 'confirmed' || (!checklistFile?.path && !presetChecklistPath)}
+                    onClick={confirmChecklistSelection}
+                  >
+                    {checklistConfirmationStatus === 'confirmed' ? '已确认' : '确认'}
+                  </Button>
+                </Space>
+              </div>
+              <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 12 }}>
+                上传测试报告后会先自动预选模板；你可以确认当前模板，也可以手动切换后再确认。上传自定义 checklist 可覆盖预设选择。
+              </Text>
+            </div>
+
             <Upload.Dragger
               customRequest={({ file, onSuccess }) => handleUpload(file, 'checklist', onSuccess)}
               accept=".xlsx,.xls"
@@ -1439,6 +1919,15 @@ function TestDataCollectionPage() {
                   </Text>
                   <Text className="report-checker-upload-placeholder__file" style={{ fontSize: '14px', wordBreak: 'break-all' }}>
                     {checklistFile.name}
+                  </Text>
+                </div>
+              ) : presetChecklistPath ? (
+                <div style={{ padding: '8px 0' }}>
+                  <Text strong className="report-checker-upload-placeholder__title" style={{ display: 'block', fontSize: '16px', marginBottom: '6px' }}>
+                    已启用预设模板
+                  </Text>
+                  <Text className="report-checker-upload-placeholder__file" style={{ fontSize: '14px', wordBreak: 'break-all' }}>
+                    {presetChecklistTemplate}
                   </Text>
                 </div>
               ) : (
@@ -1541,33 +2030,85 @@ function TestDataCollectionPage() {
             <Text type="secondary">
               {checklistFile?.name
                 ? `${checklistFile.name} / ${reportPanelMeta.reportSheetName || 'Report'} 页`
+                : presetChecklistPath
+                  ? `预设模板 ${presetChecklistTemplate} / ${reportPanelMeta.reportSheetName || 'Report'} 页`
                 : '先上传 checklist 后读取参数'}
             </Text>
             <div style={{ marginTop: 8 }}>
               <Text type="secondary">
-                {hasExcelSource
-                  ? 'Excel 参数统一在下方确认面板中逐个确认；未确认前不能开始解析，避免误用自动识别结果。'
-                  : '当前未形成可自动预填的 Excel 源。'}
+                {files.length > 0
+                  ? '每份报告都要确认规则模式；Excel 额外确认 Report 参数；checklist 模板也需要确认。未确认前不能开始解析。'
+                  : '上传报告后，这里会显示规则预选和参数确认入口。'}
               </Text>
             </div>
           </div>
         </div>
         <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          客户与已确认的 Excel 参数会随本次任务提交后端，用于规则分发、动态工作表切换与 Report 页回写。
+          客户、已确认的规则模式以及 Excel 参数会随本次任务提交后端，用于规则分发、动态模板切换与 Report 页回写。
         </Paragraph>
 
-        {hasExcelSource ? (
-          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #f0f0f0' }}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>Excel 参数确认</Text>
+        {files.length > 0 ? (
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border-color)' }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>报告配置确认</Text>
             <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-              已先从每份 xlsx 中读取初步参数。无论单个还是多个 Excel，都需要在这里逐个确认；如果自动识别不对，直接修改后再点击确认。
+              系统会先按文件名预选规则模式。你可以直接接受，也可以手动切换；如果是 Excel 报告，还需要同时确认 Report 参数。
             </Paragraph>
 
             <div style={{ display: 'grid', gap: 16 }}>
-              {excelReportRecords.map((record) => {
+              {files.map((record) => {
                 const rowSelections = normalizePanelSelections(record.reportPanelSelections || record.reportContext?.reportPanelSelections || {});
                 const detectedTags = buildDetectedTags(record.reportContext || {});
                 const confirmationMeta = getParameterConfirmationMeta(record);
+                const ruleSelectionMeta = getRuleSelectionMeta(record);
+                const ruleProfileOptions = getRuleProfileOptions(record);
+                const isConfirmed = record.parameterConfirmationStatus === 'confirmed';
+                const configFields = [
+                  {
+                    key: 'project-name',
+                    label: '项目名',
+                    type: 'input',
+                    span: 2,
+                    extracted: false,
+                    value: record.projectName || '',
+                    placeholder: '自动识别'
+                  },
+                  {
+                    key: 'project-phase',
+                    label: '阶段',
+                    type: 'select',
+                    extracted: false,
+                    value: record.projectPhase || undefined,
+                    placeholder: '自动识别',
+                    options: PROJECT_PHASE_OPTIONS.map((opt) => ({ label: opt, value: opt }))
+                  },
+                  {
+                    key: 'rule-profile',
+                    label: '规则模式',
+                    type: 'select',
+                    extracted: false,
+                    value: normalizeRuleProfileValue(record.selectedRuleProfile || record.ruleProfileKey) || undefined,
+                    placeholder: '请选择规则模式',
+                    options: ruleProfileOptions,
+                    notFoundContent: ruleProfileOptions.length === 0 ? '暂无可用规则模式' : null
+                  },
+                  ...(record.reportKind === 'excel'
+                    ? REPORT_PANEL_FIELDS.map((field) => {
+                      const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
+
+                      return {
+                        key: field.cell,
+                        label: `${REPORT_PANEL_FIELD_SHORT_LABELS[field.cell] || field.label} (${field.cell})`,
+                        type: 'select',
+                        extracted: true,
+                        value: rowSelections[field.cell] || undefined,
+                        placeholder: '请选择参数值',
+                        options: fieldOptions.map((item) => ({ label: item, value: item })),
+                        notFoundContent: fieldOptions.length === 0 ? '暂无候选值' : null,
+                        cell: field.cell
+                      };
+                    })
+                    : [])
+                ];
 
                 return (
                   <div
@@ -1583,6 +2124,10 @@ function TestDataCollectionPage() {
                             : <Tag>未识别到上下文</Tag>}
                           {record.reportContext?.measurementObject ? <Tag color="default">{record.reportContext.measurementObject}</Tag> : null}
                         </Space>
+                        <div style={{ marginTop: 10 }}>
+                          <Tag color={ruleSelectionMeta.color}>{ruleSelectionMeta.label}</Tag>
+                          <Text type="secondary" style={{ marginLeft: 8 }}>{ruleSelectionMeta.detail}</Text>
+                        </div>
                       </div>
                       <Space size={8} className="report-parameter-card__actions">
                         <Tag color={confirmationMeta.color}>{confirmationMeta.label}</Tag>
@@ -1597,25 +2142,63 @@ function TestDataCollectionPage() {
                       </Space>
                     </div>
 
-                    <div className="report-parameter-card__fields" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
-                      {REPORT_PANEL_FIELDS.map((field) => {
-                        const fieldOptions = getOptionsForCell(reportPanelMeta, field.cell, rowSelections);
+                    <div className="report-parameter-card__config-grid">
+                      {configFields.map((field) => {
+                        const pillClassName = [
+                          'report-config-pill',
+                          field.span === 2 ? 'report-config-pill--span-2' : '',
+                          field.extracted ? 'report-config-pill--extracted' : '',
+                          isConfirmed ? 'report-config-pill--disabled' : ''
+                        ].filter(Boolean).join(' ');
 
                         return (
-                          <div key={`${record.id}-${field.cell}`} className="report-parameter-field">
-                            <Text strong className="report-parameter-field__label">
-                              {field.label} ({field.cell})
-                            </Text>
-                            <Select
-                              showSearch
-                              allowClear
-                              value={rowSelections[field.cell] || undefined}
-                              style={{ width: '100%' }}
-                              placeholder="请选择参数值"
-                              onChange={(value) => updateFileReportPanelSelection(record.path, field.cell, value)}
-                              options={fieldOptions.map((item) => ({ label: item, value: item }))}
-                              notFoundContent={fieldOptions.length === 0 ? '暂无候选值' : null}
-                            />
+                          <div key={`${record.id}-${field.key}`} className={pillClassName}>
+                            <div className="report-config-pill__label">{field.label}</div>
+                            <div className="report-config-pill__control">
+                              {field.type === 'input' ? (
+                                <input
+                                  type="text"
+                                  className="report-config-pill__input ant-input"
+                                  value={field.value}
+                                  placeholder={field.placeholder}
+                                  disabled={isConfirmed}
+                                  onChange={(e) => {
+                                    setFiles((prev) => prev.map((item) => {
+                                      if (item.path !== record.path) return item;
+                                      return { ...item, projectName: e.target.value.toUpperCase(), parameterConfirmationStatus: 'pending' };
+                                    }));
+                                  }}
+                                />
+                              ) : (
+                                <Select
+                                  showSearch
+                                  allowClear={!isConfirmed}
+                                  disabled={isConfirmed}
+                                  value={field.value}
+                                  className="report-config-pill__select"
+                                  popupClassName="report-config-pill__dropdown"
+                                  placeholder={field.placeholder}
+                                  onChange={(value) => {
+                                    if (field.key === 'project-phase') {
+                                      setFiles((prev) => prev.map((item) => {
+                                        if (item.path !== record.path) return item;
+                                        return { ...item, projectPhase: value || '', parameterConfirmationStatus: 'pending' };
+                                      }));
+                                      return;
+                                    }
+
+                                    if (field.key === 'rule-profile') {
+                                      updateFileRuleProfileSelection(record.path, value);
+                                      return;
+                                    }
+
+                                    updateFileReportPanelSelection(record.path, field.cell, value);
+                                  }}
+                                  options={field.options}
+                                  notFoundContent={field.notFoundContent ?? null}
+                                />
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -1689,6 +2272,16 @@ function TestDataCollectionPage() {
       ) : null}
 
       <Card className="report-checker-card report-checker-conclusion-card" title="结论输出">
+        {conclusionData.sourcePolicy ? (
+          <Alert
+            style={{ marginBottom: 16 }}
+            type={conclusionData.sourcePolicy.manualConfirmationLevel === 'required' ? 'warning' : (conclusionData.sourcePolicy.manualConfirmationLevel === 'recommended' ? 'info' : 'success')}
+            showIcon
+            message={`数据源策略：${conclusionData.sourcePolicy.summary}`}
+            description={`默认优先级：Excel 主、Word 辅；当前置信度：${conclusionData.sourcePolicy.confidenceLabel}；${conclusionData.sourcePolicy.detail}`}
+          />
+        ) : null}
+
         <div className="report-checker-conclusion-actions" style={{ marginBottom: 16 }}>
           <Text strong>本次运行参数</Text>
           <div className="report-checker-conclusion-action-list">
@@ -1743,7 +2336,12 @@ function TestDataCollectionPage() {
           <button type="button" className="report-checker-insight-card" onClick={() => showWordAuditSummary(conclusionData)}>
             <div className="report-checker-insight-header">
               <span className="report-checker-insight-title">Word 曲线与文档审查</span>
-              <Tag color={getStatusMeta(conclusionData.wordAudit.status).color}>{getStatusMeta(conclusionData.wordAudit.status).label}</Tag>
+              <Space size={6} wrap>
+                <Tag color={getStatusMeta(conclusionData.wordAudit.status).color}>{getStatusMeta(conclusionData.wordAudit.status).label}</Tag>
+                <Tag color={conclusionData.sourcePolicy?.confidence === 'low' ? 'red' : conclusionData.sourcePolicy?.confidence === 'medium' ? 'gold' : 'green'}>
+                  置信度 {conclusionData.sourcePolicy?.confidenceLabel || '未触发'}
+                </Tag>
+              </Space>
             </div>
             <strong>{conclusionData.wordAudit.reportCount}</strong>
             <span className="report-checker-insight-text">
@@ -1794,6 +2392,9 @@ function TestDataCollectionPage() {
                   <div className="report-checker-bundle-tags">
                     <Tag color={bundle.sourceMode === 'excel+word' ? 'green' : bundle.sourceMode === 'excel' ? 'blue' : bundle.sourceMode === 'word' ? 'purple' : 'default'}>
                       {bundle.sourceMode === 'excel+word' ? 'Excel + Word 联合' : bundle.sourceMode === 'excel' ? '仅 Excel' : bundle.sourceMode === 'word' ? '仅 Word' : '来源未识别'}
+                    </Tag>
+                    <Tag color={bundle.sourceMode === 'word' ? 'red' : bundle.sourceMode === 'excel+word' ? 'gold' : 'green'}>
+                      {bundle.sourceMode === 'word' ? '必须人工确认' : bundle.sourceMode === 'excel+word' ? '建议人工复核' : 'Excel 主通道'}
                     </Tag>
                     <Tag color={getStatusMeta(bundle.excelCoverage.status).color}>覆盖性 {getStatusMeta(bundle.excelCoverage.status).label}</Tag>
                     <Tag color={getStatusMeta(bundle.wordAudit.status).color}>文档审查 {getStatusMeta(bundle.wordAudit.status).label}</Tag>

@@ -4,6 +4,8 @@ if (process.env.NODE_ENV === 'development') {
 
 require('./services/testDataExtraction/runtimePolyfills');
 
+const progressBus = require('./services/reportReview/progressBus');
+
 const fs = require('fs/promises');
 const os = require('os');
 const { app, BrowserWindow, Menu, Tray, ipcMain, shell, dialog, nativeImage } = require('electron');
@@ -23,9 +25,10 @@ const {
   resolveBundledRulesPath,
   buildExportableRulesContent,
   parseChecklistReportOptions,
-  inspectReport
+  inspectReport,
+  resolvePresetChecklistTemplate
 } = require('./services/testDataExtraction');
-const { reviewWordReport } = require('./services/reportReview');
+const { reviewWordReport, reviewPairedReport, runCrossReportChecks } = require('./services/reportReview');
 const {
   DEFAULT_APP_SETTINGS,
   getSettings,
@@ -174,6 +177,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 600,
     show: !shouldStartHidden,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -272,8 +276,25 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
+  // 全局图表分析进度转发：任何模块 emit 的进度都推送到渲染进程
+  progressBus.on(progressBus.events.CHART_PROGRESS_EVENT, function(data) {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('chart-analysis-progress', data);
+      }
+    } catch (_) {}
+  });
+
+  progressBus.on(progressBus.events.REVIEW_PROGRESS_EVENT, function(data) {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('report-review-progress', data);
+      }
+    } catch (_) {}
+  });
+
   if (isDev) {
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // 启动时不自动打开，可通过菜单手动打开
   }
 
   mainWindow.on('minimize', (event) => {
@@ -352,6 +373,12 @@ ipcMain.handle('app-settings:save', async (_, payload) => {
   applyDesktopBehavior();
   emitSettingsChanged(savedSettings);
   return savedSettings;
+});
+
+ipcMain.on('app-settings:save-immediate', (_, payload) => {
+  const savedSettings = saveSettings(normalizeSettings(payload || {}));
+  applyDesktopBehavior();
+  emitSettingsChanged(savedSettings);
 });
 
 ipcMain.handle('app-settings:reset', async () => {
@@ -440,8 +467,17 @@ ipcMain.handle('report-checker:get-checklist-report-options', async (_, checklis
   return parseChecklistReportOptions(checklistPath);
 });
 
+ipcMain.handle('report-checker:resolve-preset-checklist-template', async (_, payload) => {
+  return resolvePresetChecklistTemplate(payload?.profileKey, {
+    appPath: app.getAppPath(),
+    rulePath: payload?.rulePath
+  });
+});
+
 ipcMain.handle('report-checker:inspect-report-context', async (_, payload) => {
   return inspectReport(payload?.reportPath, {
+    appPath: app.getAppPath(),
+    rulePath: payload?.rulePath,
     customer: payload?.customer,
     reportPanelSelections: payload?.reportPanelSelections
   });
@@ -484,6 +520,103 @@ ipcMain.handle('report-review:review-word-report', async (_, payload) => {
 
   const result = await reviewWordReport(payload.reportPath);
   return result;
+});
+
+ipcMain.handle('report-review:review-paired-report', async (_, payload) => {
+  if (!payload?.docxPath || !payload?.xlsxPath) {
+    throw new Error('配对审查需要同时提供 .docx 和 .xlsx 文件路径');
+  }
+
+  const result = await reviewPairedReport(payload.docxPath, payload.xlsxPath);
+  return result;
+});
+
+ipcMain.handle('report-review:run-cross-report-checks', async (_, payload) => {
+  if (!Array.isArray(payload?.results) || payload.results.length < 2) {
+    throw new Error('跨报告对比需要至少2份审查结果');
+  }
+
+  return runCrossReportChecks(payload.results);
+});
+
+ipcMain.handle('report-review:analyze-chart-images', async (event, payload) => {
+  const { reportPath, testDataFacts } = payload || {};
+  if (!reportPath) {
+    throw new Error('缺少报告路径');
+  }
+
+  const settings = getSettings();
+  if (!settings.llm?.enabled || !settings.llm?.apiKey || !settings.llm?.apiUrl) {
+    return {
+      status: 'review',
+      issues: [{ severity: 'review', message: '请在设置中启用AI图表分析并配置API地址和Key' }],
+      evidence: ['LLM图表分析未配置或未启用']
+    };
+  }
+
+  try {
+    const { extractReportImages } = require('./services/reportReview/imageExtractor');
+    const { analyzeGroupedCharts } = require('./services/reportReview/llmService');
+
+    const { images, warnings } = await extractReportImages(reportPath);
+    var chartImages = (images || []);
+    var _ev = (warnings || []).slice();
+
+    if (chartImages.length === 0) {
+      return {
+        status: 'review',
+        issues: [{ severity: 'review', message: '未在报告中检测到频响/响度曲线图，无法进行AI验证' }],
+        evidence: _ev.length > 0 ? _ev : ['报告中无可提取的图片，请确认报告包含图表']
+      };
+    }
+
+    return await analyzeGroupedCharts({
+      images: chartImages,
+      testDataFacts: testDataFacts || {},
+      settings: settings.llm
+    }, function(progress) {
+      try { progressBus.emitChartProgress({ imageCurrent: progress.current, imageTotal: progress.total, fileName: progress.fileName || '', imageCount: progress.imageCount || 0, status: progress.status || 'analyzing', detail: progress.detail || '' }); } catch (_) {}
+    });
+  } catch (error) {
+    return {
+      status: 'review',
+      issues: [{ severity: 'review', message: 'AI图表分析异常: ' + (error.message || '未知错误') }],
+      evidence: ['分析过程出错: ' + (error.message || '')]
+    };
+  }
+});
+
+ipcMain.handle('llm:test-connection', async (_, payload) => {
+  var p = payload || {};
+  var settings = getSettings();
+  var apiUrl = String(p.apiUrl || settings.llm?.apiUrl || '').replace(/\/+$/, '');
+  var apiKey = String(p.apiKey || settings.llm?.apiKey || '');
+  var model = String(p.model || settings.llm?.model || 'claude-sonnet-4-20250514');
+
+  if (!apiUrl || !apiKey) {
+    return { ok: false, message: 'API地址或Key未填写' };
+  }
+
+  try {
+    var axios = require('axios');
+    await axios.post(apiUrl + '/v1/chat/completions', {
+      model: model,
+      max_tokens: 10,
+      messages: [{ role: 'user', content: '回复OK' }]
+    }, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      timeout: 15000
+    });
+    return { ok: true, message: '连接成功，API可用 (' + model + ')' };
+  } catch (e) {
+    var msg = '连接失败: ';
+    if (e.response && e.response.status === 401) msg += 'API Key无效(401)';
+    else if (e.response && e.response.status === 403) msg += '无权限访问(403)';
+    else if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND') msg += '无法连接到 ' + apiUrl;
+    else if (e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED') msg += '连接超时';
+    else msg += (e.response?.status || e.message);
+    return { ok: false, message: msg };
+  }
 });
 
 ipcMain.handle('dialog:open-file', async (_, options = {}) => {
@@ -551,5 +684,5 @@ const createMenu = () => {
     }
   ];
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  Menu.setApplicationMenu(null);
 };

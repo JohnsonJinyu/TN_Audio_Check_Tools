@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs/promises');
+const XLSX = require('xlsx');
 
 function createReportExtractor({
   parseReport,
@@ -11,33 +12,13 @@ function createReportExtractor({
   analyzeExcelReport,
   analyzeWordReport
 }) {
-  function resolveTerminalModeFromInterface(value) {
-    const normalized = String(value || '').trim().toLowerCase();
-    if (!normalized) {
-      return '';
-    }
-
-    if (normalized.includes('handset') || normalized === 'ha') {
-      return 'HA';
-    }
-
-    if (normalized.includes('headset') || normalized === 'he' || normalized === 'hs') {
-      return 'HE';
-    }
-
-    if (normalized.includes('handsfree') || normalized === 'hh' || normalized === 'hf') {
-      return 'HH';
-    }
-
-    return '';
-  }
-
-  function normalizeReportPanelSelections(reportPanelSelections = {}) {
+  function normalizeReportPanelSelections(reportPanelSelections) {
+    const selections = reportPanelSelections || {};
     const normalized = {
-      B13: String(reportPanelSelections.B13 || '').trim(),
-      B15: String(reportPanelSelections.B15 || '').trim(),
-      C15: String(reportPanelSelections.C15 || '').trim(),
-      D15: String(reportPanelSelections.D15 || '').trim()
+      B13: String(selections.B13 || '').trim(),
+      B15: String(selections.B15 || '').trim(),
+      C15: String(selections.C15 || '').trim(),
+      D15: String(selections.D15 || '').trim()
     };
 
     if (!normalized.B13 && !normalized.B15 && !normalized.C15 && !normalized.D15) {
@@ -126,16 +107,23 @@ function createReportExtractor({
       merged.bitrate = normalizedSelections.D15;
     }
 
-    const terminalMode = resolveTerminalModeFromInterface(normalizedSelections.B13);
-    if (terminalMode) {
-      merged.terminalMode = terminalMode;
+    if (normalizedSelections.B13) {
+      merged.headsetInterface = normalizedSelections.B13;
     }
 
     return merged;
   }
 
-  function inspectReportContext(baseReportContext = {}, { customer, reportPanelSelections } = {}) {
-    return mergeReportContext(baseReportContext, { customer, reportPanelSelections });
+  function inspectReportContext(baseReportContext = {}, { customer, reportPanelSelections, reportPath } = {}) {
+    const mergedReportContext = mergeReportContext(baseReportContext, { customer, reportPanelSelections });
+    const suggestedRuleProfile = suggestRuleProfileFromReportPath(reportPath);
+
+    return {
+      ...mergedReportContext,
+      suggestedRuleProfile: suggestedRuleProfile.profileKey || '',
+      suggestedRuleProfileReason: suggestedRuleProfile.reason || '',
+      needsRuleConfirmation: !suggestedRuleProfile.profileKey
+    };
   }
 
   function resolveTerminalModeKey(value) {
@@ -152,7 +140,102 @@ function createReportExtractor({
       return 'headset';
     }
 
+    if (terminalMode === 'EI') {
+      return 'electrical_interface';
+    }
+
+    if (terminalMode === 'EIA') {
+      return 'electrical_interface';
+    }
+
+    if (terminalMode === 'EID') {
+      return 'electrical_interface_digital';
+    }
+
     return '';
+  }
+
+  function resolveModeKeyFromRuleProfile(value) {
+    const normalizedProfileKey = String(value || '').trim().toLowerCase();
+    const profileToModeKey = {
+      handset: 'handset',
+      handsfree: 'handsfree',
+      headset: 'headset',
+      electrical_interface: 'electrical_interface',
+      electrical_interface_digital: 'electrical_interface_digital'
+    };
+
+    return profileToModeKey[normalizedProfileKey] || '';
+  }
+
+  function resolveTerminalModeFromRuleProfile(value) {
+    const normalizedProfileKey = String(value || '').trim().toLowerCase();
+    const profileToTerminalMode = {
+      handset: 'HA',
+      handsfree: 'HH',
+      headset: 'HE',
+      electrical_interface: 'EI',
+      electrical_interface_digital: 'EID'
+    };
+
+    return profileToTerminalMode[normalizedProfileKey] || '';
+  }
+
+  function tokenizeReportName(reportPath = '') {
+    const reportName = path.parse(reportPath || '').name;
+    return reportName
+      .toUpperCase()
+      .split(/[^A-Z0-9]+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
+  }
+
+  function suggestRuleProfileFromReportPath(reportPath = '') {
+    const tokens = tokenizeReportName(reportPath);
+    const hasToken = (candidates) => candidates.some((candidate) => tokens.includes(candidate));
+
+    const candidates = [
+      {
+        profileKey: 'electrical_interface_digital',
+        tokens: ['EID', 'USB', 'DIGITAL'],
+        reason: 'filename:digital'
+      },
+      {
+        profileKey: 'electrical_interface',
+        tokens: ['ILOG', 'ANALOG', 'ANALOGUE', 'EI', 'EIA', 'EIHE'],
+        reason: 'filename:analogue'
+      },
+      {
+        profileKey: 'handsfree',
+        tokens: ['HH', 'HANDSFREE', 'HANDSFREE'],
+        reason: 'filename:handsfree'
+      },
+      {
+        profileKey: 'headset',
+        tokens: ['HE', 'HS', 'HEADSET'],
+        reason: 'filename:headset'
+      },
+      {
+        profileKey: 'handset',
+        tokens: ['HA', 'HANDSET'],
+        reason: 'filename:handset'
+      }
+    ];
+
+    const matchedCandidate = candidates.find((candidate) => hasToken(candidate.tokens));
+    if (!matchedCandidate) {
+      return {
+        profileKey: '',
+        source: '',
+        reason: ''
+      };
+    }
+
+    return {
+      profileKey: matchedCandidate.profileKey,
+      source: 'filename',
+      reason: matchedCandidate.reason
+    };
   }
 
   function resolveChecklistModeKeyFromName(checklistPath) {
@@ -167,6 +250,14 @@ function createReportExtractor({
 
     if (checklistName.includes('handset')) {
       return 'handset';
+    }
+
+    if (checklistName.includes('electricalinterface-digital') || checklistName.includes('electricalinterfacedigital')) {
+      return 'electrical_interface_digital';
+    }
+
+    if (checklistName.includes('electricalinterface')) {
+      return 'electrical_interface';
     }
 
     return '';
@@ -191,7 +282,46 @@ function createReportExtractor({
       return ['headset'];
     }
 
+    if (modeKey === 'electrical_interface') {
+      return ['electricalinterface'];
+    }
+
+    if (modeKey === 'electrical_interface_digital') {
+      return ['electricalinterface', 'digital'];
+    }
+
     return [];
+  }
+
+  function resolveChecklistSheetNameByModeKey(modeKey) {
+    const modeToSheet = {
+      handset: 'Handset',
+      handsfree: 'Handsfree',
+      headset: 'Headset',
+      electrical_interface: 'ElectricalInterface-Analogue',
+      electrical_interface_digital: 'ElectricalInterface-Digital'
+    };
+
+    return modeToSheet[modeKey] || '';
+  }
+
+  function checklistHasTargetModeSheet(checklistPath, targetModeKey) {
+    if (!checklistPath || !targetModeKey) {
+      return false;
+    }
+
+    const targetSheetName = resolveChecklistSheetNameByModeKey(targetModeKey);
+    if (!targetSheetName) {
+      return false;
+    }
+
+    try {
+      const workbook = XLSX.readFile(checklistPath, { bookSheets: true });
+      const normalizedTargetSheetName = String(targetSheetName).trim().toLowerCase();
+      return (workbook.SheetNames || []).some((sheetName) => String(sheetName || '').trim().toLowerCase() === normalizedTargetSheetName);
+    } catch {
+      return false;
+    }
   }
 
   async function findModeChecklistTemplate({ checklistPath, reportPath, targetModeKey }) {
@@ -248,13 +378,17 @@ function createReportExtractor({
     return '';
   }
 
-  async function resolveChecklistPathForReport(checklistPath, reportContext = {}, reportPath = '') {
+  async function resolveChecklistPathForReport(checklistPath, reportContext = {}, reportPath = '', ruleProfileKey = '') {
     if (!checklistPath) {
       return checklistPath;
     }
 
-    const targetModeKey = resolveTerminalModeKey(reportContext?.terminalMode);
+    const targetModeKey = resolveModeKeyFromRuleProfile(ruleProfileKey) || resolveTerminalModeKey(reportContext?.terminalMode);
     if (!targetModeKey) {
+      return checklistPath;
+    }
+
+    if (checklistHasTargetModeSheet(checklistPath, targetModeKey)) {
       return checklistPath;
     }
 
@@ -272,15 +406,10 @@ function createReportExtractor({
       return checklistPath;
     }
 
-    const modeNameMap = {
-      handset: 'Handset',
-      handsfree: 'Handsfree',
-      headset: 'Headset'
-    };
-    const nextModeName = modeNameMap[targetModeKey];
+    const nextModeName = resolveChecklistSheetNameByModeKey(targetModeKey);
     const checklistDir = path.dirname(checklistPath);
     const checklistName = path.basename(checklistPath);
-    const candidateName = checklistName.replace(/handset|handsfree|headset/i, nextModeName);
+    const candidateName = checklistName.replace(/handset|handsfree|headset|electricalinterface-analogue|electricalinterface-digital|electricalinterface/ig, nextModeName);
     const candidatePath = path.join(checklistDir, candidateName);
 
     try {
@@ -291,37 +420,73 @@ function createReportExtractor({
     }
   }
 
-  function resolveRuleProfileKey(reportData, checklistPath) {
-    const modeKey = resolveTerminalModeKey(reportData?.reportContext?.terminalMode);
-    if (modeKey === 'handset') {
-      return 'handset';
-    }
-
-    if (modeKey === 'handsfree') {
-      return 'handsfree';
-    }
-
-    if (modeKey === 'headset') {
-      return 'headset';
-    }
-
-    const checklistModeKey = resolveChecklistModeKeyFromName(checklistPath);
-    if (checklistModeKey) {
-      return checklistModeKey;
-    }
-
-    return 'handset';
-  }
-
-  function resolveRulesForReport(rules, reportData, checklistPath) {
+  function resolveRuleProfileSelection(rules, reportData, checklistPath, reportPath = '', ruleProfileOverride = '') {
     if (!rules?.ruleProfiles) {
       return {
-        activeRules: rules,
-        profileKey: 'default'
+        profileKey: 'default',
+        source: 'single-config',
+        reason: 'single-rules-config',
+        needsConfirmation: false
       };
     }
 
-    const profileKey = resolveRuleProfileKey(reportData, checklistPath);
+    const availableProfileKeys = Object.keys(rules.ruleProfiles || {});
+    const normalizedOverride = String(ruleProfileOverride || '').trim().toLowerCase();
+    if (normalizedOverride) {
+      if (!availableProfileKeys.includes(normalizedOverride)) {
+        throw new Error(`无效的规则 profile: ${normalizedOverride}`);
+      }
+
+      return {
+        profileKey: normalizedOverride,
+        source: 'manual',
+        reason: 'manual-override',
+        needsConfirmation: false
+      };
+    }
+
+    const suggestedSelection = suggestRuleProfileFromReportPath(reportPath);
+    if (suggestedSelection.profileKey && availableProfileKeys.includes(suggestedSelection.profileKey)) {
+      return {
+        ...suggestedSelection,
+        needsConfirmation: false
+      };
+    }
+
+    const checklistModeKey = resolveChecklistModeKeyFromName(checklistPath);
+    if (!suggestedSelection.profileKey && checklistModeKey && availableProfileKeys.length === 1 && availableProfileKeys.includes(checklistModeKey)) {
+      return {
+        profileKey: checklistModeKey,
+        source: 'checklist',
+        reason: 'single-available-profile',
+        needsConfirmation: false
+      };
+    }
+
+    return {
+      profileKey: '',
+      source: '',
+      reason: '',
+      needsConfirmation: true
+    };
+  }
+
+  function resolveRulesForReport(rules, reportData, checklistPath, reportPath = '', ruleProfileOverride = '') {
+    if (!rules?.ruleProfiles) {
+      return {
+        activeRules: rules,
+        profileKey: 'default',
+        ruleSelectionSource: 'single-config',
+        ruleSelectionReason: 'single-rules-config'
+      };
+    }
+
+    const selection = resolveRuleProfileSelection(rules, reportData, checklistPath, reportPath, ruleProfileOverride);
+    if (!selection.profileKey) {
+      throw new Error('无法从文件名预选规则 profile，请先在界面中手动确认规则模式。');
+    }
+
+    const profileKey = selection.profileKey;
     const activeRules = rules.ruleProfiles[profileKey]
       || rules.ruleProfiles[rules.defaultProfileKey]
       || Object.values(rules.ruleProfiles)[0];
@@ -332,7 +497,9 @@ function createReportExtractor({
 
     return {
       activeRules,
-      profileKey
+      profileKey,
+      ruleSelectionSource: selection.source,
+      ruleSelectionReason: selection.reason
     };
   }
 
@@ -617,37 +784,65 @@ function createReportExtractor({
     return { applicable: true };
   }
 
-  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride, outputDirectory }) {
+  async function processSingleReport({ reportPath, checklistPath, rules, customer, reportPanelSelections, reportPanelSelectionsOverride, ruleProfileOverride, outputDirectory, checklistWriteOptions, projectMeta }) {
     const reportData = await parseReport(reportPath);
     const mergedReportContext = mergeReportContext(reportData?.reportContext || {}, {
       customer,
       reportPanelSelections: reportPanelSelectionsOverride || reportPanelSelections
     });
+    const ruleSelection = resolveRuleProfileSelection(rules, reportData, checklistPath, reportPath, ruleProfileOverride);
+    const finalTerminalMode = resolveTerminalModeFromRuleProfile(ruleSelection.profileKey) || mergedReportContext.terminalMode;
     const normalizedReportData = {
       ...reportData,
       reportContext: mergedReportContext
     };
     const reportKind = reportData?.reportFormat === 'xlsx' ? 'excel' : 'word';
-    const checklistPathForReport = await resolveChecklistPathForReport(checklistPath, mergedReportContext, reportPath);
-    const { activeRules, profileKey } = resolveRulesForReport(rules, normalizedReportData, checklistPathForReport);
+    const projectMetaFields = (projectMeta && projectMeta.projectName)
+      ? {
+        projectName: projectMeta.projectName,
+        projectPhase: projectMeta.projectPhase || ''
+      }
+      : {};
 
-    if (reportKind === 'word') {
-      return {
-        reportPath,
-        reportKind,
-        reportFormat: reportData?.reportFormat || 'docx',
-        bundleKey: path.parse(reportPath).name,
-        reportContext: mergedReportContext,
-        ruleProfileKey: profileKey,
-        outputPath: '',
-        totalItems: 0,
-        matchedItems: 0,
-        skippedItems: [],
-        unmatchedItems: [],
-        extractedItems: [],
-        audit: analyzeWordReport({ reportPath, reportData: normalizedReportData })
-      };
+    const effectiveReportContext = {
+      ...mergedReportContext,
+      ...projectMetaFields,
+      terminalMode: finalTerminalMode,
+      suggestedRuleProfile: ruleSelection.profileKey || '',
+      suggestedRuleProfileReason: ruleSelection.reason || '',
+      needsRuleConfirmation: !ruleSelection.profileKey
+    };
+    const effectiveReportData = {
+      ...normalizedReportData,
+      reportContext: effectiveReportContext
+    };
+    // 如果用户未上传 checklist，尝试从规则配置中获取内置模板路径
+    let resolvedChecklistPath = checklistPath;
+    if (!resolvedChecklistPath && rules?.ruleProfiles && ruleSelection.profileKey) {
+      const profileRules = rules.ruleProfiles[ruleSelection.profileKey];
+      const defaultChecklistPath = profileRules?._defaultChecklistPath;
+      if (defaultChecklistPath) {
+        // defaultChecklistPath 是相对于规则文件所在目录的相对路径
+        const ruleDir = rules._ruleDir || '';
+        const candidatePath = path.resolve(ruleDir, defaultChecklistPath);
+        try {
+          await fs.access(candidatePath);
+          resolvedChecklistPath = candidatePath;
+          console.log(`[reportExtractor] 使用内置 checklist 模板: ${candidatePath}`);
+        } catch {
+          console.warn(`[reportExtractor] 内置 checklist 模板不存在: ${candidatePath}`);
+        }
+      }
     }
+
+    const checklistPathForReport = await resolveChecklistPathForReport(resolvedChecklistPath, effectiveReportContext, reportPath, ruleSelection.profileKey);
+    const { activeRules, profileKey, ruleSelectionSource, ruleSelectionReason } = resolveRulesForReport(
+      rules,
+      effectiveReportData,
+      checklistPathForReport,
+      reportPath,
+      ruleProfileOverride
+    );
 
     if (!checklistPathForReport) {
       throw new Error('Excel 报告处理需要 checklist 文件。');
@@ -705,8 +900,11 @@ function createReportExtractor({
       checklistPathForReport,
       reportPath,
       extractedItems,
-      mergedReportContext,
-      { outputDirectory }
+      effectiveReportContext,
+      {
+        outputDirectory,
+        ...(checklistWriteOptions || {})
+      }
     );
     const matchedItems = extractedItems.filter((item) => item.matched).length;
     const skippedItems = extractedItems.filter((item) => item.skipped).map((item) => ({
@@ -728,16 +926,20 @@ function createReportExtractor({
       reportKind,
       reportFormat: reportData?.reportFormat || 'xlsx',
       bundleKey: path.parse(reportPath).name,
-      reportContext: mergedReportContext,
+      reportContext: effectiveReportContext,
       checklistPathUsed: checklistPathForReport,
       ruleProfileKey: profileKey,
+      ruleSelectionSource,
+      ruleSelectionReason,
       outputPath,
       totalItems: extractedItems.length,
       matchedItems,
       skippedItems,
       unmatchedItems,
       extractedItems,
-      audit: analyzeExcelReport({ reportPath, reportData: normalizedReportData, extractedItems })
+      audit: reportKind === 'word'
+        ? analyzeWordReport({ reportPath, reportData: effectiveReportData })
+        : analyzeExcelReport({ reportPath, reportData: effectiveReportData, extractedItems })
     };
   }
 

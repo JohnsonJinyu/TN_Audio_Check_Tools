@@ -14,34 +14,41 @@ export const reviewStatusColor = {
 
 export const reviewStatusTheme = {
   pass: {
-    accent: '#389e0d',
-    soft: '#f6ffed',
-    border: '#b7eb8f',
-    title: '#135200',
-    muted: '#3f6600'
+    accent: 'var(--status-pass)',
+    soft: 'color-mix(in srgb, var(--status-pass) 8%, transparent)',
+    border: 'color-mix(in srgb, var(--status-pass) 40%, var(--border-color))',
+    title: 'var(--status-pass)',
+    muted: 'var(--status-pass)'
   },
   warning: {
-    accent: '#d48806',
-    soft: '#fffbe6',
-    border: '#ffe58f',
-    title: '#874d00',
-    muted: '#ad6800'
+    accent: 'var(--status-warn)',
+    soft: 'color-mix(in srgb, var(--status-warn) 8%, transparent)',
+    border: 'color-mix(in srgb, var(--status-warn) 40%, var(--border-color))',
+    title: 'var(--status-warn)',
+    muted: 'var(--status-warn)'
   },
   review: {
-    accent: '#1677ff',
-    soft: '#f0f5ff',
-    border: '#adc6ff',
-    title: '#10239e',
-    muted: '#1d39c4'
+    accent: 'var(--status-info)',
+    soft: 'color-mix(in srgb, var(--status-info) 8%, transparent)',
+    border: 'color-mix(in srgb, var(--status-info) 40%, var(--border-color))',
+    title: 'var(--status-info)',
+    muted: 'var(--status-info)'
   },
   error: {
-    accent: '#cf1322',
-    soft: '#fff1f0',
-    border: '#ffa39e',
-    title: '#820014',
-    muted: '#a8071a'
+    accent: 'var(--status-error)',
+    soft: 'color-mix(in srgb, var(--status-error) 8%, transparent)',
+    border: 'color-mix(in srgb, var(--status-error) 40%, var(--border-color))',
+    title: 'var(--status-error)',
+    muted: 'var(--status-error)'
   }
 };
+
+const HIDDEN_SECTION_KEYS = new Set(['engineers']);
+
+function getVisibleSections(resultData) {
+  const sections = Array.isArray(resultData?.report?.sections) ? resultData.report.sections : [];
+  return sections.filter((section) => section && !HIDDEN_SECTION_KEYS.has(section.key));
+}
 
 function getSafeSummary(reviewResult) {
   const summary = reviewResult?.summary || {};
@@ -55,7 +62,7 @@ function getSafeSummary(reviewResult) {
 }
 
 function collectIssueMessages(resultData, limit = 2) {
-  const sections = Array.isArray(resultData?.report?.sections) ? resultData.report.sections : [];
+  const sections = getVisibleSections(resultData);
   const messages = [];
 
   sections.forEach((section) => {
@@ -119,6 +126,24 @@ export function buildReviewDigest(resultData) {
 }
 
 export function getReviewSectionsByStatus(resultData, status) {
-  const sections = Array.isArray(resultData?.report?.sections) ? resultData.report.sections : [];
-  return sections.filter((section) => section?.status === status);
+  return getReviewSectionsByStatusMap(resultData)[status] || [];
+}
+
+export function getReviewSectionsByStatusMap(resultData) {
+  const sections = getVisibleSections(resultData);
+
+  return sections.reduce((groups, section) => {
+    const status = section?.status || 'review';
+    if (!groups[status]) {
+      groups[status] = [];
+    }
+
+    groups[status].push(section);
+    return groups;
+  }, {
+    pass: [],
+    warning: [],
+    review: [],
+    error: []
+  });
 }

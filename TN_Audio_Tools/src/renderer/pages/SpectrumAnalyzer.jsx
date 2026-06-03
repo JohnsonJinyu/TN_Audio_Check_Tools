@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Button, Upload, Row, Col, Select, Space, Switch } from 'antd';
-import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Alert, Card, Button, Upload, Row, Col, Select, Space, Switch } from 'antd';
+import { UploadOutlined, ExperimentOutlined } from '@ant-design/icons';
 import '../styles/pages.css';
 
 function SpectrumAnalyzer() {
@@ -13,6 +13,15 @@ function SpectrumAnalyzer() {
 
   return (
     <div className="page-container">
+      <Alert
+        type="info"
+        showIcon
+        icon={<ExperimentOutlined />}
+        message="此功能正在开发中"
+        description="频谱分析模块尚未实现。当前所有控件均处于禁用状态，仅展示界面框架。预计在后续版本中上线。"
+        style={{ marginBottom: 16, borderRadius: 'var(--radius-md)' }}
+        banner={false}
+      />
       <Card 
         title="音频频谱分析"
         extra={
@@ -97,8 +106,8 @@ function SpectrumAnalyzer() {
           <Col xs={24} md={18}>
             <Card type="inner" title="频谱图">
               <div style={{
-                backgroundColor: '#f5f5f5',
-                borderRadius: '6px',
+                backgroundColor: 'var(--surface-muted)',
+                borderRadius: 'var(--border-radius)',
                 padding: '40px',
                 textAlign: 'center',
                 height: '400px',

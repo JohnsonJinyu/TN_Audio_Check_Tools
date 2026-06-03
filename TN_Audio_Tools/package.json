@@ -1,6 +1,6 @@
 {
   "name": "tn-audio-toolkit",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "TN Audio Toolkit - 专业音频工具集",
   "main": "src/main/main.js",
   "homepage": "./",
@@ -9,16 +9,19 @@
     "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools.git"
   },
   "scripts": {
-    "dev": "node scripts/dev-runner.js",
+    "dev": "node scripts/dev/dev-runner.js",
     "react-start": "react-scripts start",
     "react-build": "react-scripts build",
     "electron-dev": "electron .",
     "electron-build": "npm run react-build && electron-builder",
-    "release:preflight": "node scripts/release-preflight.js",
+    "release:preflight": "node scripts/release/release-preflight.js",
+    "diag:review": "node scripts/diagnostics/test_review.js",
+    "diag:review:full": "node scripts/diagnostics/test_full_review.js",
+    "diag:3gpp": "node scripts/diagnostics/analyze-3gpp-corpus.js",
+    "diag:3gpp:summary": "node scripts/diagnostics/run-3gpp-regression.js",
     "release": "npm run release:preflight && npm run react-build && electron-builder --publish always",
     "start": "npm run dev",
     "build": "npm run electron-build",
-    "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "dependencies": {
@@ -37,9 +40,11 @@
     "jszip": "^3.10.1",
     "lodash-es": "^4.17.21",
     "mammoth": "^1.11.0",
+    "pngjs": "^7.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
+    "recharts": "^3.8.1",
     "word-extractor": "^1.0.4",
     "xlsx": "^0.18.5"
   },
@@ -84,7 +89,6 @@
     "files": [
       "build/**/*",
       "src/main/**/*",
-      "src/renderer/modules/reportChecker/config/**/*",
       "src/renderer/modules/testDataExtraction/config/**/*",
       "node_modules/**/*"
     ],

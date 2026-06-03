@@ -1,16 +1,17 @@
 const Store = require('electron-store');
 
 const THEME_OPTIONS = new Set(['auto', 'light', 'dark']);
-const LANGUAGE_OPTIONS = new Set(['zh-cn', 'zh-tw', 'en-us']);
 const AUDIO_FORMAT_OPTIONS = new Set(['mp3', 'wav', 'flac', 'aac']);
 const BITRATE_OPTIONS = new Set(['128', '192', '256', '320']);
 const SAMPLE_RATE_OPTIONS = new Set(['original', '44100', '48000', '96000']);
 const CONCURRENCY_OPTIONS = new Set([1, 2, 4, 8]);
 
+const DESIGN_STYLE_OPTIONS = new Set(['glassmorphism', 'neumorphism', 'paper-craft', 'soft-clean', 'classic-pro', 'elevenlabs', 'linear', 'claude', 'vercel', 'apple-light']);
+
 const DEFAULT_APP_SETTINGS = Object.freeze({
   appearance: {
     theme: 'light',
-    language: 'zh-cn'
+    designStyle: 'neumorphism'
   },
   system: {
     enableTray: false,
@@ -24,6 +25,13 @@ const DEFAULT_APP_SETTINGS = Object.freeze({
     defaultOutputFormat: 'mp3',
     defaultBitrate: '192',
     defaultSampleRate: '44100'
+  },
+  llm: {
+    enabled: false,
+    apiUrl: '',
+    apiKey: '',
+    model: '',
+    maxImagesPerAnalysis: 12
   }
 });
 
@@ -67,10 +75,10 @@ function normalizeSettings(input = {}) {
         THEME_OPTIONS,
         DEFAULT_APP_SETTINGS.appearance.theme
       ),
-      language: selectAllowedValue(
-        input?.appearance?.language,
-        LANGUAGE_OPTIONS,
-        DEFAULT_APP_SETTINGS.appearance.language
+      designStyle: selectAllowedValue(
+        input?.appearance?.designStyle,
+        DESIGN_STYLE_OPTIONS,
+        DEFAULT_APP_SETTINGS.appearance.designStyle
       )
     },
     system: {
@@ -97,6 +105,13 @@ function normalizeSettings(input = {}) {
         SAMPLE_RATE_OPTIONS,
         DEFAULT_APP_SETTINGS.audio.defaultSampleRate
       )
+    },
+    llm: {
+      enabled: normalizeBoolean(input?.llm?.enabled),
+      apiUrl: typeof input?.llm?.apiUrl === 'string' ? input.llm.apiUrl.trim() : '',
+      apiKey: typeof input?.llm?.apiKey === 'string' ? input.llm.apiKey.trim() : '',
+      model: typeof input?.llm?.model === 'string' ? input.llm.model.trim() : '',
+      maxImagesPerAnalysis: Math.min(Math.max(Number(input?.llm?.maxImagesPerAnalysis) || 4, 2), 8)
     }
   };
 
