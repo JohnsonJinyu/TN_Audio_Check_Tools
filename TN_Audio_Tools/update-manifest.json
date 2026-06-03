@@ -1,24 +1,24 @@
 {
-  "version": "1.1.7",
-  "releaseName": "TN Audio Toolkit 1.1.7",
-  "releaseDate": "2026-04-10",
+  "version": "1.1.8",
+  "releaseName": "TN Audio Toolkit 1.1.8",
+  "releaseDate": "2026-06-03",
   "releaseNotes": [
-    "Fix Windows icon packaging and release pipeline issues.",
-    "Restore built-in rule loading stability in packaged builds.",
-    "Provide a complete GitHub release for legacy updater clients."
+    "Ship the 1.1.8 desktop release with complete updater assets.",
+    "Keep the Windows installer, portable package, blockmap and latest.yml aligned.",
+    "Restore remote manifest parity so legacy clients can detect the new version."
   ],
-  "assetName": "TN-Audio-Toolkit-Setup-1.1.7.exe",
-  "releasePageUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.7",
+  "assetName": "TN-Audio-Toolkit-Setup-1.1.8.exe",
+  "releasePageUrl": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/tag/v1.1.8",
   "downloads": [
     {
       "name": "GitHub Mirror",
       "channel": "mirror",
-      "url": "https://ghfast.top/https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.7/TN-Audio-Toolkit-Setup-1.1.7.exe"
+      "url": "https://ghfast.top/https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.8/TN-Audio-Toolkit-Setup-1.1.8.exe"
     },
     {
       "name": "GitHub Release",
       "channel": "direct",
-      "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.7/TN-Audio-Toolkit-Setup-1.1.7.exe"
+      "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools/releases/download/v1.1.8/TN-Audio-Toolkit-Setup-1.1.8.exe"
     }
   ]
 }
