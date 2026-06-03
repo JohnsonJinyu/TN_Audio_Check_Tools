@@ -1,5 +1,6 @@
 import React from 'react';
 import { Alert, Modal, Space } from 'antd';
+import { reportReviewModalMotionProps } from './modalMotion';
 
 export default function ReviewAreaModal(props) {
   const { open, area, onClose } = props;
@@ -7,6 +8,7 @@ export default function ReviewAreaModal(props) {
   return (
     <Modal
       title={area ? `${area.tag} - ${area.title}` : '检查范围说明'}
+      {...reportReviewModalMotionProps}
       open={open}
       onCancel={onClose}
       footer={null}

@@ -1223,7 +1223,7 @@ function TestDataCollectionPage() {
           ) : null}
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.excelCoverage.reportSummaries.map((summary) => (
-              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{summary.reportName}</Text>
                   {' '}
@@ -1270,7 +1270,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.wordAudit.reportSummaries.map((summary) => (
-              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={summary.reportName} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{summary.reportName}</Text>
                   {' '}
@@ -1310,7 +1310,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>
             {conclusionData.consistency.groups.map((group) => (
-              <div key={`${group.comparisonType}-${group.groupKey}`} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={`${group.comparisonType}-${group.groupKey}`} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{group.comparisonType === 'same-codec-cross-network' ? '同 codec 跨 network' : '同 network 跨 codec'}</Text>
                   {' '}
@@ -1368,7 +1368,7 @@ function TestDataCollectionPage() {
           </Paragraph>
           <div style={{ maxHeight: 360, overflow: 'auto', paddingRight: 8 }}>
             {bundle.items.map((item) => (
-              <div key={item.reportPath} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+              <div key={item.reportPath} style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid var(--border-color)' }}>
                 <Paragraph style={{ marginBottom: 8 }}>
                   <Text strong>{getOutputFileName(item.reportPath)}</Text>
                   {' '}
@@ -2048,7 +2048,7 @@ function TestDataCollectionPage() {
         </Paragraph>
 
         {files.length > 0 ? (
-          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #f0f0f0' }}>
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border-color)' }}>
             <Text strong style={{ display: 'block', marginBottom: 8 }}>报告配置确认</Text>
             <Paragraph type="secondary" style={{ marginBottom: 16 }}>
               系统会先按文件名预选规则模式。你可以直接接受，也可以手动切换；如果是 Excel 报告，还需要同时确认 Report 参数。

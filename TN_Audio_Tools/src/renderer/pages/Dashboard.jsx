@@ -19,6 +19,7 @@ import {
 import '../styles/pages.css';
 
 function buildDashboardSnapshot() {
+  var disabledReviewKeys = new Set(['engineers']);
   const collectionData = readDashboardData();
   const reviewHistory = readWordReviewHistory();
   const safeReviewHistory = Array.isArray(reviewHistory) ? reviewHistory : [];
@@ -38,7 +39,9 @@ function buildDashboardSnapshot() {
 
   var categoryStats = { structure: { pass: 0, total: 0 }, metadata: { pass: 0, total: 0 }, timing: { pass: 0, total: 0 }, content: { pass: 0, total: 0 } };
   var structureKeys = ['tableOfContents', 'tableOfContentsPages', 'chaptersAlignment'];
-  var metadataKeys = ['basicInfo', 'testItemConsistency', 'namePollution', 'engineers', 'polqa'];
+  var metadataKeys = ['basicInfo', 'testItemConsistency', 'namePollution', 'polqa'].filter(function(key) {
+    return !disabledReviewKeys.has(key);
+  });
   var timingKeys = ['timingAdjacentInterval', 'timingTotalSpan', 'timingDelayOrder', 'timingSidetoneDelayOrder', 'timingBgnConnectionOrder'];
   var contentKeys = ['contentLoudnessFRTrend', 'contentCurveValueCorroboration', 'contentSameCodecDiffNetwork', 'contentSameNetworkDiffCodec'];
 
@@ -95,7 +98,7 @@ function Dashboard({ onNavigate }) {
       title: '测试数据收集',
       description: '上传报告、checklist 和规则文件，统一收集测试数据并生成结论',
       icon: <FileTextOutlined />,
-      color: '#ff7a45',
+      color: 'var(--primary-color)',
       stats: `${dashboardData.checkedReports} 份报告`,
       pageKey: 'report-checker'
     },
@@ -103,7 +106,7 @@ function Dashboard({ onNavigate }) {
       title: '报告审查',
       description: '查看审查范围、最近处理结果和输出文件历史',
       icon: <SearchOutlined />,
-      color: '#1677ff',
+      color: 'var(--status-info)',
       stats: dashboardData.reviewHistoryCount > 0
         ? (`${dashboardData.passedReviewCount}/${dashboardData.reviewHistoryCount} 通过 (${dashboardData.passRate}%)`)
         : '暂无审查记录',
@@ -113,7 +116,7 @@ function Dashboard({ onNavigate }) {
       title: '频谱分析',
       description: '实时分析音频的频谱特性，提供可视化展示',
       icon: <LineChartOutlined />,
-      color: '#722ed1',
+      color: 'var(--secondary-color)',
       stats: '实时分析',
       pageKey: 'spectrum'
     }
@@ -178,7 +181,7 @@ function Dashboard({ onNavigate }) {
       value: dashboardData.checkedReports,
       suffix: '份',
       prefix: <FileTextOutlined />,
-      color: '#ff7a45',
+      color: 'var(--primary-color)',
       pageKey: 'report-checker'
     },
     {
@@ -187,7 +190,7 @@ function Dashboard({ onNavigate }) {
       value: dashboardData.reviewHistoryCount,
       suffix: dashboardData.passRate > 0 ? ('通过率 ' + dashboardData.passRate + '%') : '',
       prefix: <SearchOutlined />,
-      color: '#1677ff',
+      color: 'var(--status-info)',
       pageKey: 'report-review'
     },
     {
@@ -196,7 +199,7 @@ function Dashboard({ onNavigate }) {
       value: dashboardData.recent7DaysCount,
       suffix: '次',
       prefix: <LineChartOutlined />,
-      color: '#722ed1',
+      color: 'var(--secondary-color)',
       pageKey: 'report-review'
     }
   ];
@@ -265,7 +268,7 @@ function Dashboard({ onNavigate }) {
         {/* 欢迎信息 */}
         <Col xs={24}>
           <Card className="welcome-card" style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%)',
             color: '#fff',
             border: 'none'
           }}>
@@ -280,16 +283,10 @@ function Dashboard({ onNavigate }) {
               </div>
               {dashboardData.checkedReports === 0 && dashboardData.reviewHistoryCount === 0 && (
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <Button
-                    style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.5)', color: '#fff' }}
-                    onClick={() => handleNavigate('report-checker')}
-                  >
+                  <Button ghost onClick={() => handleNavigate('report-checker')}>
                     开始收集数据 →
                   </Button>
-                  <Button
-                    style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
-                    onClick={() => handleNavigate('report-review')}
-                  >
+                  <Button ghost onClick={() => handleNavigate('report-review')}>
                     查看报告审查 →
                   </Button>
                 </div>
@@ -311,9 +308,9 @@ function Dashboard({ onNavigate }) {
               </div>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 {[
-                  { step: '1', label: '上传测试报告', desc: '进入「测试数据收集」，拖入 Excel/Word 报告', page: 'report-checker', color: '#ff7a45' },
-                  { step: '2', label: '审查报告内容', desc: '进入「报告审查」，对 docx+xlsx 配对进行完整性检查', page: 'report-review', color: '#722ed1' },
-                  { step: '3', label: '查看收集结论', desc: '处理完成后回到此仪表盘查看汇总统计', page: null, color: '#52c41a' }
+                  { step: '1', label: '上传测试报告', desc: '进入「测试数据收集」，拖入 Excel/Word 报告', page: 'report-checker', color: 'var(--primary-color)' },
+                  { step: '2', label: '审查报告内容', desc: '进入「报告审查」，对 docx+xlsx 配对进行完整性检查', page: 'report-review', color: 'var(--status-info)' },
+                  { step: '3', label: '查看收集结论', desc: '处理完成后回到此仪表盘查看汇总统计', page: null, color: 'var(--status-pass)' }
                 ].map((item) => (
                   <div
                     key={item.step}
@@ -322,8 +319,8 @@ function Dashboard({ onNavigate }) {
                       flex: '1 1 180px',
                       padding: '14px 16px',
                       borderRadius: 'var(--radius-md)',
-                      border: `1.5px solid ${item.color}30`,
-                      background: `${item.color}08`,
+                      border: `1.5px solid color-mix(in srgb, ${item.color} 20%, transparent)`,
+                      background: `color-mix(in srgb, ${item.color} 6%, var(--surface-color))`,
                       cursor: item.page ? 'pointer' : 'default',
                       transition: 'box-shadow 0.2s'
                     }}
@@ -444,7 +441,8 @@ function Dashboard({ onNavigate }) {
                         padding: '10px 16px',
                         borderRadius: 10,
                         border: '1px solid var(--border-color)',
-                        background: 'var(--surface-color)'
+                        background: 'var(--surface-color)',
+                        boxShadow: 'var(--elevation-flat)'
                       }}
                     >
                       <div>

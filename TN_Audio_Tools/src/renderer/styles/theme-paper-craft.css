@@ -1,0 +1,78 @@
+/* Paper Craft — Paper textures, warm off-white, ink-like text, stacked paper shadows */
+[data-design-style="paper-craft"] {
+  --primary-color: #3d3929;
+  --secondary-color: #5c5540;
+  --brand-start: #faf8f2;
+  --brand-end: #f3efe6;
+  --brand-glow: rgba(61, 57, 41, 0.06);
+  --success-color: #5b8c5a;
+  --warning-color: #b8953c;
+  --error-color: #c75b4a;
+  --text-color: #2d2a1f;
+  --text-light: #7a7566;
+  --bg-light: #f5f1e8;
+  --surface-color: #fdfbf7;
+  --surface-elevated: #fefdfa;
+  --surface-muted: #f0ece2;
+  --control-bg: #fdfbf7;
+  --border-color: #e0dbcf;
+  --border-strong: #c5bfb0;
+  --shadow-color: rgba(61, 57, 41, 0.06);
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --font-family: 'Merriweather', 'Source Serif Pro', 'Georgia', serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  /* Elevation — stacked paper layers */
+  --elevation-flat: none;
+  --elevation-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 0 rgba(0,0,0,0.04);
+  --elevation-hover: 0 2px 6px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06), 0 4px 0 -2px rgba(0,0,0,0.02);
+  --elevation-modal: 0 6px 20px rgba(0,0,0,0.1);
+  /* Texture — paper grain effect via subtle gradient */
+  --card-backdrop-filter: none;
+  --card-bg-opacity: 1;
+  --card-texture: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(240,235,220,0.2) 100%);
+  --glass-blur: none;
+  --glass-opacity: 1;
+  /* Sidebar */
+  --sidebar-bg: linear-gradient(180deg, #faf8f2 0%, #f3efe6 100%);
+  --sidebar-text-color: #3d3929;
+  --sidebar-active-bg: #e8e2d4;
+  --sidebar-hover-bg: #efe9dc;
+  /* Motion */
+  --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-duration-fast: 0.12s;
+  --transition-duration-normal: 0.2s;
+  /* Semantic */
+  --status-pass: #5b8c5a;
+  --status-warn: #b8953c;
+  --status-error: #c75b4a;
+  --status-info: #5a7a8c;
+  --accent-glow: none;
+  --content-padding: 24px;
+  --card-gap: 16px;
+  --border-radius: var(--radius-md);
+}
+
+[data-design-style="paper-craft"][data-theme="dark"] {
+  --primary-color: #c5bda0;
+  --secondary-color: #d9d0b5;
+  --brand-start: #0e0d0a;
+  --brand-end: #0a0907;
+  --text-color: #f0f0e8;
+  --text-light: #999988;
+  --bg-light: #0e0d0a;
+  --surface-color: #141310;
+  --surface-elevated: #1a1915;
+  --surface-muted: #0a0907;
+  --control-bg: #141310;
+  --border-color: #282620;
+  --border-strong: #3d3a30;
+  --elevation-card: 0 1px 3px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.02);
+  --elevation-hover: 0 3px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(255,255,255,0.03);
+  --elevation-modal: 0 8px 24px rgba(0,0,0,0.5);
+  --sidebar-bg: linear-gradient(180deg, #0e0d0a 0%, #0a0907 100%);
+  --sidebar-text-color: #cccccc;
+  --sidebar-active-bg: #222018;
+  --sidebar-hover-bg: #1a1810;
+}

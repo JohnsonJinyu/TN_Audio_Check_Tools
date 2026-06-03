@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, App as AntdApp, Badge, ConfigProvider, Layout, Menu, theme as antdTheme } from 'antd';
 import { ThemeContext } from './ThemeContext';
 import zhCN from 'antd/locale/zh_CN';
-import zhTW from 'antd/locale/zh_TW';
-import enUS from 'antd/locale/en_US';
 import {
   FileTextOutlined,
   LineChartOutlined,
@@ -12,11 +10,11 @@ import {
   HomeOutlined
 } from '@ant-design/icons';
 import './App.css';
-import './styles/theme-elevenlabs.css';
-import './styles/theme-linear.css';
-import './styles/theme-claude.css';
-import './styles/theme-vercel.css';
-import './styles/theme-apple-light.css';
+import './styles/theme-glassmorphism.css';
+import './styles/theme-neumorphism.css';
+import './styles/theme-paper-craft.css';
+import './styles/theme-soft-clean.css';
+import './styles/theme-classic-pro.css';
 import appLogo from './assets/app-logo.svg';
 import Dashboard from './pages/Dashboard';
 import TestDataCollectionPage from './pages/TestDataCollectionPage';
@@ -25,21 +23,41 @@ import SpectrumAnalyzer from './pages/SpectrumAnalyzer';
 import Settings from './pages/Settings';
 
 const { Header, Sider, Content } = Layout;
-const languageLocaleMap = {
-  'zh-cn': zhCN,
-  'zh-tw': zhTW,
-  'en-us': enUS
-};
 const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
 const fallbackAppearanceSettings = {
   theme: 'light',
-  language: 'zh-cn',
-  designStyle: 'apple-light'
+  designStyle: 'neumorphism'
+};
+
+/* Map legacy design styles to new ones for backward compatibility */
+const LEGACY_STYLE_MAP = {
+  'apple-light': 'soft-clean',
+  'elevenlabs': 'classic-pro',
+  'linear': 'glassmorphism',
+  'claude': 'paper-craft',
+  'vercel': 'classic-pro'
+};
+
+/* Each design style declares whether its sidebar is light or dark */
+const SIDEBAR_THEME_MAP = {
+  'glassmorphism': 'light',
+  'neumorphism': 'light',
+  'paper-craft': 'light',
+  'soft-clean': 'light',
+  'classic-pro': 'dark'
+};
+
+/* Theme tokens per design style — used for ConfigProvider */
+const DESIGN_STYLE_TOKENS = {
+  'glassmorphism':  { colorPrimary: '#6366f1', borderRadius: 14, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  'neumorphism':    { colorPrimary: '#6b7fa8', borderRadius: 16, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
+  'paper-craft':    { colorPrimary: '#3d3929', borderRadius: 4,  fontFamily: "'Merriweather', 'Georgia', serif" },
+  'soft-clean':     { colorPrimary: '#6366f1', borderRadius: 12, fontFamily: "'Inter', 'Plus Jakarta Sans', -apple-system, sans-serif" },
+  'classic-pro':    { colorPrimary: '#1a56db', borderRadius: 6,  fontFamily: "'Inter', 'Roboto', -apple-system, sans-serif" }
 };
 
 function appearanceEqual(left = fallbackAppearanceSettings, right = fallbackAppearanceSettings) {
   return left?.theme === right?.theme
-    && left?.language === right?.language
     && left?.designStyle === right?.designStyle;
 }
 
@@ -140,7 +158,6 @@ function App() {
           ? currentValue
           : {
             theme: nextAppearance.theme || fallbackAppearanceSettings.theme,
-            language: nextAppearance.language || fallbackAppearanceSettings.language,
             designStyle: nextAppearance.designStyle || fallbackAppearanceSettings.designStyle
           }
       ));
@@ -150,44 +167,43 @@ function App() {
     return () => window.removeEventListener(APPEARANCE_PREVIEW_EVENT, handleAppearancePreview);
   }, []);
 
-  const language = appearanceSettings?.language || fallbackAppearanceSettings.language;
   const selectedTheme = appearanceSettings?.theme || fallbackAppearanceSettings.theme;
-  const designStyle = appearanceSettings?.designStyle || fallbackAppearanceSettings.designStyle;
-  const lightSidebarStyles = ['apple-light'];
-  const sidebarTheme = lightSidebarStyles.includes(designStyle) ? 'light' : 'dark';
+  const rawDesignStyle = appearanceSettings?.designStyle || fallbackAppearanceSettings.designStyle;
+  const designStyle = LEGACY_STYLE_MAP[rawDesignStyle] || rawDesignStyle;
+
   const resolvedTheme = selectedTheme === 'auto'
     ? (prefersDarkMode ? 'dark' : 'light')
     : selectedTheme;
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.dataset.designStyle = designStyle;
-    document.documentElement.lang = language;
-  }, [language, resolvedTheme, designStyle]);
+  const sidebarTheme = SIDEBAR_THEME_MAP[designStyle] || 'dark';
 
-  const configProviderLocale = useMemo(
-    () => languageLocaleMap[language] || zhCN,
-    [language]
-  );
+  /* Keep data-design-style and data-theme in sync with React state */
+  useEffect(() => {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.dataset.designStyle = designStyle;
+      document.documentElement.dataset.theme = resolvedTheme;
+    }
+  }, [designStyle, resolvedTheme]);
 
   const themeConfig = useMemo(
     () => {
+      const tokens = DESIGN_STYLE_TOKENS[designStyle] || DESIGN_STYLE_TOKENS['neumorphism'];
       const baseToken = {
-        borderRadius: 8,
-        fontFamily: "var(--font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif)"
+        borderRadius: tokens.borderRadius,
+        fontFamily: tokens.fontFamily
       };
       if (resolvedTheme === 'dark') {
         return {
           algorithm: antdTheme.darkAlgorithm,
-          token: { ...baseToken, colorPrimary: '#a8a29e' }
+          token: { ...baseToken, colorPrimary: tokens.colorPrimary }
         };
       }
       return {
         algorithm: antdTheme.defaultAlgorithm,
-        token: { ...baseToken, colorPrimary: '#292524' }
+        token: { ...baseToken, colorPrimary: tokens.colorPrimary }
       };
     },
-    [resolvedTheme]
+    [resolvedTheme, designStyle]
   );
 
   const pageMeta = {
@@ -240,7 +256,7 @@ function App() {
     {
       key: 'spectrum',
       icon: <LineChartOutlined />,
-      label: <span>频谱分析 <Badge count="Beta" size="small" style={{ backgroundColor: '#faad14', fontSize: 10, verticalAlign: 'middle' }} /></span>,
+      label: <span>频谱分析 <Badge count="Beta" size="small" style={{ backgroundColor: 'var(--status-warn)', fontSize: 10, verticalAlign: 'middle' }} /></span>,
       title: '音频频谱分析工具 (开发中)'
     },
     {
@@ -285,7 +301,7 @@ function App() {
   ));
 
   return (
-    <ConfigProvider locale={configProviderLocale} theme={themeConfig}>
+    <ConfigProvider locale={zhCN} theme={themeConfig}>
       <ThemeContext.Provider value={resolvedTheme}>
       <AntdApp>
         <Layout style={{ height: '100vh' }}>

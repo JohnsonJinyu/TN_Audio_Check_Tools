@@ -177,6 +177,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 600,
     show: !shouldStartHidden,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -683,5 +684,5 @@ const createMenu = () => {
     }
   ];
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  Menu.setApplicationMenu(null);
 };

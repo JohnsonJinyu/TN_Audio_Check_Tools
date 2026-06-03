@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Modal } from 'antd';
 import ReviewResultContent from '../ReviewResultContent';
+import { reportReviewModalMotionProps } from './modalMotion';
 
 export default function DetailModal(props) {
   const { open, reportName, resultData, hideCrossReportSections, onClose } = props;
@@ -8,9 +9,11 @@ export default function DetailModal(props) {
   return (
     <Modal
       title={`报告审查详情：${reportName || ''}`}
+      rootClassName="report-review-detail-modal"
+      {...reportReviewModalMotionProps}
       open={open}
       onCancel={onClose}
-      width={900}
+      width={1100}
       footer={null}
     >
       {resultData ? (

@@ -31,6 +31,8 @@ const {
 const { generateReviewReport } = require('./reportBuilder');
 const { getSettings } = require('../settingsService');
 
+const DISABLED_REVIEW_CHECK_KEYS = new Set(['engineers']);
+
 /**
  * 综合审查 Word 报告
  */
@@ -59,7 +61,7 @@ async function reviewWordReport(reportPath, reportData, options = {}) {
 
   const allResults = {};
   const summary = {
-    totalChecks: isXlsxOnly ? 9 : 17,
+    totalChecks: isXlsxOnly ? 9 : 16,
     passedChecks: 0,
     warningChecks: 0,
     reviewChecks: 0,
@@ -110,9 +112,11 @@ async function reviewWordReport(reportPath, reportData, options = {}) {
     updateSummary(summary, pollutionResult.status);
 
     // 7. 查找人员信息
-    const engineersResult = findEngineerNames(wordData, reviewFacts);
-    allResults.engineers = engineersResult;
-    updateSummary(summary, engineersResult.status);
+    if (!DISABLED_REVIEW_CHECK_KEYS.has('engineers')) {
+      const engineersResult = findEngineerNames(wordData, reviewFacts);
+      allResults.engineers = engineersResult;
+      updateSummary(summary, engineersResult.status);
+    }
 
     // 8. 检查 POLQA 配置
     const polqaResult = checkPolqaConfiguration(wordData, reviewFacts);
@@ -123,7 +127,6 @@ async function reviewWordReport(reportPath, reportData, options = {}) {
     allResults.basicInfo = metadataSkipped;
     allResults.testItemConsistency = metadataSkipped;
     allResults.namePollution = metadataSkipped;
-    allResults.engineers = { issues: [], evidence: ['xlsx格式不含人员信息'], status: 'pass' };
     allResults.polqa = metadataSkipped;
   }
 

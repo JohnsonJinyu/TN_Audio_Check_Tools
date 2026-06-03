@@ -8,6 +8,19 @@ const DIR_LABELS = {
   RX: '接收方向 (RX)',
 };
 
+function normalizeAxisNumber(value) {
+  if (!Number.isFinite(value)) return 0;
+  if (Math.abs(value) < 0.000001) return 0;
+  return Number(value.toFixed(2));
+}
+
+function formatAxisValue(value) {
+  var normalized = normalizeAxisNumber(value);
+  if (normalized === 0) return '0';
+  if (Math.abs(normalized) >= 10) return normalized.toFixed(2).replace(/\.00$/, '');
+  return normalized.toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+}
+
 /**
  * 检查数据是否单调
  * 返回 { monotonic: boolean, trend: 'up'|'down'|'flat', violations: [{index, level, value}] }
@@ -47,6 +60,7 @@ export default function MonotonicityChart({ data }) {
         var minVal = Math.min.apply(null, points.map(function(p) { return p.value; }));
         var maxVal = Math.max.apply(null, points.map(function(p) { return p.value; }));
         var padding = Math.max(1, (maxVal - minVal) * 0.2);
+        var axisDomain = [normalizeAxisNumber(minVal - padding), normalizeAxisNumber(maxVal + padding)];
 
         return (
           <div key={dir} style={{ marginBottom: 20, padding: 12, background: 'var(--surface-muted)', borderRadius: 8 }}>
@@ -58,15 +72,18 @@ export default function MonotonicityChart({ data }) {
                 fontSize: 11,
                 padding: '1px 8px',
                 borderRadius: 10,
-                background: analysis.monotonic ? '#f6ffed' : '#fff2f0',
-                color: analysis.monotonic ? '#52c41a' : '#ff4d4f',
-                border: '1px solid ' + (analysis.monotonic ? '#b7eb8f' : '#ffccc7'),
+                background: analysis.monotonic ? 'color-mix(in srgb, var(--status-pass) 8%, transparent)' : 'color-mix(in srgb, var(--status-error) 8%, transparent)',
+                color: analysis.monotonic ? 'var(--status-pass)' : 'var(--status-error)',
+                border: '1px solid ' + (analysis.monotonic ? 'color-mix(in srgb, var(--status-pass) 50%, transparent)' : 'color-mix(in srgb, var(--status-error) 50%, transparent)'),
               }}>
                 {analysis.monotonic ? 'Rating值连续' + (analysis.trend === 'up' ? '增大' : '减小') : '存在非单调点'}
               </span>
             </div>
+            <div style={{ marginBottom: 6, fontSize: 11, color: 'var(--text-light)', paddingLeft: 8 }}>
+              Rating dB
+            </div>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={points} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
+              <LineChart data={points} margin={{ top: 8, right: 24, left: 12, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
                 <XAxis
                   dataKey="level"
@@ -77,9 +94,11 @@ export default function MonotonicityChart({ data }) {
                 />
                 <YAxis
                   reversed
-                  domain={[minVal - padding, maxVal + padding]}
+                  width={72}
+                  domain={axisDomain}
                   tick={{ fontSize: 11 }}
-                  label={{ value: 'Rating dB', position: 'insideTopRight', offset: -8, style: { fontSize: 11 } }}
+                  tickFormatter={formatAxisValue}
+                  tickMargin={6}
                 />
                 <Tooltip
                   formatter={function(value, name, props) {
@@ -91,9 +110,9 @@ export default function MonotonicityChart({ data }) {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="#1677ff"
+                  stroke="var(--status-info)"
                   strokeWidth={2}
-                  dot={{ r: 4, fill: '#1677ff' }}
+                  dot={{ r: 4, fill: 'var(--status-info)' }}
                   activeDot={{ r: 6 }}
                 />
                 {analysis.violations.map(function(v, i) {
@@ -103,7 +122,7 @@ export default function MonotonicityChart({ data }) {
                       x={v.level}
                       y={v.value}
                       r={5}
-                      fill="#ff4d4f"
+                      fill="var(--status-error)"
                       stroke="#fff"
                       strokeWidth={2}
                     />
@@ -116,14 +135,14 @@ export default function MonotonicityChart({ data }) {
               {points.length < 7 ? '（注意：标准测试应覆盖8个等级 MAX ~ MAX-7(MIN)，部分等级数据缺失）' : ''}
             </div>
             {analysis.violations.length > 0 && (
-              <div style={{ marginTop: 4, fontSize: 11, color: '#ff4d4f' }}>
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--status-error)' }}>
                 异常点: {analysis.violations.map(function(v) {
                   return v.level + ' (' + (v.diff > 0 ? '+' : '') + v.diff.toFixed(2) + 'dB)';
                 }).join(', ')}
               </div>
             )}
             {analysis.monotonic && (
-              <div style={{ marginTop: 4, fontSize: 11, color: '#52c41a' }}>
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--status-pass)' }}>
                 {analysis.trend === 'up'
                   ? 'Rating 值随等级单调增大，表示实际响度随 MAX → MIN 逐步减小，趋势正常。'
                   : 'Rating 值随等级单调减小，表示实际响度随 MAX → MIN 逐步增大，趋势正常。'}

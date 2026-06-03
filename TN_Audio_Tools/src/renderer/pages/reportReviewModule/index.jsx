@@ -4,25 +4,27 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import { clearWordReviewHistory, readWordReviewHistory, recordWordReviewResult } from '../../modules/reportReview/storage';
 import { reviewAreas } from './constants';
 import { createReviewHistoryColumns } from './reviewHistoryColumns';
-import { buildReviewDigest, getReviewSectionsByStatus, reviewStatusColor, reviewStatusText } from './reviewSummary';
+import { buildReviewDigest, getReviewSectionsByStatusMap, reviewStatusColor, reviewStatusText } from './reviewSummary';
 import { normalizeReportPaths, getReportName, getFileBaseName, isDocFile, getProgressLabel, detectFilePairs } from './utils';
 import DetailModal from './components/DetailModal';
 import StatusDetailModal from './components/StatusDetailModal';
 import ReviewAreaModal from './components/ReviewAreaModal';
 import CrossReportPanel from './components/CrossReportPanel';
-import { useTheme } from '../../ThemeContext';
 import '../../styles/pages.css';
 
 export default function ReportReviewPage() {
   const { message, modal } = AntdApp.useApp();
-  const isDarkTheme = useTheme() === 'dark';
-  const reviewDropzoneBaseColor = isDarkTheme ? '#221d38' : '#faf8ff';
-  const reviewDropzoneHoverColor = isDarkTheme ? '#2a2245' : '#f3eeff';
-  const reviewDropzoneTitleColor = isDarkTheme ? '#f4f0ff' : '#22075e';
-  const reviewDropzoneTextColor = isDarkTheme ? '#c3b8e4' : '#8c8c8c';
-  const reviewSelectionPanelColor = isDarkTheme
-    ? { backgroundColor: '#221d38', border: '1px solid #4a3a72', textColor: '#dbd4f7', accentColor: '#b37feb', metaColor: '#c3b8e4' }
-    : { backgroundColor: '#f9f0ff', border: '1px solid #d3adf7', textColor: '#531dab', accentColor: '#722ed1', metaColor: '#4b3d6e' };
+  const reviewDropzoneBaseColor = 'var(--surface-muted)';
+  const reviewDropzoneHoverColor = 'var(--surface-elevated)';
+  const reviewDropzoneTitleColor = 'var(--text-color)';
+  const reviewDropzoneTextColor = 'var(--text-light)';
+  const reviewSelectionPanelColor = {
+    backgroundColor: 'var(--surface-muted)',
+    border: '1px solid var(--primary-color)',
+    textColor: 'var(--text-color)',
+    accentColor: 'var(--primary-color)',
+    metaColor: 'var(--text-light)'
+  };
   const [wordReviewHistory, setWordReviewHistory] = useState(() => readWordReviewHistory() || []);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [selectedReportPaths, setSelectedReportPaths] = useState([]);
@@ -111,12 +113,15 @@ export default function ReportReviewPage() {
   };
 
   const filteredStatusSections = useMemo(() => {
-    if (!selectedStatusDetail?.record?.result || !selectedStatusDetail?.status) {
+    const resultData = selectedStatusDetail?.record?.result;
+    const status = selectedStatusDetail?.status;
+
+    if (!resultData || !status) {
       return [];
     }
 
-    return getReviewSectionsByStatus(selectedStatusDetail.record.result, selectedStatusDetail.status);
-  }, [selectedStatusDetail]);
+    return (getReviewSectionsByStatusMap(resultData)[status] || []);
+  }, [selectedStatusDetail?.record?.result, selectedStatusDetail?.status]);
 
   const handleReportSelection = (filePaths) => {
     const nextFilePaths = normalizeReportPaths(filePaths);
@@ -299,8 +304,8 @@ export default function ReportReviewPage() {
               <div>{`成功 ${successCount} 项，失败 ${failedCount} 项。失败项如下：`}</div>
               <div style={{ maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
                 {failedReports.map((item) => (
-                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #cf1322 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, #cf1322 28%, var(--border-color))' }}>
-                    <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
+                  <div key={item.reportPath} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--status-error) 10%, var(--surface-color))', border: '1px solid color-mix(in srgb, var(--status-error) 28%, var(--border-color))' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--status-error)', marginBottom: 4 }}>{getReportName(item.reportPath)}</div>
                     <div style={{ color: 'var(--text-light)', fontSize: 12, marginBottom: 4 }}>{typeof item.reportPath === 'string' ? item.reportPath : ''}</div>
                     <div style={{ color: 'var(--text-color)' }}>{item.message}</div>
                   </div>
@@ -328,7 +333,7 @@ export default function ReportReviewPage() {
         <Col xs={24}>
           <Card
             className="report-checker-card report-review-main-card"
-            style={{ borderColor: '#d3adf7' }}
+            style={{ borderColor: 'var(--primary-color)' }}
             styles={{ body: { padding: '10px 24px' } }}
           >
             <Row gutter={[24, 8]} align="middle" justify="center">
@@ -355,7 +360,7 @@ export default function ReportReviewPage() {
                       }
                     }}
                     style={{
-                      border: '2px dashed #722ed1',
+                      border: '2px dashed var(--primary-color)',
                       borderRadius: 16,
                       padding: '28px 28px',
                       textAlign: 'center',
@@ -370,10 +375,10 @@ export default function ReportReviewPage() {
                       userSelect: 'none'
                     }}
                     onMouseEnter={(event) => {
-                      event.currentTarget.style.borderColor = '#9254de';
+                      event.currentTarget.style.borderColor = 'var(--secondary-color)';
                     }}
                     onMouseLeave={(event) => {
-                      event.currentTarget.style.borderColor = '#722ed1';
+                      event.currentTarget.style.borderColor = 'var(--primary-color)';
                     }}
                   >
                     <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
@@ -486,14 +491,14 @@ export default function ReportReviewPage() {
                           <Progress
                             percent={batchProgress.total > 0 ? Math.round((batchProgress.completed / batchProgress.total) * 100) : 0}
                             status={reviewLoading ? 'active' : 'normal'}
-                            strokeColor="#1677ff"
+                            strokeColor="var(--primary-color)"
                           />
                           <div style={{ display: 'flex', gap: 16, color: reviewSelectionPanelColor.metaColor, fontSize: 12 }}>
                             <span>成功 {batchProgress.successCount}</span>
                             <span>失败 {batchProgress.failedCount}</span>
                           </div>
                           {reviewProgress && reviewProgress.totalSteps > 0 && (
-                            <div style={{ marginTop: 10, padding: 8, background: 'rgba(0,0,0,0.03)', borderRadius: 6 }}>
+                            <div style={{ marginTop: 10, padding: 8, background: 'var(--surface-muted)', borderRadius: 6 }}>
                               <div style={{ fontSize: 11, color: reviewSelectionPanelColor.metaColor, marginBottom: 4 }}>
                                 当前组进度：第 {reviewProgress.stepIndex}/{reviewProgress.totalSteps} 步 · {reviewProgress.stepLabel}
                               </div>
@@ -592,7 +597,14 @@ export default function ReportReviewPage() {
             ) : null}
           >
             {safeWordReviewHistory.length > 0 ? (
-              <Table columns={historyColumns} dataSource={safeWordReviewHistory} rowKey="id" pagination={{ pageSize: 6 }} scroll={{ x: 960 }} />
+              <Table
+                className="report-review-history-table"
+                columns={historyColumns}
+                dataSource={safeWordReviewHistory}
+                rowKey="id"
+                pagination={{ pageSize: 6 }}
+                scroll={{ x: 960 }}
+              />
             ) : (
               <Empty description="暂无审查记录" style={{ margin: '24px 0' }} />
             )}

@@ -22,7 +22,7 @@ export default function CrossReportPanel(props) {
             className="report-checker-card"
             title="本轮批量对比概览"
             extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>{crossReportResults.checkedAt ? new Date(crossReportResults.checkedAt).toLocaleString() : ''}</span>}
-            style={{ borderColor: '#d6e4ff' }}
+            style={{ borderColor: 'var(--border-color)' }}
           >
             <div>
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -56,10 +56,10 @@ export default function CrossReportPanel(props) {
                   { title: '报告', dataIndex: 'name', key: 'name', ellipsis: true, width: 180 },
                   { title: '网络', dataIndex: 'network', key: 'network', width: 70 },
                   { title: 'Codec', dataIndex: 'codec', key: 'codec', width: 70 },
-                  { title: '通过', dataIndex: 'passed', key: 'passed', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'pass'); }} style={{ color: '#52c41a', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span style={{ color: '#52c41a' }}>0</span>; } },
-                  { title: '警告', dataIndex: 'warning', key: 'warning', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'warning'); }} style={{ color: '#faad14', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
-                  { title: '复核', dataIndex: 'review', key: 'review', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'review'); }} style={{ color: '#1677ff', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
-                  { title: '错误', dataIndex: 'error', key: 'error', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'error'); }} style={{ color: '#f5222d', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
+                  { title: '通过', dataIndex: 'passed', key: 'passed', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'pass'); }} style={{ color: 'var(--status-pass)', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span style={{ color: 'var(--status-pass)' }}>0</span>; } },
+                  { title: '警告', dataIndex: 'warning', key: 'warning', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'warning'); }} style={{ color: 'var(--status-warn)', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
+                  { title: '复核', dataIndex: 'review', key: 'review', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'review'); }} style={{ color: 'var(--status-info)', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
+                  { title: '错误', dataIndex: 'error', key: 'error', width: 58, align: 'center', render: function(v, row) { return v > 0 ? <a onClick={function(e) { e.stopPropagation(); if (onOpenStatusDetail) onOpenStatusDetail(row.record, 'error'); }} style={{ color: 'var(--status-error)', fontWeight: 600, cursor: 'pointer' }}>{v}</a> : <span>0</span>; } },
                   { title: '总计', dataIndex: 'total', key: 'total', width: 54, align: 'center' },
                   { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: function(v) { return <Tag color={v === 'pass' ? 'success' : (v === 'error' ? 'error' : (v === 'warning' ? 'warning' : 'processing'))}>{v === 'pass' ? '通过' : (v === 'error' ? '错误' : (v === 'warning' ? '警告' : '复核'))}</Tag>; } }
                 ]}
@@ -73,7 +73,7 @@ export default function CrossReportPanel(props) {
             className="report-checker-card"
             title={`批量对比结果（跨报告） — ${crossReportResults.reportCount} 份报告`}
             extra={<span style={{ color: 'var(--text-light)', fontSize: 12 }}>{crossReportResults.checkedAt ? new Date(crossReportResults.checkedAt).toLocaleString() : ''}</span>}
-            style={{ borderColor: '#d6e4ff' }}
+            style={{ borderColor: 'var(--border-color)' }}
           >
             <CrossReportDetail reports={reports} />
           </Card>
@@ -237,19 +237,19 @@ function EvidencePanel(props) {
   var headerLines = evList.filter(function(l) { return l.indexOf(':') > -1 && l.indexOf('个') > -1 && l.indexOf('diff') === -1; });
 
   return (
-    <div style={{ marginTop: 14, padding: '14px 16px', background: checkResult?.status === 'pass' ? '#f6ffed' : (checkResult?.status === 'warning' ? '#fffbe6' : '#fff2f0'), borderRadius: 10, border: '1px solid ' + (checkResult?.status === 'pass' ? '#b7eb8f' : (checkResult?.status === 'warning' ? '#ffe58f' : '#ffa39e')) }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: checkResult?.status === 'pass' ? '#389e0d' : (checkResult?.status === 'warning' ? '#d48806' : '#cf1322') }}>
+    <div style={{ marginTop: 14, padding: '14px 16px', background: checkResult?.status === 'pass' ? 'color-mix(in srgb, var(--status-pass) 8%, var(--surface-color))' : (checkResult?.status === 'warning' ? 'color-mix(in srgb, var(--status-warn) 8%, var(--surface-color))' : 'color-mix(in srgb, var(--status-error) 8%, var(--surface-color))'), borderRadius: 10, border: '1px solid ' + (checkResult?.status === 'pass' ? 'color-mix(in srgb, var(--status-pass) 40%, var(--border-color))' : (checkResult?.status === 'warning' ? 'color-mix(in srgb, var(--status-warn) 40%, var(--border-color))' : 'color-mix(in srgb, var(--status-error) 40%, var(--border-color))')) }}>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: checkResult?.status === 'pass' ? 'var(--status-pass)' : (checkResult?.status === 'warning' ? 'var(--status-warn)' : 'var(--status-error)') }}>
         {summaryLine || (checkResult?.status === 'pass' ? '✓ 所有差异均在1dB以内' : '存在超出阈值的差异')}
       </div>
       {headerLines.length > 0 && (
-        <div style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>{headerLines.join(' | ')}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-light)', marginBottom: 8 }}>{headerLines.join(' | ')}</div>
       )}
       {pairLines.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {pairLines.map(function(line, i) {
             var isOK = line.indexOf('✓') > -1;
             return (
-              <div key={i} style={{ fontSize: 13, color: isOK ? '#389e0d' : '#cf1322', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: '3px 0' }}>
+              <div key={i} style={{ fontSize: 13, color: isOK ? 'var(--status-pass)' : 'var(--status-error)', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: '3px 0' }}>
                 {isOK ? '✓ ' : '✗ '}{line.replace(/^\s+/, '').replace(/ ✓$/, '')}
               </div>
             );

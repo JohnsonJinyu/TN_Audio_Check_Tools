@@ -106,8 +106,8 @@ function SpectrumAnalyzer() {
           <Col xs={24} md={18}>
             <Card type="inner" title="频谱图">
               <div style={{
-                backgroundColor: '#f5f5f5',
-                borderRadius: '6px',
+                backgroundColor: 'var(--surface-muted)',
+                borderRadius: 'var(--border-radius)',
                 padding: '40px',
                 textAlign: 'center',
                 height: '400px',

@@ -1,19 +1,17 @@
 const Store = require('electron-store');
 
 const THEME_OPTIONS = new Set(['auto', 'light', 'dark']);
-const LANGUAGE_OPTIONS = new Set(['zh-cn', 'zh-tw', 'en-us']);
 const AUDIO_FORMAT_OPTIONS = new Set(['mp3', 'wav', 'flac', 'aac']);
 const BITRATE_OPTIONS = new Set(['128', '192', '256', '320']);
 const SAMPLE_RATE_OPTIONS = new Set(['original', '44100', '48000', '96000']);
 const CONCURRENCY_OPTIONS = new Set([1, 2, 4, 8]);
 
-const DESIGN_STYLE_OPTIONS = new Set(['elevenlabs', 'linear', 'claude', 'vercel', 'apple-light']);
+const DESIGN_STYLE_OPTIONS = new Set(['glassmorphism', 'neumorphism', 'paper-craft', 'soft-clean', 'classic-pro', 'elevenlabs', 'linear', 'claude', 'vercel', 'apple-light']);
 
 const DEFAULT_APP_SETTINGS = Object.freeze({
   appearance: {
     theme: 'light',
-    language: 'zh-cn',
-    designStyle: 'apple-light'
+    designStyle: 'neumorphism'
   },
   system: {
     enableTray: false,
@@ -76,11 +74,6 @@ function normalizeSettings(input = {}) {
         input?.appearance?.theme,
         THEME_OPTIONS,
         DEFAULT_APP_SETTINGS.appearance.theme
-      ),
-      language: selectAllowedValue(
-        input?.appearance?.language,
-        LANGUAGE_OPTIONS,
-        DEFAULT_APP_SETTINGS.appearance.language
       ),
       designStyle: selectAllowedValue(
         input?.appearance?.designStyle,

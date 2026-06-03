@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, App as AntdApp, Button, Collapse, Descriptions, Divider, Dropdown, Form, Input, Progress, Radio, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
 import '../styles/pages.css';
 
+const designStyleLabelMap = {
+  neumorphism: '新拟态',
+  glassmorphism: '玻璃拟态',
+  'paper-craft': '纸张质感',
+  'soft-clean': '柔和简约',
+  'classic-pro': '经典专业'
+};
+
 function SettingSection({ title, description, children, extra = null }) {
   return (
     <section className="settings-section">
@@ -20,8 +28,7 @@ function SettingSection({ title, description, children, extra = null }) {
 const fallbackSettings = {
   appearance: {
     theme: 'light',
-    language: 'zh-cn',
-    designStyle: 'apple-light'
+    designStyle: 'neumorphism'
   },
   system: {
     enableTray: false,
@@ -44,11 +51,6 @@ const fallbackSettings = {
     maxImagesPerAnalysis: 12
   }
 };
-const localeMap = {
-  'zh-cn': 'zh-CN',
-  'zh-tw': 'zh-TW',
-  'en-us': 'en-US'
-};
 const APPEARANCE_PREVIEW_EVENT = 'app-settings:appearance-preview';
 
 const statusMeta = {
@@ -62,7 +64,7 @@ const statusMeta = {
   installing: { label: '安装中', color: 'processing' }
 };
 
-function formatDateTime(value, language = 'zh-cn') {
+function formatDateTime(value) {
   if (!value) {
     return '暂无';
   }
@@ -72,7 +74,7 @@ function formatDateTime(value, language = 'zh-cn') {
     return '暂无';
   }
 
-  return date.toLocaleString(localeMap[language] || 'zh-CN', { hour12: false });
+  return date.toLocaleString('zh-CN', { hour12: false });
 }
 
 function normalizeSettings(settings = fallbackSettings) {
@@ -91,7 +93,6 @@ function emitAppearancePreview(appearance) {
   window.dispatchEvent(new CustomEvent(APPEARANCE_PREVIEW_EVENT, {
     detail: {
       theme: appearance.theme || fallbackSettings.appearance.theme,
-      language: appearance.language || fallbackSettings.appearance.language,
       designStyle: appearance.designStyle || fallbackSettings.appearance.designStyle
     }
   }));
@@ -119,6 +120,7 @@ function Settings() {
   const skipNextAutoSaveRef = useRef(false);
   const latestDraftSettingsRef = useRef(normalizeSettings(fallbackSettings));
   const latestAppSettingsRef = useRef(normalizeSettings(fallbackSettings));
+  const persistSeqRef = useRef(0);
 
   const flushPendingSettings = () => {
     if (!hasImmediateSettingsBridge || !autoSaveTimerRef.current) {
@@ -221,6 +223,11 @@ function Settings() {
 
   useEffect(() => {
     const nextSettings = normalizeSettings(appSettings || fallbackSettings);
+    /* Skip if form already holds identical values — prevents Radio.Button flicker */
+    const currentFormSettings = normalizeSettings(form.getFieldsValue(true));
+    if (JSON.stringify(currentFormSettings) === JSON.stringify(nextSettings)) {
+      return;
+    }
     isHydratingRef.current = true;
     form.setFieldsValue(nextSettings);
     setDraftSettings(nextSettings);
@@ -243,7 +250,6 @@ function Settings() {
     && !updateState?.unsupported
   );
   const effectiveSettings = normalizeSettings(appSettings || fallbackSettings);
-  const selectedLanguage = draftSettings?.appearance?.language || effectiveSettings.appearance.language;
   const trayEnabled = Boolean(draftSettings?.system?.enableTray);
 
   const releaseNotes = useMemo(() => {
@@ -260,19 +266,28 @@ function Settings() {
       return;
     }
 
+    const seq = ++persistSeqRef.current;
     setSaving(true);
     try {
       const savedSettings = await electronApi.settings.save(nextSettings);
+      /* Ignore stale results from superseded save calls */
+      if (seq !== persistSeqRef.current) {
+        return;
+      }
       const normalized = normalizeSettings(savedSettings);
-      form.setFieldsValue(normalized);
       setAppSettings(normalized);
       setDraftSettings(normalized);
       setAutoSaveMessage(successText);
     } catch (error) {
+      if (seq !== persistSeqRef.current) {
+        return;
+      }
       setAutoSaveMessage(error?.message || '自动保存失败');
       message.error(error?.message || '保存设置失败');
     } finally {
-      setSaving(false);
+      if (seq === persistSeqRef.current) {
+        setSaving(false);
+      }
     }
   };
 
@@ -519,26 +534,15 @@ function Settings() {
                   />
                 </Form.Item>
               </div>
-              <div className="settings-grid__cell">
-                <Form.Item label="语言" name={['appearance', 'language']}>
-                  <Select
-                    options={[
-                      { label: '简体中文', value: 'zh-cn' },
-                      { label: '繁體中文', value: 'zh-tw' },
-                      { label: 'English', value: 'en-us' }
-                    ]}
-                  />
-                </Form.Item>
-              </div>
             </div>
 
             <Form.Item label="设计风格" name={['appearance', 'designStyle']}>
               <Radio.Group optionType="button" buttonStyle="solid">
-                <Radio.Button value="apple-light">Apple Light</Radio.Button>
-                <Radio.Button value="elevenlabs">ElevenLabs</Radio.Button>
-                <Radio.Button value="linear">Linear</Radio.Button>
-                <Radio.Button value="claude">Claude</Radio.Button>
-                <Radio.Button value="vercel">Vercel</Radio.Button>
+                <Radio.Button value="neumorphism">新拟态</Radio.Button>
+                <Radio.Button value="glassmorphism">玻璃拟态</Radio.Button>
+                <Radio.Button value="paper-craft">纸张质感</Radio.Button>
+                <Radio.Button value="soft-clean">柔和简约</Radio.Button>
+                <Radio.Button value="classic-pro">经典专业</Radio.Button>
               </Radio.Group>
             </Form.Item>
 
@@ -756,9 +760,9 @@ function Settings() {
               ) : null}
 
               <Descriptions size="small" column={3} bordered style={{ marginTop: 16 }}>
-                <Descriptions.Item label="最近检查">{formatDateTime(updateState?.lastCheckedAt, selectedLanguage)}</Descriptions.Item>
+                <Descriptions.Item label="最近检查">{formatDateTime(updateState?.lastCheckedAt)}</Descriptions.Item>
                 <Descriptions.Item label="目标版本">{updateState?.latestVersion ? `v${updateState.latestVersion}` : '暂无'}</Descriptions.Item>
-                <Descriptions.Item label="最近下载">{formatDateTime(updateState?.lastDownloadedAt, selectedLanguage)}</Descriptions.Item>
+                <Descriptions.Item label="最近下载">{formatDateTime(updateState?.lastDownloadedAt)}</Descriptions.Item>
               </Descriptions>
 
               {currentStatus === 'downloading' ? (
@@ -820,7 +824,7 @@ function Settings() {
             <Typography.Text type="secondary">
               {autoSaveMessage.includes('失败') ? autoSaveMessage : ''}
               &ensp;{effectiveSettings.appearance.theme === 'auto' ? '主题：跟随系统' : `主题：${effectiveSettings.appearance.theme}`}
-              &ensp;·&ensp;设计风格：{effectiveSettings.appearance.designStyle || 'elevenlabs'}
+              &ensp;·&ensp;设计风格：{designStyleLabelMap[effectiveSettings.appearance.designStyle] || '新拟态'}
               &ensp;·&ensp;并发：{effectiveSettings.files.maxConcurrentTasks}
             </Typography.Text>
           </div>
