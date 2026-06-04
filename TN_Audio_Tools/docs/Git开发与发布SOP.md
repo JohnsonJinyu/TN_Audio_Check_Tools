@@ -230,15 +230,20 @@ npm run release:gitee-sync
 
 ### 2. `origin` 以 Gitee 为主，GitHub 为镜像
 
-当前仓库的 `origin` 配置：
+当前仓库的 `origin` 配置（适配公司网络限制）：
 
-- **fetch/pull 来源**：Gitee（国内访问更快）
-- **push 目标**：同时推送到 Gitee 和 GitHub（双 push URL）
+- **fetch/pull 来源**：Gitee HTTPS（公司网络下 SSH 22 端口不通）
+- **push 目标**：同时推送到 Gitee（HTTPS）和 GitHub（SSH）
+
+| 远端 | 协议 | 原因 |
+|------|------|------|
+| Gitee | HTTPS | 公司网络 SSH 22 端口被屏蔽 |
+| GitHub | SSH | 公司网络 HTTPS 443 端口被屏蔽 |
 
 这意味着：
 
 - `git pull` / `git fetch` 默认从 Gitee 拉取
-- `git push origin master` 会同时推到 Gitee 和 GitHub
+- `git push origin <branch>` 会同时推到 Gitee 和 GitHub
 - 新同事 clone 仓库时默认从 Gitee clone
 
 如果 Gitee 不可用，可以临时从 GitHub 拉取：
@@ -250,13 +255,13 @@ git pull git@github.com:JohnsonJinyu/TN_Audio_Check_Tools.git <branch>
 如果已经用 GitHub clone 了仓库，需要更新 remote：
 
 ```bash
-git remote set-url origin git@gitee.com:lingyu_mayun/TN_Audio_Check_Tools.git
+git remote set-url origin https://gitee.com/lingyu_mayun/TN_Audio_Check_Tools.git
 ```
 
 双 push 时如果一侧失败，单独重试：
 
 ```bash
-git push git@gitee.com:lingyu_mayun/TN_Audio_Check_Tools.git <branch>
+git push https://gitee.com/lingyu_mayun/TN_Audio_Check_Tools.git <branch>
 git push git@github.com:JohnsonJinyu/TN_Audio_Check_Tools.git <branch>
 ```
 
