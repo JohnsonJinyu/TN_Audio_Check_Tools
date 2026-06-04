@@ -6,7 +6,7 @@
   "homepage": "./",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JohnsonJinyu/TN_Audio_Check_Tools.git"
+    "url": "https://gitee.com/lingyu_mayun/TN_Audio_Check_Tools.git"
   },
   "scripts": {
     "dev": "node scripts/dev/dev-runner.js",
@@ -15,11 +15,12 @@
     "electron-dev": "electron .",
     "electron-build": "npm run react-build && electron-builder",
     "release:preflight": "node scripts/release/release-preflight.js",
+    "release:gitee-sync": "node scripts/release/sync-to-gitee.js",
     "diag:review": "node scripts/diagnostics/test_review.js",
     "diag:review:full": "node scripts/diagnostics/test_full_review.js",
     "diag:3gpp": "node scripts/diagnostics/analyze-3gpp-corpus.js",
     "diag:3gpp:summary": "node scripts/diagnostics/run-3gpp-regression.js",
-    "release": "npm run release:preflight && npm run react-build && electron-builder --publish always",
+    "release": "npm run release:preflight && npm run react-build && electron-builder --publish always && npm run release:gitee-sync",
     "start": "npm run dev",
     "build": "npm run electron-build",
     "eject": "react-scripts eject"

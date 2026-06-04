@@ -1,187 +1,169 @@
 # TN Audio Toolkit
 
-面向音频测试场景的数据收集、报告审查与频谱分析工具，基于 Electron + React + Node.js 构建。
+专业音频测试报告 AI 检查填写工具 —— 面向 ACQUA 6.0 测试系统的桌面端自动化解决方案。
 
-## 当前进展
+## 简介
 
-- 当前版本：1.1.3
-- 已落地：测试数据收集、报告审查、设置持久化、托盘行为、安装版在线更新
-- 本次新增：应用内更新镜像下载、下载失败自动回退到浏览器镜像下载
-- 已验证：`npm run build` 可正常生成 Windows 安装包与便携版
-- 持续建设中：频谱分析、批处理、音频转换等模块仍需继续完善业务能力
+TN Audio Toolkit 是一款 Electron 桌面应用，专为音频测试工程师设计，用于自动化处理 ACQUA 6.0 生成的音频测试报告。核心能力包括：
 
-## 功能模块
+- **数据提取**：从结构化 Excel 测试报告中自动提取测量数据
+- **自动填表**：将提取数据写入 Voice Tuning Checklist 模板
+- **报告审查**：对 Word 测试报告进行 17 项文档完整性检查
+- **AI 图表分析**：通过多模态 LLM 对频响/响度曲线进行智能分析
+- **跨报告一致性校验**：自动检测不同网络/编解码器间的数据一致性
 
-### 1. 🎵 仪表盘 (Dashboard)
-- 应用首页
-- 快速统计信息
-- 最近使用记录
+当前支持终端模式：手机 (HA)、免提 (HH/HF)、耳机 (HE/HS)、电气接口 (EI)。
 
-### 2. 📋 测试数据收集 (Report Checker)
-- 导入测试报告、checklist 和规则文件
-- 执行测试数据收集并生成结论
-- 展示处理结果与输出文件
+## 功能概览
 
-### 3. 🔎 报告审查 (Report Review)
-- 汇总文档完整性与曲线章节审查范围
-- 查看最近处理记录
-- 快速打开输出目录
+### 仪表盘
+- 审查统计（总数、通过率、分类分布）
+- 快捷入口卡片
+- 最近审查动态
 
-### 4. 📊 频谱分析 (Spectrum Analyzer)
-- 实时频谱分析
-- 多种分析类型支持
-- FFT、小波变换等算法
-- 详细的分析参数配置
-- 批量转换支持
+### 测试数据收集
+- 拖拽上传 ACQUA 测试报告（.xlsx / .xls / .doc / .docx）
+- 上传 Voice Tuning Checklist 模板
+- 自动识别终端模式并匹配规则配置
+- 级联参数选择（接口 → 网络 → 编解码器 → 码率）
+- 批量处理与实时进度追踪
+- 结论输出：Excel 覆盖率、Word 审查结果、跨报告一致性
 
-### 6. ⚙️ 批量处理 (Batch Processor)
-- 批量格式转换
-- 批量报告检查
-- 批量频谱分析
-- 多线程处理
+### 报告审查
+- 成对报告审查（.docx + .xlsx）：17 项检查
+- 单文档审查（.doc / .docx）：8 项文档结构检查
+- 检查维度：文档完整性、曲线章节定位、POLQA 配置、时序、元数据、内容一致性
+- AI 图表分析：频响曲线与响度曲线的趋势一致性、单调性、数值交叉验证
+- 审查历史记录与详情查看
 
-### 7. 🔧 设置 (Settings)
-- 应用外观配置
-- 文件和音频默认设置
-- 系统偏好配置
+### 频谱分析（开发中）
+- FFT / 小波 / 傅里叶分析框架（界面已预留）
+
+### 设置
+- 外观：自动/亮色/暗色主题，5 种设计风格（新拟物、玻璃拟态、纸张质感、柔和简约、经典专业）
+- 系统托盘行为、默认输出目录、并发任务数
+- LLM API 配置（OpenAI 兼容接口）与连通性测试
+- 版本更新检测与下载
 
 ## 技术栈
 
-- **前端框架**: React 18.2.0
-- **UI 组件库**: Ant Design 5.11.2
-- **桌面应用**: Electron 27.0.0
-- **构建工具**: Electron Builder
-- **样式**: CSS 自定义主题
-- **包管理**: npm
+| 技术 | 用途 |
+|------|------|
+| Electron 27 | 桌面应用壳 |
+| React 18 + Ant Design 5 | 前端 UI |
+| electron-builder | 打包与发布（NSIS 安装包 + 便携版） |
+| electron-store | 本地设置持久化 |
+| exceljs / xlsx | Excel 文件读写 |
+| mammoth / word-extractor | Word 文档解析 |
+| adm-zip / jszip | 直接操作 xlsx zip 结构 |
+| recharts | 数据可视化 |
+| axios | HTTP 客户端（LLM API、更新检查） |
+| electron-updater | 应用内自动更新 |
+
+## 快速开始
+
+### 环境要求
+
+- Node.js 18+
+- npm 9+
+- Windows 10/11（当前仅支持 Windows 平台）
+
+### 开发运行
+
+```bash
+# 克隆仓库（国内推荐 Gitee）
+git clone git@gitee.com:lingyu_mayun/TN_Audio_Check_Tools.git
+cd TN_Audio_Check_Tools/TN_Audio_Tools
+
+# 安装依赖
+npm install
+
+# 启动开发环境（React 开发服务器 + Electron）
+npm start
+```
+
+### 构建
+
+```bash
+# 构建可分发的安装包
+npm run build
+
+# 正式发布（含前置检查 + GitHub Release 发布 + Gitee 同步）
+npm run release
+```
 
 ## 项目结构
 
 ```
-.
-├── public/                 # 静态资源
-│   └── index.html         # HTML 入口
+TN_Audio_Tools/
 ├── src/
-│   ├── main/              # Electron 主进程
-│   │   ├── main.js        # 主应用文件
-│   │   └── preload.js     # 预加载脚本
-│   ├── renderer/          # React 前端应用
-│   │   ├── App.jsx        # 主应用组件
-│   │   ├── App.css        # 应用样式
-│   │   ├── index.jsx      # 应用入口
-│   │   ├── index.css      # 全局样式
-│   │   ├── pages/         # 页面组件
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── TestDataCollectionPage.jsx
-│   │   │   ├── ReportReview.jsx
-│   │   │   ├── SpectrumAnalyzer.jsx
-│   │   │   └── Settings.jsx
-│   │   └── styles/        # 样式文件
-│   │       └── pages.css
-│   └── utils/             # 工具函数
-├── package.json           # 项目配置
-└── .gitignore            # Git 忽略文件
+│   ├── main/                          # Electron 主进程
+│   │   ├── main.js                    # 窗口管理、IPC、菜单、托盘
+│   │   ├── preload.js                 # contextBridge 安全暴露 API
+│   │   └── services/
+│   │       ├── testDataExtraction/    # 数据提取管道（规则→解析→提取→填表）
+│   │       ├── reportReview/          # 报告审查管道（17项检查 + AI图表）
+│   │       ├── updater/               # 自动更新服务
+│   │       └── settingsService.js     # 设置持久化
+│   └── renderer/                      # React 渲染进程
+│       ├── App.jsx                    # 根组件（路由、主题、侧边栏）
+│       ├── pages/
+│       │   ├── Dashboard.jsx          # 仪表盘
+│       │   ├── TestDataCollectionPage.jsx  # 测试数据收集
+│       │   ├── reportReviewModule/    # 报告审查
+│       │   ├── SpectrumAnalyzer.jsx   # 频谱分析（开发中）
+│       │   └── Settings.jsx           # 设置
+│       ├── modules/testDataExtraction/config/  # 规则文件与 Checklist 模板
+│       └── styles/                    # 主题 CSS + 设计风格定义
+├── scripts/
+│   ├── release/                       # 发布脚本
+│   ├── diagnostics/                   # 诊断工具
+│   └── dev/                           # 开发启动器
+├── docs/                              # 项目文档
+├── build/                             # React 构建输出
+├── dist/                              # Electron 打包输出
+├── package.json
+└── update-manifest.json               # 远程版本清单（旧客户端兼容）
 ```
 
-## 安装和运行
+## 文档
 
-### 环境要求
-- Node.js 14.0.0 或更高版本
-- npm 6.0.0 或更高版本
+完整文档见 [docs/](docs/) 目录：
 
-### 安装依赖
+| 文档 | 说明 |
+|------|------|
+| [音频测试报告全局解决方案](docs/音频测试报告全局解决方案.md) | 产品愿景、架构思路、迭代历史 |
+| [数据提取系统架构说明](docs/数据提取系统架构说明.md) | 6层数据管道技术详设 |
+| [报告审查说明与开发记录](docs/模块开发记录/报告审查说明与开发记录.md) | 审查功能交互流程与开发迭代 |
+| [Git 开发与发布 SOP](docs/Git开发与发布SOP.md) | 分支策略、开发流程、发布步骤 |
+| [AI 设计规范开发指南](docs/AI设计规范开发指南.md) | 多风格设计系统配置指南 |
 
-```bash
-npm install
-```
+## 协作方式
 
-### 开发模式
+### 仓库架构
 
-```bash
-npm run dev
-```
+本项目采用 **Gitee 主仓 + GitHub 镜像** 双仓库架构：
 
-此命令会同时启动 React 开发服务器和 Electron 应用。
+- **Gitee**（主仓）：团队克隆、日常拉取、Release 下载
+- **GitHub**（镜像）：个人开发、备份
 
-### 构建生产版本
+`git push origin <branch>` 会同时推送到两个远端。
 
-```bash
-npm run build
-```
+### 分支策略
 
-构建完成后，可执行文件位于 `dist/` 目录。
+- `master`：稳定发布基线
+- `dev`：日常开发主线
+- `feature/*`：功能分支（从 `dev` 创建，完成后合回 `dev`）
 
-## 使用说明
+### 发布流程
 
-### 键盘快捷键
-- `Ctrl+I`: 快速导入文件
-- `Ctrl+S`: 保存设置
-- `Ctrl+Q` / `Ctrl+W`: 退出应用
+1. 功能完成合回 `dev`
+2. `dev` 合并到 `master`
+3. 更新 `package.json`、`update-manifest.json` 版本号
+4. 执行 `npm run release`（自动构建 + GitHub Release + Gitee Release 同步）
 
-### 文件支持
-
-**音频格式**
-- MP3, WAV, FLAC, AAC, OGG, M4A 等
-
-**报告格式**
-- Excel (.xlsx, .xls)
-- CSV
-- PDF
-
-## 开发指南
-
-### 添加新的页面
-
-1. 在 `src/renderer/pages/` 中创建新组件
-2. 在 `App.jsx` 中导入并注册路由
-3. 在菜单中添加对应的菜单项
-
-### 样式定制
-
-所有样式均使用 CSS 变量定义，可在 `src/renderer/App.css` 中修改：
-
-```css
-:root {
-  --primary-color: #1890ff;
-  --secondary-color: #722ed1;
-  /* ... */
-}
-```
-
-### IPC 通信
-
-在 Electron 主进程中定义 IPC 处理程序：
-
-```javascript
-ipcMain.handle('channel-name', async (event, data) => {
-  // 处理业务逻辑
-  return result;
-});
-```
-
-在渲染进程中调用：
-
-```javascript
-window.electron.ipcRenderer.invoke('channel-name', data);
-```
-
-## 常见问题
-
-### 应用无法启动
-- 检查 Node.js 版本是否符合要求
-- 尝试删除 `node_modules` 目录重新安装依赖
-
-### 模块未找到错误
-- 确保 `npm install` 已成功执行
-- 清除 npm 缓存: `npm cache clean --force`
+详见 [Git 开发与发布 SOP](docs/Git开发与发布SOP.md)。
 
 ## 许可证
 
-MIT
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 联系方式
-
-开发者: JohnsonJinyu
+内部工具，未开放外部使用许可。

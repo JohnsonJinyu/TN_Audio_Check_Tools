@@ -364,3 +364,7 @@ FodyWeavers.xsd
 /TN_Audio_Tools/dist-admin
 /TN_Audio_Tools/dist-portable
 /TN_Audio_Tools/docs/*_20*.xlsx
+
+# Keep scripts/release directory (not a build output)
+!TN_Audio_Tools/scripts/release/
+!TN_Audio_Tools/scripts/release/*

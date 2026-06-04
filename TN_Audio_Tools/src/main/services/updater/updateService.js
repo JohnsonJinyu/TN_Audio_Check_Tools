@@ -7,16 +7,23 @@ const axios = require('axios');
 const log = require('electron-log');
 
 const UPDATE_PROVIDER = Object.freeze({
-  owner: 'JohnsonJinyu',
+  github: {
+    owner: 'JohnsonJinyu',
+    repo: 'TN_Audio_Check_Tools'
+  },
+  gitee: {
+    owner: 'lingyu_mayun',
+    repo: 'TN_Audio_Check_Tools'
+  },
   repo: 'TN_Audio_Check_Tools'
 });
 
 const DEFAULT_UPDATE_MANIFEST_FILE = 'update-manifest.json';
 const DEFAULT_UPDATE_MANIFEST_PATH = `TN_Audio_Tools/${DEFAULT_UPDATE_MANIFEST_FILE}`;
 const DEFAULT_MANIFEST_URLS = Object.freeze([
-  `https://gitee.com/lingyu_mayun/${UPDATE_PROVIDER.repo}/raw/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
-  `https://raw.githubusercontent.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
-  `https://cdn.jsdelivr.net/gh/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}@master/${DEFAULT_UPDATE_MANIFEST_PATH}`
+  `https://gitee.com/${UPDATE_PROVIDER.gitee.owner}/${UPDATE_PROVIDER.repo}/raw/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
+  `https://raw.githubusercontent.com/${UPDATE_PROVIDER.github.owner}/${UPDATE_PROVIDER.repo}/master/${DEFAULT_UPDATE_MANIFEST_PATH}`,
+  `https://cdn.jsdelivr.net/gh/${UPDATE_PROVIDER.github.owner}/${UPDATE_PROVIDER.repo}@master/${DEFAULT_UPDATE_MANIFEST_PATH}`
 ]);
 const DEFAULT_DOWNLOAD_MIRROR = process.env.TN_AUDIO_UPDATE_MIRROR || 'https://ghfast.top/';
 const DEFAULT_REQUEST_TIMEOUT = 8000;
@@ -94,10 +101,10 @@ function encodePathSegment(value) {
 function getRepositoryReleasePage(version) {
   const tag = getReleaseTag(version);
   if (!tag) {
-    return `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases`;
+    return `https://gitee.com/${UPDATE_PROVIDER.gitee.owner}/${UPDATE_PROVIDER.repo}/releases`;
   }
 
-  return `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/tag/${encodePathSegment(tag)}`;
+  return `https://gitee.com/${UPDATE_PROVIDER.gitee.owner}/${UPDATE_PROVIDER.repo}/releases/tag/${encodePathSegment(tag)}`;
 }
 
 function getDefaultInstallerName(version) {
@@ -116,9 +123,16 @@ function getDefaultDownloadCandidates(version, assetName) {
     return [];
   }
 
-  const githubUrl = `https://github.com/${UPDATE_PROVIDER.owner}/${UPDATE_PROVIDER.repo}/releases/download/${encodePathSegment(tag)}/${encodePathSegment(fileName)}`;
+  const giteeUrl = `https://gitee.com/${UPDATE_PROVIDER.gitee.owner}/${UPDATE_PROVIDER.repo}/releases/download/${encodePathSegment(tag)}/${encodePathSegment(fileName)}`;
+  const githubUrl = `https://github.com/${UPDATE_PROVIDER.github.owner}/${UPDATE_PROVIDER.repo}/releases/download/${encodePathSegment(tag)}/${encodePathSegment(fileName)}`;
   const mirroredUrl = buildMirrorUrl(githubUrl);
   const candidates = [];
+
+  candidates.push({
+    url: giteeUrl,
+    name: 'Gitee Release (国内推荐)',
+    channel: 'direct'
+  });
 
   if (mirroredUrl) {
     candidates.push({
@@ -131,7 +145,7 @@ function getDefaultDownloadCandidates(version, assetName) {
   candidates.push({
     url: githubUrl,
     name: 'GitHub Release',
-    channel: 'direct'
+    channel: 'fallback'
   });
 
   return candidates;

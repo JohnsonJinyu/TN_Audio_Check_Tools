@@ -135,6 +135,40 @@ function checkBuildTargets(pkg) {
   info(`Windows 构建目标: ${names.join(', ')}`);
 }
 
+function checkGiteeToken() {
+  const token = process.env.GITEE_API_TOKEN;
+  if (!token) {
+    warn('GITEE_API_TOKEN 未设置，构建后不会同步到 Gitee Release。');
+    warn('如需同步，请设置环境变量: set GITEE_API_TOKEN=your_token');
+    return;
+  }
+
+  try {
+    const https = require('https');
+    const url = `https://gitee.com/api/v5/user?access_token=${encodeURIComponent(token)}`;
+    https.get(url, { timeout: 10000 }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const user = JSON.parse(body);
+            info(`Gitee Token 有效 (用户: ${user.login || user.name || 'unknown'})。`);
+          } catch {
+            warn('Gitee Token 验证响应解析失败，继续。');
+          }
+        } else {
+          warn(`Gitee Token 验证失败 (HTTP ${res.statusCode})，同步可能不成功。`);
+        }
+      });
+    }).on('error', () => {
+      warn('无法连接 Gitee API，请检查网络。');
+    });
+  } catch (err) {
+    warn(`Gitee Token 验证异常: ${err.message}`);
+  }
+}
+
 function main() {
   info('开始执行发布前自检...');
 
@@ -145,6 +179,7 @@ function main() {
   checkGitState();
   checkVersion(pkg, owner, repo);
   checkBuildTargets(pkg);
+  checkGiteeToken();
 
   info('发布前自检通过，可以执行 npm run release。');
 }
